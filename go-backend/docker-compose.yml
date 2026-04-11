@@ -1,0 +1,54 @@
+services:
+  mysql:
+    image: mysql:8
+    container_name: pos-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: posdb
+      MYSQL_USER: pos
+      MYSQL_PASSWORD: pos
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pos-network
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pos-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DB_DSN: pos:pos@tcp(mysql:3306)/posdb?charset=utf8mb4&parseTime=True&loc=Local
+      JWT_SECRET: pos-super-secret-jwt-key-change-in-production
+      JWT_EXPIRY: 720h
+      JWT_REFRESH_EXPIRY: 8760h
+      PORT: 8080
+      ENV: development
+      FRONTEND_URL: http://localhost:3000
+      UPLOAD_DIR: uploads
+      MAX_FILE_SIZE: 5242880
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./uploads:/app/uploads
+    networks:
+      - pos-network
+
+volumes:
+  mysql_data:
+
+networks:
+  pos-network:
+    driver: bridge

@@ -1,0 +1,224 @@
+================================================================================
+REPORTS, GST, EXPENSES, AND INCENTIVES SERVICE IMPLEMENTATION - GO BACKEND
+================================================================================
+
+OVERVIEW:
+Implemented complete service and handler layers for Reports, GST, Expenses, and
+Incentives modules in Go, porting all business logic from Node.js/TypeScript.
+
+================================================================================
+FILES CREATED
+================================================================================
+
+1. REPORT SERVICE & HANDLER
+   File: internal/service/report.go (1,800+ lines)
+   File: internal/handler/reports.go (400+ lines)
+
+   Service Methods:
+   - SalesSummary() - Total revenue, orders, returns, margins
+   - TopProducts() - Top selling products by revenue
+   - PaymentMethods() - Payment breakdown by method
+   - DailyTrend() - Sales trend over time
+   - SalesByCategory() - Category-wise analysis
+   - SalesByProduct() - Detailed product sales
+   - SalesByCustomer() - Customer patterns and loyalty
+   - PurchaseSummary() - PO summary with statuses
+   - PurchaseBySupplier() - Supplier analysis
+   - OutstandingPOs() - Pending purchase orders
+   - SaleReturns() - Return orders
+   - PurchaseReturns() - Return purchases
+   - PaymentMethodReport() - Daily payment trends
+   - DebtorsLedger() - Accounts receivable with aging buckets
+   - CreditorsLedger() - Accounts payable with aging buckets
+   - OutstandingReceivable() - Customer dues
+   - ExportSalesCSV() / ExportPurchaseCSV() / ExportPaymentCSV()
+   - ExportDebtorsCSV() / ExportCreditorsCSV()
+
+   HTTP Endpoints (20+ endpoints):
+   - /api/reports/sales-summary
+   - /api/reports/top-products
+   - /api/reports/payment-methods
+   - /api/reports/daily-trend
+   - /api/reports/sales-by-category
+   - /api/reports/sales-by-product
+   - /api/reports/sales-by-customer
+   - /api/reports/purchase-summary
+   - /api/reports/purchase-by-supplier
+   - /api/reports/outstanding-pos
+   - /api/reports/sale-returns
+   - /api/reports/purchase-returns
+   - /api/reports/outstanding-receivable
+   - /api/reports/payment-method-report
+   - /api/reports/debtors-ledger
+   - /api/reports/creditors-ledger
+   - /api/reports/export/* (CSV exports)
+
+2. GST SERVICE & HANDLER
+   File: internal/service/gst.go (700+ lines)
+   File: internal/handler/gst.go (200+ lines)
+
+   GST Compliance Reports:
+   - GSTR1() - Outward supplies (B2B, B2CS, HSN summary)
+   - GSTR3B() - Monthly returns with ITC reconciliation
+   - HSNSummary() - HSN-wise sales aggregation
+   - HSNPurchaseSummary() - HSN-wise purchase aggregation
+   - TallyExport() - Tally ERP XML export
+
+   Exports:
+   - ExportGSTR1() - GSTR-1 CSV
+   - ExportGSTR3B() - GSTR-3B CSV
+   - ExportHSNSummary() - HSN sales CSV
+   - ExportHSNPurchaseSummary() - HSN purchase CSV
+
+   HTTP Endpoints (9 endpoints):
+   - /api/gst/gstr1
+   - /api/gst/gstr3b
+   - /api/gst/hsn-summary
+   - /api/gst/hsn-purchase-summary
+   - /api/gst/tally-export
+   - /api/gst/*/export (CSV variants)
+
+3. EXPENSE SERVICE & HANDLERS
+   File: internal/service/expense.go (600+ lines)
+   File: internal/handler/expenses.go (200+ lines)
+   File: internal/handler/expense_categories.go (80+ lines)
+
+   Expense Operations:
+   - Create() - Create with GST calculations
+   - Update() - Update details
+   - GetAll() - Paginated search with filters
+   - GetStats() - Today/Month/All-time stats, category breakdown, budget tracking
+   - UpdateStatus() - Status transitions (PENDING → APPROVED/REJECTED)
+   - Delete() - Soft/hard delete
+   - ExportCSV() - Detailed CSV export
+   - GenerateRecurringExpenses() - Auto-generate recurring instances
+
+   Category Management:
+   - GetAllCategories() - List with active filter
+   - CreateCategory() - New category
+   - UpdateCategory() - Update category
+   - DeleteCategory() - Delete category
+
+   HTTP Endpoints (13 endpoints):
+   - /api/expenses (GET, POST)
+   - /api/expenses/{id} (PUT, DELETE)
+   - /api/expenses/{id}/status (PATCH)
+   - /api/expenses/stats (GET)
+   - /api/expenses/export/csv (GET)
+   - /api/expenses/generate-recurring (POST)
+   - /api/expense-categories (GET, POST)
+   - /api/expense-categories/{id} (PUT, DELETE)
+
+4. INCENTIVE SERVICE & HANDLER
+   File: internal/service/incentive.go (300+ lines)
+   File: internal/handler/incentives.go (150+ lines)
+
+   Rule Management:
+   - GetRules() - List with optional outlet filter
+   - CreateRule() - Create new rule
+   - UpdateRule() - Update rule
+   - DeleteRule() - Delete rule
+
+   Payout Calculations:
+   - GetPayouts() - List payouts for period
+   - GetLeaderboard() - Ranked leaderboard
+   - Recalculate() - Recalculate all payouts for month
+
+   Supports rule types:
+   - COMMISSION - % of sales
+   - TARGET_BONUS - Fixed bonus if target met
+   - PER_TRANSACTION - Bonus per qualifying transaction
+
+   HTTP Endpoints (7 endpoints):
+   - /api/incentives/rules (GET, POST)
+   - /api/incentives/rules/{id} (PUT, DELETE)
+   - /api/incentives/payouts (GET)
+   - /api/incentives/leaderboard (GET)
+   - /api/incentives/recalculate (POST)
+
+================================================================================
+TECHNICAL DETAILS
+================================================================================
+
+Data Types & Precision:
+- decimal.Decimal for all financial calculations (no floating-point errors)
+- Proper null handling with pointer types (*string, *int, *time.Time)
+- Time zone aware date/time handling (UTC)
+
+Database Operations:
+- GORM ORM for database access
+- Efficient preloading to minimize queries
+- In-memory aggregation using maps for complex grouping
+- MySQL-compatible SQL syntax (DATE_FORMAT, IFNULL)
+- Proper filtering with date ranges and status conditions
+- Pagination support for large datasets
+
+Key Features:
+
+Reports:
+- Revenue analysis and trending
+- Customer segmentation
+- Payment method distribution
+- Aging analysis (0 days, 1-30, 31-60, 61-90, 90+)
+- CSV exports with UTF-8 BOM for Excel
+
+GST:
+- B2B vs B2CS segregation
+- CGST/SGST split (50-50 for intra-state)
+- IGST handling (inter-state)
+- HSN code grouping
+- ITC tracking and carry-forward
+- Tally XML export for ERP integration
+
+Expenses:
+- Multi-component GST (CGST, SGST, IGST)
+- Supply type tracking (INTRA_STATE, INTER_STATE)
+- Recurring automation with recurrence patterns
+- Monthly budget tracking
+- ITC eligibility marking
+- Status workflow (PENDING → APPROVED/REJECTED)
+
+Incentives:
+- Multi-tier rule support
+- Staff-specific or org-wide rules
+- Automatic payout calculation
+- Leaderboard generation
+
+================================================================================
+INTEGRATION NOTES
+================================================================================
+
+Architecture:
+- Service layer: Business logic, database operations
+- Handler layer: HTTP request/response, parameter parsing, error handling
+- Middleware: Authentication, authorization, error handling
+- Response format: Consistent JSON responses via util.SendSuccess/SendError
+
+Dependencies:
+- GORM ORM (database)
+- decimal package (decimal.Decimal)
+- Standard library (encoding/json, net/http, time)
+- Existing models (Order, Invoice, PurchaseOrder, Expense, etc.)
+
+Error Handling:
+- Returns error as second return value
+- Handlers convert errors to HTTP responses
+- Uses existing handleError() helper
+
+Middleware Integration:
+- Follows existing middleware chain pattern
+- Compatible with Authenticate() and RequireRole()
+- Proper HTTP status codes
+
+================================================================================
+READY FOR INTEGRATION
+================================================================================
+
+All files are complete and ready to be integrated into the main router.
+Business logic has been ported exactly from the Node.js implementations.
+
+Next steps:
+1. Add routes to internal/router/router.go
+2. Register services in service factory
+3. Register handlers in handler factory
+4. Test with actual database data
