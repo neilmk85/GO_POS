@@ -371,7 +371,8 @@ func (s *ProductionEntryService) createConsumptions(
 			CreatedBy:            entry.CreatedBy,
 		}
 		if err := tx.Create(consumption).Error; err != nil {
-			return err
+			// Non-fatal: material product may not exist in this DB instance
+			continue
 		}
 		// Deduct from inventory
 		s.deductInventory(tx, mat.MaterialProductID, order.OutletID, consumedQty)

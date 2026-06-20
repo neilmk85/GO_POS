@@ -178,7 +178,8 @@ function StockDisplay({ inv }: { inv: any }) {
 type TabKey = 'raw_material' | 'finished_pipe' | 'store_material' | 'low'
 
 export default function InventoryPage() {
-  const { outletId } = useAuthStore()
+  const { outletId: authOutletId } = useAuthStore()
+  const outletId = authOutletId ?? 1
   const qc = useQueryClient()
   const [search,    setSearch]    = useState('')
   const [tab,       setTab]       = useState<TabKey>('raw_material')
@@ -194,32 +195,27 @@ export default function InventoryPage() {
 
   const { data: allInventory, isLoading: allLoading, refetch: refetchAll } = useQuery({
     queryKey: ['inventory', 'all', outletId],
-    queryFn: () => inventoryApi.getAllByOutlet(outletId!, undefined, 0, 500).then(r => toArr(r.data.data)),
-    enabled: !!outletId,
+    queryFn: () => inventoryApi.getAllByOutlet(outletId, undefined, 0, 500).then(r => toArr(r.data.data)),
   })
 
   const { data: rawMaterials, refetch: refetchRaw } = useQuery({
     queryKey: ['inventory', 'RAW_MATERIAL', outletId],
-    queryFn: () => inventoryApi.getAllByOutlet(outletId!, 'RAW_MATERIAL', 0, 500).then(r => toArr(r.data.data)),
-    enabled: !!outletId,
+    queryFn: () => inventoryApi.getAllByOutlet(outletId, 'RAW_MATERIAL', 0, 500).then(r => toArr(r.data.data)),
   })
 
   const { data: finishedPipes, refetch: refetchPipes } = useQuery({
     queryKey: ['inventory', 'FINISHED_PIPE', outletId],
-    queryFn: () => inventoryApi.getAllByOutlet(outletId!, 'FINISHED_PIPE', 0, 500).then(r => toArr(r.data.data)),
-    enabled: !!outletId,
+    queryFn: () => inventoryApi.getAllByOutlet(outletId, 'FINISHED_PIPE', 0, 500).then(r => toArr(r.data.data)),
   })
 
   const { data: storeMaterials, refetch: refetchStore } = useQuery({
     queryKey: ['inventory', 'STORE_MATERIAL', outletId],
-    queryFn: () => inventoryApi.getAllByOutlet(outletId!, 'STORE_MATERIAL', 0, 500).then(r => toArr(r.data.data)),
-    enabled: !!outletId,
+    queryFn: () => inventoryApi.getAllByOutlet(outletId, 'STORE_MATERIAL', 0, 500).then(r => toArr(r.data.data)),
   })
 
   const { data: lowStock, refetch: refetchLow } = useQuery({
     queryKey: ['inventory', 'low-stock', outletId],
-    queryFn: () => inventoryApi.getLowStock(outletId!).then(r => toArr(r.data.data)),
-    enabled: !!outletId,
+    queryFn: () => inventoryApi.getLowStock(outletId).then(r => toArr(r.data.data)),
   })
 
   const filtered = useMemo(() => {

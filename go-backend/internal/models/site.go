@@ -39,7 +39,7 @@ const (
 // WorkOrder represents a sub-contracted scope of work
 type WorkOrder struct {
 	ID             int             `gorm:"primaryKey;autoIncrement" json:"id"`
-	WONumber       string          `gorm:"column:wo_number;uniqueIndex" json:"woNumber"`
+	WONumber       string          `gorm:"column:wo_number;type:varchar(191);uniqueIndex" json:"woNumber"`
 	SiteProjectID  *int            `gorm:"column:site_project_id" json:"siteProjectId"`
 	WorkPackageID  *int            `gorm:"column:work_package_id" json:"workPackageId"`
 	ContractorID   int             `gorm:"column:contractor_id" json:"contractorId"`
@@ -77,7 +77,7 @@ func (WorkOrderItem) TableName() string { return "work_order_items" }
 // WorkBill is a GST invoice raised against a WorkOrder
 type WorkBill struct {
 	ID                  int             `gorm:"primaryKey;autoIncrement" json:"id"`
-	BillNumber          string          `gorm:"column:bill_number;uniqueIndex" json:"billNumber"`
+	BillNumber          string          `gorm:"column:bill_number;size:191;uniqueIndex" json:"billNumber"`
 	WorkOrderID         int             `gorm:"column:work_order_id;index" json:"workOrderId"`
 	WONumber            string          `gorm:"column:wo_number" json:"woNumber"`
 	WOTitle             string          `gorm:"column:wo_title" json:"woTitle"`

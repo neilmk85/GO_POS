@@ -10,7 +10,11 @@ import (
 // handleError handles different error types and sends appropriate HTTP responses
 func handleError(w http.ResponseWriter, err error) {
 	if be, ok := err.(*util.BusinessException); ok {
-		util.SendError(w, be.StatusCode, be.Message)
+		code := be.StatusCode
+		if code == 0 {
+			code = http.StatusBadRequest
+		}
+		util.SendError(w, code, be.Message)
 		return
 	}
 
