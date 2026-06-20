@@ -1273,3 +1273,304 @@ func (rs *ReportService) ExportCreditorsCSV(outletId int) (string, error) {
 	return sb.String(), nil
 }
 
+
+// ─── Ledger / Trial Balance ───────────────────────────────────────────────────
+
+type LedgerAccount struct {
+	ID             string          `json:"id"`
+	Name           string          `json:"name"`
+	AccountType    string          `json:"accountType"` // "gl" | "customer" | "supplier"
+	PartyID        *int            `json:"partyId,omitempty"`
+	OpeningBalance decimal.Decimal `json:"openingBalance"`
+	Debit          decimal.Decimal `json:"debit"`
+	Credit         decimal.Decimal `json:"credit"`
+	ClosingBalance decimal.Decimal `json:"closingBalance"`
+}
+
+type LedgerSummaryResponse struct {
+	Accounts []LedgerAccount `json:"accounts"`
+}
+
+func (rs *ReportService) LedgerSummary(outletId int, from, to time.Time) (LedgerSummaryResponse, error) {
+	var res LedgerSummaryResponse
+	zero := decimal.Zero
+
+	// ── 1. Purchase accounts grouped by GST rate ──────────────────────────
+	type rateRow struct {
+		Rate   float64
+		Amount decimal.Decimal
+		GST    decimal.Decimal
+	}
+	var purchaseRows []rateRow
+	if err := rs.db.Raw(`
+		SELECT ROUND(pbi.tax_rate) as rate,
+		       SUM(pbi.line_total) as amount,
+		       SUM(pbi.line_total * pbi.tax_rate / 100) as gst
+		FROM purchase_bill_items pbi
+		JOIN purchase_bills pb ON pbi.bill_id = pb.id
+		WHERE pb.outlet_id = ? AND pb.bill_date >= ? AND pb.bill_date <= ?
+		  AND pb.status NOT IN ('CANCELLED','DRAFT')
+		GROUP BY ROUND(pbi.tax_rate)
+		ORDER BY rate`, outletId, from, to).Scan(&purchaseRows).Error; err != nil {
+		return res, err
+	}
+
+	inputGST := map[int]decimal.Decimal{}
+	for _, r := range purchaseRows {
+		rate := int(r.Rate)
+		name := fmt.Sprintf("Purchase %d%%", rate)
+		id := fmt.Sprintf("purchase-%d", rate)
+		closing := r.Amount
+		res.Accounts = append(res.Accounts, LedgerAccount{
+			ID: id, Name: name, AccountType: "gl",
+			OpeningBalance: zero, Debit: r.Amount, Credit: zero, ClosingBalance: closing,
+		})
+		inputGST[rate] = inputGST[rate].Add(r.GST)
+	}
+
+	// ── 2. Sales accounts grouped by GST rate ─────────────────────────────
+	var salesRows []rateRow
+	if err := rs.db.Raw(`
+		SELECT ROUND(ii.tax_rate) as rate,
+		       SUM(ii.line_total) as amount,
+		       SUM(ii.line_total * ii.tax_rate / 100) as gst
+		FROM invoice_items ii
+		JOIN invoices i ON ii.invoice_id = i.id
+		WHERE i.outlet_id = ? AND i.issue_date >= ? AND i.issue_date <= ?
+		  AND i.status NOT IN ('CANCELLED','DRAFT')
+		GROUP BY ROUND(ii.tax_rate)
+		ORDER BY rate`, outletId, from, to).Scan(&salesRows).Error; err != nil {
+		return res, err
+	}
+
+	outputGST := map[int]decimal.Decimal{}
+	for _, r := range salesRows {
+		rate := int(r.Rate)
+		name := fmt.Sprintf("Sale %d%%", rate)
+		id := fmt.Sprintf("sale-%d", rate)
+		closing := r.Amount.Neg()
+		res.Accounts = append(res.Accounts, LedgerAccount{
+			ID: id, Name: name, AccountType: "gl",
+			OpeningBalance: zero, Debit: zero, Credit: r.Amount, ClosingBalance: closing,
+		})
+		outputGST[rate] = outputGST[rate].Add(r.GST)
+	}
+
+	// ── 3. GST accounts (all unique rates) ───────────────────────────────
+	allRates := map[int]bool{}
+	for k := range inputGST { allRates[k] = true }
+	for k := range outputGST { allRates[k] = true }
+	for rate := range allRates {
+		inp := inputGST[rate]
+		out := outputGST[rate]
+		closing := inp.Sub(out)
+		name := fmt.Sprintf("GST %d%%", rate)
+		id := fmt.Sprintf("gst-%d", rate)
+		res.Accounts = append(res.Accounts, LedgerAccount{
+			ID: id, Name: name, AccountType: "gl",
+			OpeningBalance: zero, Debit: inp, Credit: out, ClosingBalance: closing,
+		})
+	}
+
+	// ── 4. Customer accounts (Sundry Debtors) ────────────────────────────
+	type partyRow struct {
+		ID     int
+		Name   string
+		Debit  decimal.Decimal
+		Credit decimal.Decimal
+	}
+	var custRows []partyRow
+	if err := rs.db.Raw(`
+		SELECT c.id, c.name,
+		       COALESCE(SUM(i.total_amount),0) as debit,
+		       COALESCE(SUM(i.paid_amount),0)  as credit
+		FROM customers c
+		JOIN invoices i ON i.customer_id = c.id
+		WHERE i.outlet_id = ? AND i.issue_date >= ? AND i.issue_date <= ?
+		  AND i.status NOT IN ('CANCELLED','DRAFT')
+		GROUP BY c.id, c.name
+		ORDER BY c.name`, outletId, from, to).Scan(&custRows).Error; err != nil {
+		return res, err
+	}
+	for _, r := range custRows {
+		closing := r.Debit.Sub(r.Credit)
+		pid := r.ID
+		res.Accounts = append(res.Accounts, LedgerAccount{
+			ID: fmt.Sprintf("customer-%d", r.ID), Name: strings.ToUpper(r.Name),
+			AccountType: "customer", PartyID: &pid,
+			OpeningBalance: zero, Debit: r.Debit, Credit: r.Credit, ClosingBalance: closing,
+		})
+	}
+
+	// ── 5. Supplier accounts (Sundry Creditors) ───────────────────────────
+	var suppRows []partyRow
+	if err := rs.db.Raw(`
+		SELECT s.id, s.name,
+		       COALESCE(SUM(pb.paid_amount),0)   as debit,
+		       COALESCE(SUM(pb.total_amount),0)  as credit
+		FROM suppliers s
+		JOIN purchase_bills pb ON pb.supplier_id = s.id
+		WHERE pb.outlet_id = ? AND pb.bill_date >= ? AND pb.bill_date <= ?
+		  AND pb.status NOT IN ('CANCELLED','DRAFT')
+		GROUP BY s.id, s.name
+		ORDER BY s.name`, outletId, from, to).Scan(&suppRows).Error; err != nil {
+		return res, err
+	}
+	for _, r := range suppRows {
+		closing := r.Debit.Sub(r.Credit)
+		pid := r.ID
+		res.Accounts = append(res.Accounts, LedgerAccount{
+			ID: fmt.Sprintf("supplier-%d", r.ID), Name: strings.ToUpper(r.Name),
+			AccountType: "supplier", PartyID: &pid,
+			OpeningBalance: zero, Debit: r.Debit, Credit: r.Credit, ClosingBalance: closing,
+		})
+	}
+
+	// ── 6. Expense accounts grouped by category ──────────────────────────
+	type expenseRow struct {
+		CategoryID   int
+		CategoryName string
+		Amount       decimal.Decimal
+	}
+	var expRows []expenseRow
+	if err := rs.db.Raw(`
+		SELECT ec.id as category_id, ec.name as category_name,
+		       SUM(e.total_amount) as amount
+		FROM expenses e
+		JOIN expense_categories ec ON e.expense_category_id = ec.id
+		WHERE e.outlet_id = ? AND e.expense_date >= ? AND e.expense_date <= ?
+		  AND e.status NOT IN ('REJECTED')
+		GROUP BY ec.id, ec.name
+		ORDER BY ec.name`, outletId, from, to).Scan(&expRows).Error; err == nil {
+		for _, r := range expRows {
+			res.Accounts = append(res.Accounts, LedgerAccount{
+				ID:   fmt.Sprintf("expense-%d", r.CategoryID),
+				Name: "Expense — " + r.CategoryName,
+				AccountType:    "gl",
+				OpeningBalance: zero,
+				Debit:          r.Amount,
+				Credit:         zero,
+				ClosingBalance: r.Amount,
+			})
+		}
+	}
+
+	return res, nil
+}
+
+// ─── Ledger Detail (single party) ─────────────────────────────────────────────
+
+type LedgerEntry struct {
+	Date        string          `json:"date"`
+	Particulars string          `json:"particulars"`
+	VoucherType string          `json:"voucherType"`
+	VoucherNo   string          `json:"voucherNo"`
+	Debit       decimal.Decimal `json:"debit"`
+	Credit      decimal.Decimal `json:"credit"`
+	Balance     decimal.Decimal `json:"balance"`
+}
+
+type LedgerDetailResponse struct {
+	PartyName      string          `json:"partyName"`
+	PartyType      string          `json:"partyType"`
+	OpeningBalance decimal.Decimal `json:"openingBalance"`
+	ClosingBalance decimal.Decimal `json:"closingBalance"`
+	Entries        []LedgerEntry   `json:"entries"`
+}
+
+func (rs *ReportService) LedgerDetail(outletId int, partyType string, partyId int, from, to time.Time) (LedgerDetailResponse, error) {
+	var res LedgerDetailResponse
+	zero := decimal.Zero
+	running := zero
+
+	if partyType == "customer" {
+		// Fetch customer name
+		var name string
+		rs.db.Raw("SELECT name FROM customers WHERE id = ?", partyId).Scan(&name)
+		res.PartyName = strings.ToUpper(name)
+		res.PartyType = "customer"
+
+		// Invoices (debit)
+		type invRow struct {
+			IssueDate   time.Time
+			InvoiceNo   string
+			TotalAmount decimal.Decimal
+			PaidAmount  decimal.Decimal
+		}
+		var invs []invRow
+		rs.db.Raw(`
+			SELECT issue_date, invoice_number as invoice_no, total_amount, paid_amount
+			FROM invoices
+			WHERE outlet_id = ? AND customer_id = ? AND issue_date >= ? AND issue_date <= ?
+			  AND status NOT IN ('CANCELLED','DRAFT')
+			ORDER BY issue_date`, outletId, partyId, from, to).Scan(&invs)
+
+		for _, inv := range invs {
+			running = running.Add(inv.TotalAmount)
+			res.Entries = append(res.Entries, LedgerEntry{
+				Date: inv.IssueDate.Format("02 Jan 2006"), Particulars: "Sales Invoice",
+				VoucherType: "Invoice", VoucherNo: inv.InvoiceNo,
+				Debit: inv.TotalAmount, Credit: zero, Balance: running,
+			})
+			if inv.PaidAmount.GreaterThan(zero) {
+				running = running.Sub(inv.PaidAmount)
+				res.Entries = append(res.Entries, LedgerEntry{
+					Date: inv.IssueDate.Format("02 Jan 2006"), Particulars: "Payment Received",
+					VoucherType: "Receipt", VoucherNo: inv.InvoiceNo,
+					Debit: zero, Credit: inv.PaidAmount, Balance: running,
+				})
+			}
+		}
+
+	} else if partyType == "supplier" {
+		var name string
+		rs.db.Raw("SELECT name FROM suppliers WHERE id = ?", partyId).Scan(&name)
+		res.PartyName = strings.ToUpper(name)
+		res.PartyType = "supplier"
+
+		type billRow struct {
+			BillDate    time.Time
+			BillNumber  string
+			TotalAmount decimal.Decimal
+			PaidAmount  decimal.Decimal
+		}
+		var bills []billRow
+		rs.db.Raw(`
+			SELECT bill_date, bill_number, total_amount, paid_amount
+			FROM purchase_bills
+			WHERE outlet_id = ? AND supplier_id = ? AND bill_date >= ? AND bill_date <= ?
+			  AND status NOT IN ('CANCELLED','DRAFT')
+			ORDER BY bill_date`, outletId, partyId, from, to).Scan(&bills)
+
+		for _, b := range bills {
+			running = running.Sub(b.TotalAmount)
+			res.Entries = append(res.Entries, LedgerEntry{
+				Date: b.BillDate.Format("02 Jan 2006"), Particulars: "Purchase Bill",
+				VoucherType: "Purchase", VoucherNo: b.BillNumber,
+				Debit: zero, Credit: b.TotalAmount, Balance: running,
+			})
+			if b.PaidAmount.GreaterThan(zero) {
+				running = running.Add(b.PaidAmount)
+				res.Entries = append(res.Entries, LedgerEntry{
+					Date: b.BillDate.Format("02 Jan 2006"), Particulars: "Payment Made",
+					VoucherType: "Payment", VoucherNo: b.BillNumber,
+					Debit: b.PaidAmount, Credit: zero, Balance: running,
+				})
+			}
+		}
+	}
+
+	res.OpeningBalance = zero
+	res.ClosingBalance = running
+	return res, nil
+}
+
+// LedgerTDSPayable returns total TDS deducted in period (for the TDS Payable ledger account).
+func (rs *ReportService) LedgerTDSPayable(outletId int, from, to time.Time) (decimal.Decimal, error) {
+	var total decimal.Decimal
+	err := rs.db.Raw(`
+		SELECT COALESCE(SUM(tds_amount),0)
+		FROM tds_deductions
+		WHERE outlet_id = ? AND payment_date >= ? AND payment_date <= ?`, outletId, from, to).Scan(&total).Error
+	return total, err
+}

@@ -18,7 +18,7 @@ var ng = &NumberGenerator{}
 // Sequence model for database lookups
 type Sequence struct {
 	ID    uint   `gorm:"primaryKey"`
-	Name  string `gorm:"uniqueIndex"`
+	Name  string `gorm:"uniqueIndex;size:191"`
 	Value int64
 }
 
@@ -69,6 +69,15 @@ func GeneratePONumber(db *gorm.DB) (string, error) {
 	return fmt.Sprintf("PO-%s-%d-%d", dateStr, num, nanoLike), nil
 }
 
+func GenerateSaleReturnNumber(db *gorm.DB) (string, error) {
+	num, err := getNextSequenceValue(db, "sale_return_sequence")
+	if err != nil {
+		return "", err
+	}
+	dateStr := time.Now().Format("20060102")
+	return fmt.Sprintf("SR-%s-%04d", dateStr, num), nil
+}
+
 func GeneratePurchaseReturnNumber(db *gorm.DB) (string, error) {
 	num, err := getNextSequenceValue(db, "purchase_return_sequence")
 	if err != nil {
@@ -87,6 +96,15 @@ func GenerateQuotationNumber(db *gorm.DB) (string, error) {
 	dateStr := time.Now().Format("20060102")
 	nanoLike := time.Now().UnixNano() % 10000
 	return fmt.Sprintf("QT-%s-%d-%d", dateStr, num, nanoLike), nil
+}
+
+func GenerateProductionOrderNumber(db *gorm.DB) (string, error) {
+	num, err := getNextSequenceValue(db, "production_order_sequence")
+	if err != nil {
+		return "", err
+	}
+	dateStr := time.Now().Format("2006")
+	return fmt.Sprintf("PRD-%s-%04d", dateStr, num), nil
 }
 
 func GenerateSONumber(db *gorm.DB) (string, error) {
@@ -144,6 +162,22 @@ func GenerateBarcode() (string, error) {
 	}
 	checkDigit := (10 - (sum % 10)) % 10
 	return barcode + fmt.Sprintf("%d", checkDigit), nil
+}
+
+func GenerateWONumber(db *gorm.DB) (string, error) {
+	num, err := getNextSequenceValue(db, "wo_sequence")
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("WO-%03d", num), nil
+}
+
+func GenerateWBNumber(db *gorm.DB) (string, error) {
+	num, err := getNextSequenceValue(db, "wb_sequence")
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("WB-%03d", num), nil
 }
 
 func ResetSequences(db *gorm.DB) error {

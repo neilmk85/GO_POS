@@ -8,8 +8,8 @@ import (
 
 type PurchaseReturn struct {
 	ID              int                  `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
-	ReturnNumber    string               `gorm:"uniqueIndex;column:return_number" json:"returnNumber"`
-	PurchaseOrderID int                  `gorm:"column:purchase_order_id" json:"purchaseOrderId"`
+	ReturnNumber    string               `gorm:"uniqueIndex;size:191;column:return_number" json:"returnNumber"`
+	PurchaseOrderID *int                 `gorm:"column:purchase_order_id" json:"purchaseOrderId"`
 	OutletID        int                  `gorm:"column:outlet_id" json:"outletId"`
 	Reason          *string              `gorm:"column:reason" json:"reason"`
 	CreditMethod    *CreditMethod        `gorm:"column:credit_method" json:"creditMethod"`

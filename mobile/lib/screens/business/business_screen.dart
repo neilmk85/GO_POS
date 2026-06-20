@@ -1,0 +1,580 @@
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
+import 'package:pos_mobile/main.dart';
+import '../../models/models.dart';
+import '../../services/api_service.dart';
+
+class _BizCard {
+  final String key;
+  final String label;
+  final String subtitle;
+  final String category;
+  final IconData icon;
+  final Color color;
+  const _BizCard(this.key, this.label, this.subtitle, this.category, this.icon, this.color);
+}
+
+const _cards = [
+  _BizCard('pccp',               'PCCP',               'Pre-stressed concrete pipes',  'Production', Icons.layers_outlined,               Color(0xFF7C3AED)),
+  _BizCard('psc',                'PSC',                'Pre-stressed concrete spun',    'Production', Icons.inventory_2_outlined,          Color(0xFF2563EB)),
+  _BizCard('testing-lab',        'Testing Lab',        'QC & test results log',         'Quality',    Icons.science_outlined,              Color(0xFF0891B2)),
+  _BizCard('pdi',                'PDI',                'Pre-dispatch inspection',       'Quality',    Icons.assignment_turned_in_outlined, Color(0xFF059669)),
+  _BizCard('maintenance',        'Maintenance',        'Equipment & plant upkeep',      'Operations', Icons.build_outlined,                Color(0xFFD97706)),
+  _BizCard('vehicles',           'Vehicles',           'Diesel & mileage tracking',     'Logistics',  Icons.local_shipping_outlined,       Color(0xFFEA580C)),
+  _BizCard('silo',               'Silo',               'Silo fill & level records',     'Operations', Icons.storage_outlined,              Color(0xFF0D9488)),
+  _BizCard('silo-extraction',    'Silo Extraction',    'Material drawn from silos',     'Operations', Icons.download_outlined,             Color(0xFF0284C7)),
+  _BizCard('discard',            'Discard',            'Scrapped or rejected items',    'Quality',    Icons.delete_outline,                Color(0xFFEF4444)),
+  _BizCard('extra-fab',          'Extra Fab',          'Additional fabrication work',   'Production', Icons.hardware_outlined,             Color(0xFFCA8A04)),
+  _BizCard('labour',             'Labour',             'Daily attendance & wages',      'HR',         Icons.people_outline,                Color(0xFF4F46E5)),
+  _BizCard('cement-bags',        'Cement Bags',        'Daily consumption log',         'Materials',  Icons.all_inbox_outlined,            Color(0xFF57534E)),
+  _BizCard('store-material',     'Store Material',     'Store room stock entries',      'Materials',  Icons.archive_outlined,              Color(0xFF65A30D)),
+  _BizCard('diesel-maintenance', 'Diesel Maintenance', 'Fuel usage & maintenance',      'Logistics',  Icons.local_gas_station_outlined,    Color(0xFFE11D48)),
+  _BizCard('extra-vehicles',     'Extra Vehicles',     'Hired & additional vehicles',   'Logistics',  Icons.directions_car_outlined,       Color(0xFFC026D3)),
+  _BizCard('cutting',            'Cutting',            'Pipe cutting records',          'Production', Icons.content_cut_outlined,          Color(0xFFDB2777)),
+  _BizCard('conversion',         'Conversion',         'Unit or spec conversions',      'Production', Icons.sync_outlined,                 Color(0xFF9333EA)),
+  _BizCard('loading',            'Loading',            'Pipe loading & dispatch',       'Logistics',  Icons.move_to_inbox_outlined,        Color(0xFF0D9488)),
+  _BizCard('loaded-pipes',       'Loaded Pipes',       'Dispatched pipe records',       'Logistics',  Icons.assignment_outlined,           Color(0xFF16A34A)),
+  _BizCard('transport-report',   'Transport Report',   'Vehicle trip summary',          'Logistics',  Icons.bar_chart_outlined,            Color(0xFFEA580C)),
+];
+
+const _routed = {'cement-bags', 'vehicles', 'silo', 'silo-extraction', 'pdi', 'loading', 'extra-vehicles', 'conversion', 'loaded-pipes'};
+
+// ── Screen ────────────────────────────────────────────────────────────────────
+
+class BusinessScreen extends StatefulWidget {
+  const BusinessScreen({super.key});
+
+  @override
+  State<BusinessScreen> createState() => _BusinessScreenState();
+}
+
+class _BusinessScreenState extends State<BusinessScreen> {
+  double? _totalCementBags;
+  double? _totalCementKg;
+  double? _dieselToday;
+  int?    _pipesToday;
+  String? _vehiclesToday;
+  String? _extraVehiclesToday;
+  String? _siloExtractionToday;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStats();
+  }
+
+  Future<void> _loadStats() async {
+    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    await Future.wait([
+      _loadCementTotal(),
+      _loadDieselToday(today),
+      _loadPipesToday(today),
+      _loadVehiclesToday(today),
+      _loadExtraVehiclesToday(today),
+      _loadSiloExtractionToday(today),
+    ]);
+  }
+
+  Future<void> _loadCementTotal() async {
+    try {
+      final raw = await ApiService().getCementBags();
+      final bags = raw
+          .map((e) => CementBag.fromJson(e))
+          .fold<double>(0, (sum, b) => sum + b.quantity);
+      if (mounted) setState(() {
+        _totalCementBags = bags;
+        _totalCementKg = bags * 50;
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _loadPipesToday(String today) async {
+    try {
+      final raw = await ApiService().getLoadingRecords(size: 500);
+      final total = raw
+          .where((e) => ((e['date'] ?? e['createdAt'] ?? '') as String).startsWith(today))
+          .fold<int>(0, (sum, e) => sum + (int.tryParse(e['quantity']?.toString() ?? '0') ?? 0));
+      if (mounted) setState(() => _pipesToday = total);
+    } catch (_) {}
+  }
+
+  Future<void> _loadVehiclesToday(String today) async {
+    try {
+      final raw = await ApiService().getVehicleEntries(size: 500);
+      final todayEntries = raw.where(
+        (e) => ((e['date'] ?? e['createdAt'] ?? '') as String).startsWith(today),
+      );
+      double diesel = 0;
+      double hours  = 0;
+      for (final e in todayEntries) {
+        // web schema (crane/JCB) + mobile schema (dieselUsed) — sum both
+        diesel += _pd(e['craneDiesel']) + _pd(e['jcbDiesel']) + _pd(e['dieselUsed']);
+        hours  += _pd(e['craneHours'])  + _pd(e['jcbHours']);
+      }
+      final parts = <String>[];
+      if (hours  > 0) parts.add('${hours.toStringAsFixed(1)} hrs');
+      if (diesel > 0) parts.add('${diesel.toStringAsFixed(1)} L');
+      if (mounted) setState(() => _vehiclesToday = parts.isEmpty ? null : parts.join(' · '));
+    } catch (_) {}
+  }
+
+  Future<void> _loadExtraVehiclesToday(String today) async {
+    try {
+      final raw = await ApiService().getExtraVehicles();
+      final todayEntries = raw.where(
+        (e) => ((e['date'] ?? e['createdAt'] ?? '') as String).startsWith(today),
+      );
+      double qty = 0;
+      for (final e in todayEntries) {
+        final vehiclesRaw = e['vehicles'];
+        final Map<String, dynamic> vehicles = vehiclesRaw is String
+            ? Map<String, dynamic>.from(jsonDecode(vehiclesRaw) as Map)
+            : (vehiclesRaw is Map ? Map<String, dynamic>.from(vehiclesRaw) : {});
+        for (final v in vehicles.values) {
+          if (v is Map && v['enabled'] == true) {
+            qty += _pd(v['quantity']);
+          }
+        }
+      }
+      if (mounted) setState(() => _extraVehiclesToday = qty > 0 ? '${qty.toStringAsFixed(1)} hrs' : null);
+    } catch (_) {}
+  }
+
+  Future<void> _loadSiloExtractionToday(String today) async {
+    try {
+      final raw = await ApiService().getSiloEntries(size: 500);
+      final todayEntries = raw.where(
+        (e) => ((e['date'] ?? e['createdAt'] ?? '') as String).startsWith(today),
+      ).toList();
+
+      double s1 = 0, s2 = 0, s3 = 0;
+      for (final e in todayEntries) {
+        s1 += _toKg(_pd(e['silo1Value']), e['silo1Unit']?.toString() ?? 'kg');
+        s2 += _toKg(_pd(e['silo2Value']), e['silo2Unit']?.toString() ?? 'kg');
+        s3 += _toKg(_pd(e['silo3Value']), e['silo3Unit']?.toString() ?? 'kg');
+      }
+
+      if (s1 + s2 + s3 == 0) { if (mounted) setState(() => _siloExtractionToday = null); return; }
+      final fmt = (double kg) => kg >= 1000
+          ? '${(kg / 1000).toStringAsFixed(2)}MT'
+          : '${kg.toStringAsFixed(0)}kg';
+      if (mounted) setState(() => _siloExtractionToday =
+          'S1:${fmt(s1)}  S2:${fmt(s2)}  S3:${fmt(s3)}');
+    } catch (_) {}
+  }
+
+  static double _toKg(double value, String unit) =>
+      unit.toUpperCase() == 'MT' ? value * 1000 : value;
+
+  static double _pd(dynamic v) => double.tryParse(v?.toString() ?? '0') ?? 0;
+
+  Future<void> _loadDieselToday(String today) async {
+    try {
+      final raw = await ApiService().getDieselMaintenance();
+      final todayEntries = raw.where((e) {
+        final date = (e['date'] ?? e['createdAt'] ?? '') as String;
+        return date.startsWith(today);
+      });
+      final total = todayEntries.fold<double>(
+        0,
+        (sum, e) => sum + (double.tryParse(e['quantity']?.toString() ?? '0') ?? 0),
+      );
+      if (mounted) setState(() => _dieselToday = total);
+    } catch (_) {}
+  }
+
+  void _onTap(BuildContext context, String key) {
+    if (key == 'cement-bags') {
+      context.push('/business/cement-bags');
+    } else if (key == 'vehicles') {
+      context.push('/business/vehicles');
+    } else if (key == 'silo' || key == 'silo-extraction') {
+      context.push('/business/silo');
+    } else if (key == 'pdi') {
+      context.push('/business/pdi');
+    } else if (key == 'loading') {
+      context.push('/business/loading');
+    } else if (key == 'extra-vehicles') {
+      context.push('/business/extra-vehicles');
+    } else if (key == 'conversion') {
+      context.push('/business/conversion');
+    } else if (key == 'loaded-pipes') {
+      context.push('/business/loaded-pipes');
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Coming soon'), duration: Duration(seconds: 2)),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF9FAFB),
+      body: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(child: _buildHeader()),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 28),
+            sliver: SliverGrid(
+              delegate: SliverChildBuilderDelegate(
+                (ctx, i) {
+                  final card = _cards[i];
+                  String? stat;
+                  if (card.key == 'cement-bags' && _totalCementKg != null) {
+                    final bags = _totalCementBags!.toStringAsFixed(0);
+                    final kg = _totalCementKg!;
+                    stat = '$bags bags · ${kg.toStringAsFixed(0)} kg';
+                  } else if (card.key == 'diesel-maintenance' && _dieselToday != null) {
+                    stat = '${_dieselToday!.toStringAsFixed(1)} L today';
+                  } else if (card.key == 'loaded-pipes' && _pipesToday != null) {
+                    stat = '$_pipesToday pipes today';
+                  } else if (card.key == 'vehicles' && _vehiclesToday != null) {
+                    stat = _vehiclesToday;
+                  } else if (card.key == 'extra-vehicles' && _extraVehiclesToday != null) {
+                    stat = _extraVehiclesToday;
+                  } else if (card.key == 'silo-extraction' && _siloExtractionToday != null) {
+                    stat = _siloExtractionToday;
+                  }
+                  return _CardTile(
+                    card: card,
+                    stat: stat,
+                    onTap: () => _onTap(ctx, card.key),
+                  );
+                },
+                childCount: _cards.length,
+              ),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                mainAxisExtent: 165,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF7C3AED), Color(0xFF2563EB)],
+        ),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 8, 16, 0),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.menu_outlined, color: Colors.white),
+                    onPressed: openAppDrawer,
+                    tooltip: 'Open menu',
+                  ),
+                  const SizedBox(width: 4),
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white.withOpacity(0.25)),
+                    ),
+                    child: const Icon(Icons.business_outlined, color: Colors.white, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'OPERATIONS',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.65),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.4,
+                          ),
+                        ),
+                        const Text(
+                          'Business',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+              child: Text(
+                'Select a module to record or view daily data',
+                style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              decoration: BoxDecoration(
+                border: Border(top: BorderSide(color: Colors.white.withOpacity(0.15))),
+              ),
+              child: Row(
+                children: [
+                  _statCell('${_cards.length}', 'Modules', 'operational areas'),
+                  _divider(),
+                  _statCell('2', 'Production', 'PCCP · PSC'),
+                  _divider(),
+                  _statCell('${_cards.length - 2}', 'Support', 'logistics & admin'),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _statCell(String value, String label, String sub) {
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(value,
+                style: const TextStyle(
+                    color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
+            Text(label,
+                style: TextStyle(color: Colors.white.withOpacity(0.75), fontSize: 11)),
+            Text(sub,
+                style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 10)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _divider() =>
+      Container(width: 1, height: 48, color: Colors.white.withOpacity(0.15));
+}
+
+// ── Card tile ─────────────────────────────────────────────────────────────────
+
+class _CardTile extends StatelessWidget {
+  final _BizCard card;
+  final String? stat;
+  final VoidCallback onTap;
+  const _CardTile({required this.card, required this.onTap, this.stat});
+
+  @override
+  Widget build(BuildContext context) {
+    final isActive = _routed.contains(card.key);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isActive
+                ? card.color.withOpacity(0.30)
+                : const Color(0xFFE5E7EB),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: isActive
+                  ? card.color.withOpacity(0.10)
+                  : Colors.black.withOpacity(0.04),
+              blurRadius: isActive ? 12 : 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.hardEdge,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Top accent stripe — violet→blue for all cards
+            Container(
+              height: 4,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF7C3AED), Color(0xFF2563EB)],
+                ),
+              ),
+            ),
+
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Name row + Type top-right plain text
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              card.label,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF111827),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              card.subtitle,
+                              style: const TextStyle(fontSize: 10, color: Color(0xFF9CA3AF)),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        card.category,
+                        style: const TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF9CA3AF),
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 9),
+
+                  if (stat != null)
+                    _DetailRow(
+                      icon: Icons.bar_chart_outlined,
+                      label: 'Stock',
+                      value: stat!,
+                      color: card.color,
+                      gradientPill: true,
+                    )
+                  else
+                    _DetailRow(
+                      icon: Icons.fiber_manual_record,
+                      label: 'Status',
+                      value: isActive ? 'Live' : 'Pending',
+                      color: isActive ? const Color(0xFF059669) : const Color(0xFF9CA3AF),
+                    ),
+
+                  const SizedBox(height: 9),
+
+                  // Bottom action button
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 7),
+                    decoration: BoxDecoration(
+                      color: isActive
+                          ? card.color.withOpacity(0.08)
+                          : const Color(0xFFF9FAFB),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      isActive ? 'Open' : 'Coming Soon',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: isActive ? card.color : const Color(0xFF9CA3AF),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Detail row ────────────────────────────────────────────────────────────────
+
+class _DetailRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+  final bool gradientPill;
+
+  const _DetailRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+    this.gradientPill = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 11, color: const Color(0xFF9CA3AF)),
+        const SizedBox(width: 5),
+        SizedBox(
+          width: 36,
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 10, color: Color(0xFF9CA3AF)),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              gradient: gradientPill
+                  ? const LinearGradient(
+                      colors: [Color(0xFFEDE9FE), Color(0xFFDBEAFE)],
+                    )
+                  : null,
+              color: gradientPill ? null : color.withOpacity(0.10),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: gradientPill ? const Color(0xFF5B21B6) : color,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}

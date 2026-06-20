@@ -20,7 +20,7 @@ type Config struct {
 
 func Load() *Config {
 	return &Config{
-		DBDsn:            getEnv("DB_DSN", "root:root@tcp(localhost:3306)/posdb?charset=utf8mb4&parseTime=True&loc=Local"),
+		DBDsn:            getEnv("DB_DSN", "root:root@tcp(localhost:3306)/pppipesdb?charset=utf8mb4&parseTime=True&loc=Local"),
 		JwtSecret:        getEnv("JWT_SECRET", "pos-super-secret-jwt-key-change-in-production"),
 		JwtExpiry:        getEnv("JWT_EXPIRY", "720h"),
 		JwtRefreshExpiry: getEnv("JWT_REFRESH_EXPIRY", "8760h"),

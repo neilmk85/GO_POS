@@ -8,7 +8,7 @@ import (
 
 type SalesOrder struct {
 	ID               int               `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
-	SONumber         string            `gorm:"uniqueIndex;column:so_number" json:"soNumber"`
+	SONumber         string            `gorm:"uniqueIndex;size:191;column:so_number" json:"soNumber"`
 	CustomerID       int               `gorm:"column:customer_id" json:"customerId"`
 	OutletID         int               `gorm:"column:outlet_id" json:"outletId"`
 	CreatedByUserID  *int              `gorm:"column:created_by_user_id" json:"createdByUserId"`

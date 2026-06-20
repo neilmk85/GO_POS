@@ -8,7 +8,7 @@ import (
 
 type Quotation struct {
 	ID               int               `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
-	QuotationNumber  string            `gorm:"uniqueIndex;column:quotation_number" json:"quotationNumber"`
+	QuotationNumber  string            `gorm:"uniqueIndex;size:191;column:quotation_number" json:"quotationNumber"`
 	CustomerID       *int              `gorm:"column:customer_id" json:"customerId"`
 	OutletID         int               `gorm:"column:outlet_id" json:"outletId"`
 	ValidUntil       *time.Time        `gorm:"column:valid_until;type:date" json:"validUntil"`

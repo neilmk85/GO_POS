@@ -161,12 +161,14 @@ type CreateProductDTO struct {
 	SellingPrice       decimal.Decimal `json:"sellingPrice"`
 	MRP                *decimal.Decimal `json:"mrp"`
 	MinSellingPrice    *decimal.Decimal `json:"minSellingPrice"`
+	HSNCode            *string         `json:"hsnCode"`
 	UnitOfMeasure      string          `json:"unitOfMeasure"`
 	PurchaseUOM        *string         `json:"purchaseUom"`
 	SaleUOM            *string         `json:"saleUom"`
 	PurchaseFactor     *decimal.Decimal `json:"purchaseFactor"`
 	SaleFactor         *decimal.Decimal `json:"saleFactor"`
 	ProductType        string          `json:"productType"`
+	ItemType           string          `json:"itemType"`
 	TrackInventory     bool            `json:"trackInventory"`
 	AllowNegativeStock bool            `json:"allowNegativeStock"`
 	ReorderLevel       int             `json:"reorderLevel"`
@@ -177,11 +179,26 @@ type CreateProductDTO struct {
 
 // Create creates a new product
 func (ps *ProductService) Create(dto CreateProductDTO) (product *models.Product, err error) {
+	// Treat empty strings as NULL for unique-indexed fields
+	sku := dto.SKU
+	if sku != nil && *sku == "" {
+		sku = nil
+	}
+	barcode := dto.Barcode
+	if barcode != nil && *barcode == "" {
+		barcode = nil
+	}
+	desc := dto.Description
+	if desc != nil && *desc == "" {
+		desc = nil
+	}
+
 	product = &models.Product{
 		Name:               dto.Name,
-		Description:        dto.Description,
-		SKU:                dto.SKU,
-		Barcode:            dto.Barcode,
+		Description:        desc,
+		SKU:                sku,
+		Barcode:            barcode,
+		HSNCode:            dto.HSNCode,
 		CategoryID:         dto.CategoryID,
 		TaxGroupID:         dto.TaxGroupID,
 		CostPrice:          dto.CostPrice,
@@ -192,6 +209,7 @@ func (ps *ProductService) Create(dto CreateProductDTO) (product *models.Product,
 		PurchaseUOM:        dto.PurchaseUOM,
 		SaleUOM:            dto.SaleUOM,
 		ProductType:        models.ProductType(dto.ProductType),
+		ItemType:           dto.ItemType,
 		TrackInventory:     dto.TrackInventory,
 		AllowNegativeStock: dto.AllowNegativeStock,
 		ReorderLevel:       dto.ReorderLevel,
@@ -230,11 +248,26 @@ func (ps *ProductService) Update(id int, dto CreateProductDTO) (product *models.
 		return nil, err
 	}
 
+	// Treat empty strings as NULL for unique-indexed fields
+	sku := dto.SKU
+	if sku != nil && *sku == "" {
+		sku = nil
+	}
+	barcode := dto.Barcode
+	if barcode != nil && *barcode == "" {
+		barcode = nil
+	}
+	description := dto.Description
+	if description != nil && *description == "" {
+		description = nil
+	}
+
 	updates := map[string]interface{}{
 		"name":                 dto.Name,
-		"description":          dto.Description,
-		"sku":                  dto.SKU,
-		"barcode":              dto.Barcode,
+		"description":          description,
+		"sku":                  sku,
+		"barcode":              barcode,
+		"hsn_code":             dto.HSNCode,
 		"category_id":          dto.CategoryID,
 		"tax_group_id":         dto.TaxGroupID,
 		"cost_price":           dto.CostPrice,
@@ -245,6 +278,7 @@ func (ps *ProductService) Update(id int, dto CreateProductDTO) (product *models.
 		"purchase_uom":         dto.PurchaseUOM,
 		"sale_uom":             dto.SaleUOM,
 		"product_type":         models.ProductType(dto.ProductType),
+		"item_type":            dto.ItemType,
 		"track_inventory":      dto.TrackInventory,
 		"allow_negative_stock": dto.AllowNegativeStock,
 		"reorder_level":        dto.ReorderLevel,

@@ -110,6 +110,12 @@ func Authenticate(db *gorm.DB) func(http.Handler) http.Handler {
 			ctx := context.WithValue(r.Context(), UserContextKey, authUser)
 			newR := r.WithContext(ctx)
 
+			// Also fill the ActivityLog UserBucket if present (injected by the
+			// global ActivityLog middleware which runs before per-route auth)
+			if bucket, ok := r.Context().Value(UserBucketKey).(*UserBucket); ok {
+				bucket.User = authUser
+			}
+
 			slog.Debug("[Auth] User authenticated", "user_id", user.ID, "email", user.Email)
 
 			next.ServeHTTP(w, newR)

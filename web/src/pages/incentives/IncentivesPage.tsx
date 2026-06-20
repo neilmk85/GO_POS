@@ -1,9 +1,10 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Trophy, Target, TrendingUp, Award, Plus, X, Edit2, Trash2, Check,
   Loader2, ToggleLeft, ToggleRight, Medal, ChevronDown, RefreshCw,
-  Users, DollarSign, Percent, Zap, Star, BarChart3
+  Users, DollarSign, Percent, Zap, Star, BarChart3, ArrowLeft
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { incentiveApi, staffApi } from '@/services/api'
@@ -668,39 +669,69 @@ function LeaderboardTab({ outletId }: { outletId: number }) {
 type Tab = 'rules' | 'payouts' | 'leaderboard'
 
 export default function IncentivesPage() {
+  const navigate = useNavigate()
   const { outletId } = useAuthStore()
   const [tab, setTab] = useState<Tab>('rules')
 
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
-    { key: 'rules',       label: 'Incentive Rules', icon: <Target size={16} /> },
-    { key: 'payouts',     label: 'Payouts',         icon: <Award size={16} /> },
-    { key: 'leaderboard', label: 'Leaderboard',     icon: <Trophy size={16} /> },
+    { key: 'rules',       label: 'Incentive Rules', icon: <Target size={15} /> },
+    { key: 'payouts',     label: 'Payouts',         icon: <Award size={15} /> },
+    { key: 'leaderboard', label: 'Leaderboard',     icon: <Trophy size={15} /> },
   ]
 
   const effectiveOutletId = outletId ?? 1
 
   return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <Trophy size={24} className="text-yellow-500" /> Staff Incentives
-        </h1>
-        <p className="text-sm text-gray-500 mt-0.5">Define incentive rules, track payouts, and view performance leaderboard</p>
+    <div className="min-h-screen bg-gray-50/60 p-6 space-y-5">
+
+      {/* ── Hero header ──────────────────────────────────────────────── */}
+      <div className="relative rounded-2xl shadow-[0_8px_40px_rgba(109,40,217,0.28)]">
+        {/* Background */}
+        <div className="absolute inset-0 overflow-hidden rounded-2xl bg-gradient-to-br from-violet-700 via-violet-600 to-blue-600 pointer-events-none">
+          <div className="absolute -top-8 -right-8 w-52 h-52 rounded-full bg-white/5 blur-2xl" />
+          <div className="absolute bottom-0 left-1/4 w-64 h-28 rounded-full bg-blue-400/10 blur-3xl" />
+          <div className="absolute inset-0 opacity-[0.07]"
+            style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+        </div>
+
+        {/* Content */}
+        <div className="relative px-8 pt-6 pb-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center gap-5 min-w-0">
+              <button
+                onClick={() => navigate(-1)}
+                className="w-9 h-9 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center hover:bg-white/20 transition-colors flex-shrink-0 mt-0.5"
+              >
+                <ArrowLeft size={16} className="text-white" />
+              </button>
+              <div className="w-14 h-14 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center shadow-inner flex-shrink-0">
+                <Trophy size={26} className="text-yellow-300" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-blue-200 uppercase tracking-widest mb-0.5">Staff</p>
+                <h1 className="text-2xl font-extrabold text-white tracking-tight leading-tight">Staff Incentives</h1>
+                {/* Subtitle + tab pills on the same line */}
+                <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                  <p className="text-sm text-blue-200 whitespace-nowrap">Define rules, track payouts &amp; view leaderboard</p>
+                  <div className="w-px h-4 bg-white/20 shrink-0 hidden sm:block" />
+                  {tabs.map(t => (
+                    <button key={t.key} onClick={() => setTab(t.key)}
+                      className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-xl border transition-colors whitespace-nowrap ${
+                        tab === t.key
+                          ? 'bg-white text-violet-700 border-white shadow-sm'
+                          : 'border-white/30 text-white/80 hover:text-white hover:bg-white/10'
+                      }`}>
+                      {t.icon} {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit mb-6">
-        {tabs.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-              tab === t.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-            }`}>
-            {t.icon} {t.label}
-          </button>
-        ))}
-      </div>
-
+      {/* ── Tab content ──────────────────────────────────────────────── */}
       {tab === 'rules'       && <RulesTab outletId={effectiveOutletId} />}
       {tab === 'payouts'     && <PayoutsTab outletId={effectiveOutletId} />}
       {tab === 'leaderboard' && <LeaderboardTab outletId={effectiveOutletId} />}

@@ -407,3 +407,48 @@ func (rh *ReportHandler) ExportCreditorsCSV(w http.ResponseWriter, r *http.Reque
 	w.Header().Set("Content-Type", "text/csv")
 	w.Write([]byte(csv))
 }
+
+// ─── Ledger ───────────────────────────────────────────────────────────────────
+
+func (rh *ReportHandler) GetLedger(w http.ResponseWriter, r *http.Request) {
+	outletId, from, to, err := parseReportParams(r)
+	if err != nil {
+		util.SendError(w, http.StatusBadRequest, "Invalid parameters")
+		return
+	}
+	result, err := rh.service.LedgerSummary(outletId, from, to)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+	// Append TDS Payable account
+	tdsPayable, _ := rh.service.LedgerTDSPayable(outletId, from, to)
+	if tdsPayable.IsPositive() {
+		zero := tdsPayable.Sub(tdsPayable)
+		result.Accounts = append(result.Accounts, service.LedgerAccount{
+			ID: "tds-payable", Name: "TDS Payable", AccountType: "gl",
+			OpeningBalance: zero, Debit: zero, Credit: tdsPayable, ClosingBalance: tdsPayable.Neg(),
+		})
+	}
+	util.SendSuccess(w, "Ledger summary retrieved", result)
+}
+
+func (rh *ReportHandler) GetLedgerDetail(w http.ResponseWriter, r *http.Request) {
+	outletId, from, to, err := parseReportParams(r)
+	if err != nil {
+		util.SendError(w, http.StatusBadRequest, "Invalid parameters")
+		return
+	}
+	partyType := r.URL.Query().Get("partyType")
+	partyId, err := strconv.Atoi(r.URL.Query().Get("partyId"))
+	if err != nil || (partyType != "customer" && partyType != "supplier") {
+		util.SendError(w, http.StatusBadRequest, "Invalid partyType or partyId")
+		return
+	}
+	result, err := rh.service.LedgerDetail(outletId, partyType, partyId, from, to)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+	util.SendSuccess(w, "Ledger detail retrieved", result)
+}

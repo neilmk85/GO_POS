@@ -51,7 +51,12 @@ func (oh *OrderHandler) ProcessReturn(w http.ResponseWriter, r *http.Request) {
 }
 
 func (oh *OrderHandler) GetByOutlet(w http.ResponseWriter, r *http.Request) {
-	outletId, err := strconv.Atoi(r.PathValue("outletId"))
+	outletIdStr := r.URL.Query().Get("outletId")
+	if outletIdStr == "" {
+		util.SendError(w, http.StatusBadRequest, "outletId query param is required")
+		return
+	}
+	outletId, err := strconv.Atoi(outletIdStr)
 	if err != nil {
 		util.SendError(w, http.StatusBadRequest, "Invalid outlet ID")
 		return
@@ -63,6 +68,12 @@ func (oh *OrderHandler) GetByOutlet(w http.ResponseWriter, r *http.Request) {
 	var status *string
 	if statusStr != "" {
 		status = &statusStr
+	}
+
+	orderTypeStr := r.URL.Query().Get("orderType")
+	var orderType *string
+	if orderTypeStr != "" {
+		orderType = &orderTypeStr
 	}
 
 	fromStr := r.URL.Query().Get("from")
@@ -81,7 +92,7 @@ func (oh *OrderHandler) GetByOutlet(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	orders, total, err := oh.service.GetByOutlet(outletId, page, size, status, from, to)
+	orders, total, err := oh.service.GetByOutlet(outletId, page, size, status, orderType, from, to)
 	if err != nil {
 		handleError(w, err)
 		return
@@ -140,4 +151,20 @@ func (oh *OrderHandler) HoldOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	util.SendSuccess(w, "Order held", order)
+}
+
+func (oh *OrderHandler) CancelOrder(w http.ResponseWriter, r *http.Request) {
+	orderId, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil {
+		util.SendError(w, http.StatusBadRequest, "Invalid order ID")
+		return
+	}
+
+	order, err := oh.service.CancelOrder(orderId)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+
+	util.SendSuccess(w, "Order cancelled", order)
 }

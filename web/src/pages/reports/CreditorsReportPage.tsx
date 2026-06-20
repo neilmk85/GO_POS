@@ -1,12 +1,90 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import {
-  Building2, IndianRupee, AlertCircle, Loader2, RefreshCw,
-  Download, Search, ChevronDown, ChevronRight, Clock, CheckCircle, FileText,
+  Loader2, RefreshCw, Download, Search,
+  ChevronDown, ChevronRight, CheckCircle, BookOpen,
+  Calendar, X, FileText,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { reportApi } from '@/services/api'
 import { useAuthStore } from '@/store/authStore'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
+
+/* ── date helpers ── */
+const pad = (n: number) => String(n).padStart(2, '0')
+const startOf = (unit: 'month' | 'quarter', d = new Date()) => {
+  if (unit === 'month') return new Date(d.getFullYear(), d.getMonth(), 1)
+  const q = Math.floor(d.getMonth() / 3)
+  return new Date(d.getFullYear(), q * 3, 1)
+}
+const toISO  = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+const dmy    = (iso: string) => { const [y,m,dd] = iso.split('-'); return `${dd}/${m}/${y}` }
+const today  = () => toISO(new Date())
+const nDaysAgo = (n: number) => { const d = new Date(); d.setDate(d.getDate() - n); return toISO(d) }
+
+const PRESETS = [
+  { label: 'Today',       from: () => today(),              to: () => today() },
+  { label: 'Last 7d',     from: () => nDaysAgo(6),          to: () => today() },
+  { label: 'Last 30d',    from: () => nDaysAgo(29),         to: () => today() },
+  { label: 'This Month',  from: () => toISO(startOf('month')), to: () => today() },
+  { label: 'This Quarter',from: () => toISO(startOf('quarter')), to: () => today() },
+]
+
+function CustomRangePicker({ from, to, onChange }: {
+  from: string; to: string; onChange: (f: string, t: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [tmpFrom, setTmpFrom] = useState(from)
+  const [tmpTo,   setTmpTo]   = useState(to)
+  const ref = useRef<HTMLDivElement>(null)
+
+  const activePreset = PRESETS.find(p => p.from() === from && p.to() === to)
+  const customActive = !activePreset
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  return (
+    <div className="relative" ref={ref}>
+      <button onClick={() => { setTmpFrom(from); setTmpTo(to); setOpen(o => !o) }}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+          customActive ? 'bg-white text-violet-700 shadow-sm' : 'text-white/80 hover:text-white hover:bg-white/10'
+        }`}>
+        <Calendar size={12} />
+        {customActive ? `${dmy(from)} – ${dmy(to)}` : 'Custom'}
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-2 z-50 bg-white rounded-2xl shadow-2xl border border-gray-100 p-4 w-72">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Custom Range</p>
+          <div className="space-y-3">
+            <label className="block">
+              <span className="text-[11px] text-gray-400 font-medium">From</span>
+              <input type="date" value={tmpFrom} onChange={e => setTmpFrom(e.target.value)}
+                className="mt-1 w-full px-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-400" />
+            </label>
+            <label className="block">
+              <span className="text-[11px] text-gray-400 font-medium">To</span>
+              <input type="date" value={tmpTo} onChange={e => setTmpTo(e.target.value)}
+                className="mt-1 w-full px-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-400" />
+            </label>
+          </div>
+          <div className="flex gap-2 mt-4">
+            <button onClick={() => { onChange(tmpFrom, tmpTo); setOpen(false) }}
+              className="flex-1 px-3 py-1.5 bg-violet-600 text-white text-xs font-semibold rounded-lg hover:bg-violet-700 transition-colors">Apply</button>
+            <button onClick={() => setOpen(false)}
+              className="px-3 py-1.5 bg-gray-100 text-gray-600 text-xs font-semibold rounded-lg hover:bg-gray-200 transition-colors">
+              <X size={12} />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 const BAR_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#f97316']
 
@@ -49,28 +127,165 @@ export default function CreditorsReportPage() {
   const [expanded, setExpanded]   = useState<Set<number>>(new Set())
   const [search, setSearch]       = useState('')
   const [billSearch, setBillSearch] = useState('')
+  const [from, setFrom]           = useState(PRESETS[2].from())   // Last 30d
+  const [to,   setTo]             = useState(PRESETS[2].to())
 
   const load = async () => {
     setLoading(true)
     try {
-      const res = await reportApi.getCreditorsLedger(oid)
-      setRows(res.data.data || [])
+      const res = await reportApi.getCreditorsLedger(oid, from, to)
+      const raw: any[] = res.data.data || []
+      setRows(raw.map(r => ({
+        ...r,
+        totalBilled:  Number(r.totalBilled),
+        totalPaid:    Number(r.totalPaid),
+        outstanding:  Number(r.outstanding),
+        current:      Number(r.current),
+        days1_30:     Number(r.days1_30),
+        days31_60:    Number(r.days31_60),
+        days61_90:    Number(r.days61_90),
+        days90plus:   Number(r.days90plus),
+        bills: (r.bills || []).map((b: any) => ({
+          ...b,
+          totalAmount: Number(b.totalAmount),
+          paidAmount:  Number(b.paidAmount),
+          outstanding: Number(b.outstanding),
+        })),
+      })))
     } catch { toast.error('Failed to load creditors ledger') }
     finally { setLoading(false) }
   }
 
-  useEffect(() => { load() }, [oid])
+  useEffect(() => { load() }, [oid, from, to])
 
   const handleExport = async () => {
     setExporting(true)
     try {
-      const res = await reportApi.exportCreditorsCsv(oid)
+      const res = await reportApi.exportCreditorsCsv(oid, from, to)
       const url = URL.createObjectURL(new Blob([res.data as any], { type: 'text/csv' }))
       const a = document.createElement('a'); a.href = url; a.download = 'creditors_ledger.csv'; a.click()
       URL.revokeObjectURL(url)
       toast.success('CSV downloaded')
     } catch { toast.error('Export failed') }
     finally { setExporting(false) }
+  }
+
+  const handleExportPDF = () => {
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' })
+    const pageW = doc.internal.pageSize.getWidth()
+    const dateRange = `${dmy(from)} – ${dmy(to)}`
+
+    // Header
+    doc.setFillColor(109, 40, 217)
+    doc.rect(0, 0, pageW, 50, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(16); doc.setFont('helvetica', 'bold')
+    doc.text('Creditors Ledger', 40, 22)
+    doc.setFontSize(9); doc.setFont('helvetica', 'normal')
+    doc.text(`Sundry Creditors · Accounts Payable`, 40, 36)
+    doc.text(`Period: ${dateRange}`, pageW - 40, 22, { align: 'right' })
+    doc.text(`Generated: ${dmy(toISO(new Date()))}`, pageW - 40, 36, { align: 'right' })
+
+    // Summary strip
+    doc.setTextColor(30, 30, 30)
+    doc.setFontSize(8); doc.setFont('helvetica', 'bold')
+    const summaryY = 62
+    const cols = [
+      ['Suppliers', rows.length.toString()],
+      ['Total Billed', fmt(totals.totalBilled)],
+      ['Total Paid', fmt(totals.totalPaid)],
+      ['Outstanding', fmt(totals.outstanding)],
+      ['1–30 Days', fmt(totals.days1_30)],
+      ['31–90 Days', fmt(totals.days31_60 + totals.days61_90)],
+      ['90+ Days', fmt(totals.days90plus)],
+    ]
+    const colW = (pageW - 80) / cols.length
+    cols.forEach(([label, value], i) => {
+      const x = 40 + i * colW
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10)
+      doc.text(value, x, summaryY)
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(100, 100, 100)
+      doc.text(label, x, summaryY + 12)
+      doc.setTextColor(30, 30, 30)
+    })
+
+    // Party-wise table
+    autoTable(doc, {
+      startY: summaryY + 28,
+      head: [['#', 'Supplier', 'GSTIN', 'Billed', 'Paid', 'Payable', 'Current', '1–30d', '31–60d', '61–90d', '90+d']],
+      body: rows.map((r, i) => [
+        i + 1,
+        r.name + (r.phone ? `\n${r.phone}` : ''),
+        r.gstin || '—',
+        fmt2(r.totalBilled),
+        fmt2(r.totalPaid),
+        fmt2(r.outstanding),
+        r.current   > 0 ? fmt2(r.current)   : '—',
+        r.days1_30  > 0 ? fmt2(r.days1_30)  : '—',
+        r.days31_60 > 0 ? fmt2(r.days31_60) : '—',
+        r.days61_90 > 0 ? fmt2(r.days61_90) : '—',
+        r.days90plus > 0 ? fmt2(r.days90plus) : '—',
+      ]),
+      foot: [['', `Total (${rows.length} suppliers)`, '', fmt2(totals.totalBilled), fmt2(totals.totalPaid),
+        fmt2(totals.outstanding), fmt2(totals.current), fmt2(totals.days1_30),
+        fmt2(totals.days31_60), fmt2(totals.days61_90), fmt2(totals.days90plus)]],
+      headStyles: { fillColor: [109, 40, 217], textColor: 255, fontSize: 7.5, fontStyle: 'bold', halign: 'center' },
+      footStyles: { fillColor: [240, 235, 255], textColor: [50, 50, 50], fontSize: 7.5, fontStyle: 'bold' },
+      columnStyles: {
+        0: { cellWidth: 22, halign: 'center' },
+        1: { cellWidth: 130 },
+        2: { cellWidth: 90, font: 'courier', fontSize: 7 },
+        3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right', textColor: [220, 38, 38], fontStyle: 'bold' },
+        6: { halign: 'right', textColor: [22, 163, 74] },
+        7: { halign: 'right', textColor: [161, 98, 7] },
+        8: { halign: 'right', textColor: [194, 65, 12] },
+        9: { halign: 'right', textColor: [185, 28, 28] },
+        10: { halign: 'right', textColor: [153, 27, 27], fontStyle: 'bold' },
+      },
+      styles: { fontSize: 7.5, cellPadding: 4 },
+      alternateRowStyles: { fillColor: [249, 250, 255] },
+      margin: { left: 40, right: 40 },
+    })
+
+    // Bill detail pages — one section per supplier
+    rows.forEach(r => {
+      if (!r.bills.length) return
+      doc.addPage()
+      const y0 = 40
+      doc.setFillColor(245, 243, 255)
+      doc.rect(0, 0, pageW, 34, 'F')
+      doc.setTextColor(109, 40, 217); doc.setFontSize(11); doc.setFont('helvetica', 'bold')
+      doc.text(r.name, 40, 20)
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(100, 100, 100)
+      doc.text(`GSTIN: ${r.gstin || '—'}  ·  ${r.phone || ''}  ·  Outstanding: ${fmt2(r.outstanding)}`, 40, 30)
+
+      autoTable(doc, {
+        startY: y0,
+        head: [['Bill #', 'Bill Date', 'Due Date', 'Amount', 'Paid', 'Payable', 'Aging']],
+        body: r.bills.map(b => [
+          b.billNumber,
+          b.billDate,
+          b.dueDate ?? '—',
+          fmt2(b.totalAmount),
+          fmt2(b.paidAmount),
+          fmt2(b.outstanding),
+          b.daysOverdue === 0 ? 'Current' : `${b.daysOverdue}d overdue`,
+        ]),
+        headStyles: { fillColor: [139, 92, 246], textColor: 255, fontSize: 7.5, fontStyle: 'bold' },
+        columnStyles: {
+          0: { fontStyle: 'bold', textColor: [109, 40, 217] },
+          3: { halign: 'right' }, 4: { halign: 'right', textColor: [22, 163, 74] },
+          5: { halign: 'right', fontStyle: 'bold', textColor: [220, 38, 38] },
+          6: { halign: 'center' },
+        },
+        styles: { fontSize: 7.5, cellPadding: 4 },
+        alternateRowStyles: { fillColor: [250, 248, 255] },
+        margin: { left: 40, right: 40 },
+      })
+    })
+
+    doc.save(`Creditors_Ledger_${from}_${to}.pdf`)
+    toast.success('PDF downloaded')
   }
 
   const toggle = (id: number) => setExpanded(prev => {
@@ -102,77 +317,104 @@ export default function CreditorsReportPage() {
     { name: '90+ days',  value: totals.days90plus },
   ].filter(d => d.value > 0)
 
-  const kpiCards = [
-    { label: 'Total Suppliers',  value: rows.length.toString(),            icon: <Building2 size={18} />,   gradient: 'from-blue-500 to-indigo-600',   color: '#3b82f6' },
-    { label: 'Total Payable',    value: fmt(totals.outstanding),           icon: <IndianRupee size={18} />, gradient: 'from-rose-500 to-red-600',       color: '#f43f5e' },
-    { label: 'Current',          value: fmt(totals.current),               icon: <CheckCircle size={18} />, gradient: 'from-emerald-500 to-teal-600',   color: '#10b981' },
-    { label: '1–30 Days',        value: fmt(totals.days1_30),              icon: <Clock size={18} />,       gradient: 'from-yellow-400 to-amber-500',   color: '#eab308' },
-    { label: '31–60 Days',       value: fmt(totals.days31_60),             icon: <Clock size={18} />,       gradient: 'from-orange-400 to-amber-500',   color: '#f59e0b' },
-    { label: '61–90 Days',       value: fmt(totals.days61_90),             icon: <AlertCircle size={18} />, gradient: 'from-pink-500 to-rose-500',      color: '#ec4899' },
-    { label: '90+ Days',         value: fmt(totals.days90plus),            icon: <AlertCircle size={18} />, gradient: 'from-red-400 to-red-600',        color: '#ef4444' },
-    { label: 'Total Billed',     value: fmt(totals.totalBilled),           icon: <FileText size={18} />,    gradient: 'from-violet-500 to-purple-600',  color: '#8b5cf6' },
+  const statStrip = [
+    { label: 'Suppliers',   value: rows.length.toString(),  sub: 'total creditors' },
+    { label: 'Total Billed',value: fmt(totals.totalBilled), sub: 'gross invoiced' },
+    { label: 'Total Paid',  value: fmt(totals.totalPaid),   sub: 'payments made' },
+    { label: 'Outstanding', value: fmt(totals.outstanding), sub: 'total payable',  warn: totals.outstanding > 0 },
+    { label: 'Current',     value: fmt(totals.current),     sub: 'not yet due' },
+    { label: '1–30 Days',   value: fmt(totals.days1_30),    sub: 'overdue',        warn: totals.days1_30 > 0 },
+    { label: '31–90 Days',  value: fmt(totals.days31_60 + totals.days61_90), sub: 'overdue', warn: (totals.days31_60 + totals.days61_90) > 0 },
+    { label: '90+ Days',    value: fmt(totals.days90plus),  sub: 'critical',       warn: totals.days90plus > 0 },
   ]
 
   return (
-    <div className="p-6">
-      {/* Toolbar */}
-      <div className="relative bg-white border border-gray-200 rounded-xl px-5 py-3.5 mb-5 flex flex-wrap items-center gap-3">
-        <button onClick={load} disabled={loading}
-          className="absolute top-2.5 right-3 p-1.5 rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100 disabled:opacity-50 transition-colors">
-          {loading
-            ? <Loader2 size={14} className="animate-spin text-green-500" />
-            : <RefreshCw size={14} className="text-green-500" />}
-        </button>
-        <h1 className="text-lg font-bold text-gray-900 shrink-0">Creditors Ledger</h1>
-        <p className="text-xs text-gray-400">Sundry Creditors · Accounts Payable</p>
+    <div className="min-h-screen bg-gray-50/60 p-6 space-y-6">
 
-        <div className="flex gap-1 bg-gray-100 rounded-full p-1">
-          {TABS.map(t => (
-            <button key={t.key} onClick={() => setTab(t.key)}
-              className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
-                tab === t.key ? 'bg-gradient-to-r from-violet-500 to-blue-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-white rounded-full'
-              }`}>
-              {t.label}
+      {/* ── Hero header ── */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-violet-700 via-violet-600 to-blue-600 shadow-[0_8px_40px_rgba(109,40,217,0.30)]">
+
+        {/* Title row */}
+        <div className="relative flex items-center justify-between px-8 py-5">
+          <div className="flex items-center gap-5">
+            <div className="w-12 h-12 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center shadow-inner flex-shrink-0">
+              <BookOpen size={22} className="text-amber-300" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-blue-200 uppercase tracking-widest mb-0.5">Reports</p>
+              <h1 className="text-2xl font-extrabold text-white tracking-tight leading-tight">Creditors Ledger</h1>
+              <p className="text-sm text-blue-200 mt-0.5">Sundry Creditors · Accounts Payable</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={load} disabled={loading}
+              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 disabled:opacity-50 transition-colors">
+              {loading ? <Loader2 size={15} className="animate-spin text-white" /> : <RefreshCw size={15} className="text-white" />}
             </button>
-          ))}
+            <button onClick={handleExport} disabled={exporting}
+              className="flex items-center gap-1.5 bg-amber-400 hover:bg-amber-300 active:scale-95 text-amber-900 px-3.5 py-1.5 rounded-xl text-xs font-semibold disabled:opacity-60 transition-all shadow-sm">
+              <Download size={13} />
+              {exporting ? 'Exporting…' : 'CSV'}
+            </button>
+            <button onClick={handleExportPDF} disabled={rows.length === 0}
+              className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border border-white/30 text-white px-3.5 py-1.5 rounded-xl text-xs font-semibold disabled:opacity-40 transition-all shadow-sm">
+              <FileText size={13} />
+              PDF
+            </button>
+          </div>
         </div>
 
-        <div className="ml-auto">
-          <button onClick={handleExport} disabled={exporting}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 transition-colors">
-            <Download size={13} className="text-green-600" />
-            {exporting ? 'Exporting…' : 'Export CSV (Tally)'}
-          </button>
+        {/* Tabs + date filter strip */}
+        <div className="relative flex items-center justify-between gap-3 px-6 pb-4">
+          {/* Tabs */}
+          <div className="flex gap-1 bg-white/10 rounded-xl p-1 backdrop-blur-sm">
+            {TABS.map(t => (
+              <button key={t.key} onClick={() => setTab(t.key)}
+                className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  tab === t.key ? 'bg-white text-violet-700 shadow-sm' : 'text-white/80 hover:text-white hover:bg-white/10'
+                }`}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Date filters */}
+          <div className="flex items-center gap-1 bg-white/10 rounded-xl p-1 backdrop-blur-sm">
+            {PRESETS.map(p => {
+              const active = from === p.from() && to === p.to()
+              return (
+                <button key={p.label} onClick={() => { setFrom(p.from()); setTo(p.to()) }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    active ? 'bg-white text-violet-700 shadow-sm' : 'text-white/80 hover:text-white hover:bg-white/10'
+                  }`}>
+                  {p.label}
+                </button>
+              )
+            })}
+            <CustomRangePicker from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t) }} />
+          </div>
+        </div>
+
+        {/* Stats strip */}
+        <div className="relative border-t border-white/10 grid grid-cols-8 divide-x divide-white/10">
+          {statStrip.map(s => (
+            <div key={s.label} className="px-4 py-3">
+              <p className={`text-base font-extrabold tabular-nums leading-none ${s.warn ? 'text-amber-300' : 'text-white'}`}>
+                {loading ? <span className="inline-block w-12 h-4 bg-white/20 rounded animate-pulse" /> : s.value}
+              </p>
+              <p className="text-[11px] text-blue-200 mt-0.5 font-medium">{s.label}</p>
+            </div>
+          ))}
         </div>
       </div>
 
       {/* Summary Tab */}
       {tab === 'summary' && (
-        <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            {loading ? Array(8).fill(0).map((_, i) => (
-              <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-3 shadow-sm animate-pulse">
-                <div className="w-10 h-10 rounded-xl bg-gray-200 shrink-0" />
-                <div className="flex-1">
-                  <div className="h-3 bg-gray-200 rounded w-1/2 mb-2" />
-                  <div className="h-5 bg-gray-200 rounded w-3/4" />
-                </div>
-              </div>
-            )) : kpiCards.map((c, i) => (
-              <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-shadow">
-                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${c.gradient} flex items-center justify-center text-white shrink-0 shadow-sm`}>
-                  {c.icon}
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 font-medium">{c.label}</p>
-                  <p className="text-xl font-bold text-gray-900">{c.value}</p>
-                </div>
-              </div>
-            ))}
+        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+          <div className="px-5 py-3" style={{background:'linear-gradient(to right,#eff6ff 0%,#eef2ff 100%)',borderBottom:'1px solid #dbeafe'}}>
+            <h2 className="text-sm font-semibold" style={{color:'#1f2937'}}>Payable by Aging Bucket</h2>
           </div>
-
-          <div className="bg-white rounded-xl shadow-lg p-5">
-            <h2 className="text-sm font-semibold text-gray-900 mb-4">Payable by Aging Bucket</h2>
+          <div className="p-5">
             {agingChart.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-48 text-gray-300 gap-2">
                 <CheckCircle size={36} className="text-green-300" />
@@ -198,27 +440,27 @@ export default function CreditorsReportPage() {
               </ResponsiveContainer>
             )}
           </div>
-        </>
+        </div>
       )}
 
       {/* Party-wise Tab */}
       {tab === 'party-wise' && (
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b bg-gray-50">
+          <div className="flex items-center justify-between px-5 py-3 rounded-t-xl" style={{background:'linear-gradient(to right,#eff6ff 0%,#eef2ff 100%)',borderBottom:'1px solid #dbeafe'}}>
             <div>
-              <h2 className="text-sm font-semibold text-gray-900">Party-wise Outstanding</h2>
-              {rows.length > 0 && <p className="text-xs text-gray-400 mt-0.5">{rows.length} suppliers with outstanding dues</p>}
+              <h2 className="text-sm font-semibold" style={{color:'#1f2937'}}>Party-wise Outstanding</h2>
+              {rows.length > 0 && <p className="text-xs mt-0.5" style={{color:'#6b7280'}}>{rows.length} suppliers with outstanding dues</p>}
             </div>
             <div className="relative">
               <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name / GSTIN..."
-                className="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg w-52 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400" />
+                className="pl-8 pr-3 py-1.5 text-xs bg-white border border-blue-200 text-gray-700 placeholder:text-gray-400 rounded-lg w-52 focus:outline-none focus:ring-2 focus:ring-blue-200" />
             </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50 text-[11px] text-gray-500 uppercase tracking-wide">
-                <tr>
+              <thead className="text-[11px] uppercase tracking-wide" >
+                <tr style={{background:'linear-gradient(to right,#eff6ff 0%,#eef2ff 100%)',borderBottom:'1px solid #dbeafe',color:'#1f2937'}}>
                   <th className="px-4 py-3 text-left w-8"></th>
                   <th className="px-4 py-3 text-left">#</th>
                   <th className="px-4 py-3 text-left">Supplier</th>
@@ -337,21 +579,21 @@ export default function CreditorsReportPage() {
       {/* Bill Aging Tab */}
       {tab === 'bill-aging' && (
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b bg-gray-50">
+          <div className="flex items-center justify-between px-5 py-3 rounded-t-xl" style={{background:'linear-gradient(to right,#eff6ff 0%,#eef2ff 100%)',borderBottom:'1px solid #dbeafe'}}>
             <div>
-              <h2 className="text-sm font-semibold text-gray-900">Bill Aging</h2>
-              <p className="text-xs text-gray-400 mt-0.5">{allBills.length} unpaid / partial bills</p>
+              <h2 className="text-sm font-semibold" style={{color:'#1f2937'}}>Bill Aging</h2>
+              <p className="text-xs mt-0.5" style={{color:'#6b7280'}}>{allBills.length} unpaid / partial bills</p>
             </div>
             <div className="relative">
               <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
               <input value={billSearch} onChange={e => setBillSearch(e.target.value)} placeholder="Search bill / supplier..."
-                className="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg w-52 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400" />
+                className="pl-8 pr-3 py-1.5 text-xs bg-white border border-blue-200 text-gray-700 placeholder:text-gray-400 rounded-lg w-52 focus:outline-none focus:ring-2 focus:ring-blue-200" />
             </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50 text-[11px] text-gray-500 uppercase tracking-wide">
-                <tr>
+              <thead className="text-[11px] uppercase tracking-wide" >
+                <tr style={{background:'linear-gradient(to right,#eff6ff 0%,#eef2ff 100%)',borderBottom:'1px solid #dbeafe',color:'#1f2937'}}>
                   <th className="px-4 py-3 text-left">Bill #</th>
                   <th className="px-4 py-3 text-left">Supplier</th>
                   <th className="px-4 py-3 text-left">Bill Date</th>

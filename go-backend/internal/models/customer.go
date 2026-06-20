@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -9,7 +10,7 @@ import (
 type Customer struct {
 	ID              int              `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
 	Name            string           `gorm:"column:name" json:"name"`
-	Phone           *string          `gorm:"uniqueIndex;column:phone" json:"phone"`
+	Phone           *string          `gorm:"uniqueIndex;size:191;column:phone" json:"phone"`
 	Phone2          *string          `gorm:"column:phone2" json:"phone2"`
 	Email           *string          `gorm:"column:email" json:"email"`
 	Address         *string          `gorm:"column:address" json:"address"`
@@ -25,6 +26,7 @@ type Customer struct {
 	CreditLimit     decimal.Decimal  `gorm:"column:credit_limit;type:decimal(10,2);default:0" json:"creditLimit"`
 	OutstandingDue  decimal.Decimal  `gorm:"column:outstanding_due;type:decimal(10,2);default:0" json:"outstandingDue"`
 	DiscountPercent float64          `gorm:"column:discount_percent;default:0" json:"discountPercent"`
+	SiteAddresses   json.RawMessage  `gorm:"column:site_addresses;type:json" json:"siteAddresses"`
 	Active          bool             `gorm:"column:is_active;default:true" json:"active"`
 	Blacklisted     bool             `gorm:"column:is_blacklisted;default:false" json:"blacklisted"`
 	CreatedAt       time.Time        `gorm:"column:created_at;autoCreateTime" json:"createdAt"`

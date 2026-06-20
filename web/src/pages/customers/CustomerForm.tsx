@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { X, Loader2, ChevronDown } from 'lucide-react'
+import { X, Loader2, ChevronDown, Plus, PlusCircle, MapPin } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { customerApi } from '@/services/api'
 import { Customer } from '@/types'
@@ -184,6 +184,23 @@ function Field({ label, name, type = 'text', form, setForm, errors, touched, onB
   )
 }
 
+// ─── Site address types ───────────────────────────────────────────────────────
+interface SiteAddress {
+  label: string
+  address: string
+  city: string
+  state: string
+  pincode: string
+}
+
+const emptySite = (): SiteAddress => ({ label: '', address: '', city: '', state: '', pincode: '' })
+
+function parseSites(raw: any): SiteAddress[] {
+  if (!raw) return []
+  if (Array.isArray(raw)) return raw
+  try { return JSON.parse(raw) } catch { return [] }
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function CustomerForm({ customer, onClose, onSaved }: Props) {
   // Parse existing phone: split dial code from number if stored as +91XXXXXXXXXX
@@ -208,6 +225,7 @@ export default function CustomerForm({ customer, onClose, onSaved }: Props) {
     phone: parsed.phone,
     phone2: parsed2.phone,
   })
+  const [siteAddresses, setSiteAddresses] = useState<SiteAddress[]>(() => parseSites((customer as any)?.siteAddresses))
   const [dialCode, setDialCode] = useState(parsed.dialCode)
   const [dialCode2, setDialCode2] = useState(parsed2.dialCode)
   const [touched, setTouched] = useState<Record<string, boolean>>({})
@@ -229,6 +247,7 @@ export default function CustomerForm({ customer, onClose, onSaved }: Props) {
         ...form,
         phone: dialCode + form.phone,
         phone2: form.phone2 ? dialCode2 + form.phone2 : '',
+        siteAddresses,
       }
       if (customer) {
         await customerApi.update(customer.id, payload)
@@ -292,6 +311,62 @@ export default function CustomerForm({ customer, onClose, onSaved }: Props) {
             <Field label="Credit Limit (₹)" name="creditLimit" type="number" step="0.01" min="0" {...fp} />
           </div>
           <Field label="Discount %" name="discountPercent" type="number" step="0.1" min="0" max="100" {...fp} />
+
+          {/* ── Site / Delivery Addresses ── */}
+          <div className="border-t border-dashed border-gray-200 pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-sm font-semibold text-gray-700">Site / Delivery Addresses</p>
+                <p className="text-xs text-gray-400 mt-0.5">Add multiple project or delivery sites for this customer</p>
+              </div>
+              <button type="button" onClick={() => setSiteAddresses(s => [...s, emptySite()])}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-violet-600 border border-violet-200 bg-violet-50 hover:bg-violet-100 rounded-lg transition-colors">
+                <PlusCircle size={13} /> Add Site
+              </button>
+            </div>
+
+            {siteAddresses.length === 0 ? (
+              <button type="button" onClick={() => setSiteAddresses([emptySite()])}
+                className="w-full border-2 border-dashed border-gray-200 rounded-xl py-4 text-sm text-gray-400 hover:border-violet-300 hover:text-violet-500 hover:bg-violet-50/40 transition-all flex items-center justify-center gap-2">
+                <PlusCircle size={15} /> Click to add a site address
+              </button>
+            ) : (
+              <div className="space-y-3">
+                {siteAddresses.map((site, i) => (
+                  <div key={i} className="relative border border-gray-200 rounded-xl p-4 bg-gray-50/50 space-y-3">
+                    <button type="button" onClick={() => setSiteAddresses(s => s.filter((_, idx) => idx !== i))}
+                      className="absolute top-3 right-3 w-6 h-6 rounded-full bg-red-50 border border-red-200 flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-100 transition-colors">
+                      <X size={11} />
+                    </button>
+                    <div className="flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-violet-100 text-violet-600 text-[10px] font-bold flex items-center justify-center flex-shrink-0">{i + 1}</span>
+                      <input type="text" value={site.label}
+                        onChange={e => setSiteAddresses(s => s.map((x, idx) => idx === i ? { ...x, label: e.target.value } : x))}
+                        placeholder="Site label (e.g. Main Site, Warehouse, Project A)"
+                        className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-medium focus:ring-2 focus:ring-violet-300 focus:outline-none bg-white" />
+                    </div>
+                    <input type="text" value={site.address}
+                      onChange={e => setSiteAddresses(s => s.map((x, idx) => idx === i ? { ...x, address: e.target.value } : x))}
+                      placeholder="Street / Plot / Survey address"
+                      className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-violet-300 focus:outline-none bg-white" />
+                    <div className="grid grid-cols-3 gap-2">
+                      {(['city', 'state', 'pincode'] as const).map(field => (
+                        <input key={field} type="text" value={site[field]}
+                          onChange={e => setSiteAddresses(s => s.map((x, idx) => idx === i ? { ...x, [field]: e.target.value } : x))}
+                          placeholder={field.charAt(0).toUpperCase() + field.slice(1)}
+                          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-violet-300 focus:outline-none bg-white" />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                <button type="button" onClick={() => setSiteAddresses(s => [...s, emptySite()])}
+                  className="w-full border border-dashed border-gray-300 rounded-xl py-2.5 text-xs font-medium text-gray-400 hover:border-violet-300 hover:text-violet-500 hover:bg-violet-50/40 transition-all flex items-center justify-center gap-1.5">
+                  <Plus size={13} /> Add another site
+                </button>
+              </div>
+            )}
+          </div>
+
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose}
               className="flex-1 border border-gray-300 py-2.5 rounded-lg font-medium text-sm hover:bg-gray-50">

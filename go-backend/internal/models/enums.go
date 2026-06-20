@@ -258,14 +258,15 @@ const (
 type SalesOrderStatus string
 
 const (
-	SalesOrderStatusDraft             SalesOrderStatus = "DRAFT"
-	SalesOrderStatusConfirmed         SalesOrderStatus = "CONFIRMED"
-	SalesOrderStatusProcessing        SalesOrderStatus = "PROCESSING"
+	SalesOrderStatusDraft              SalesOrderStatus = "DRAFT"
+	SalesOrderStatusConfirmed          SalesOrderStatus = "CONFIRMED"
+	SalesOrderStatusInProduction       SalesOrderStatus = "IN_PRODUCTION"
+	SalesOrderStatusProcessing         SalesOrderStatus = "PROCESSING"
 	SalesOrderStatusPartiallyDelivered SalesOrderStatus = "PARTIALLY_DELIVERED"
-	SalesOrderStatusDelivered         SalesOrderStatus = "DELIVERED"
-	SalesOrderStatusInvoiced          SalesOrderStatus = "INVOICED"
-	SalesOrderStatusCancelled         SalesOrderStatus = "CANCELLED"
-	SalesOrderStatusOnHold            SalesOrderStatus = "ON_HOLD"
+	SalesOrderStatusDelivered          SalesOrderStatus = "DELIVERED"
+	SalesOrderStatusInvoiced           SalesOrderStatus = "INVOICED"
+	SalesOrderStatusCancelled          SalesOrderStatus = "CANCELLED"
+	SalesOrderStatusOnHold             SalesOrderStatus = "ON_HOLD"
 )
 
 // ConversionStatus enum

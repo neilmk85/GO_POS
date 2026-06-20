@@ -36,8 +36,9 @@ type SalesOrderCreateRequest struct {
 }
 
 type SalesOrderItemRequest struct {
-	ProductID       int              `json:"productId"`
+	ProductID       *int             `json:"productId,omitempty"`
 	VariantID       *int             `json:"variantId,omitempty"`
+	PipeConfigID    *int             `json:"pipeConfigId,omitempty"`
 	ProductName     string           `json:"productName"`
 	SKU             *string          `json:"sku,omitempty"`
 	Quantity        decimal.Decimal  `json:"quantity"`
@@ -212,8 +213,9 @@ func (sos *SalesOrderService) Create(req SalesOrderCreateRequest) (*models.Sales
 		}
 
 		item := models.SalesOrderItem{
-			ProductID:       itemReq.ProductID,
+			ProductID:       itemReq.ProductID,  // nil for pipe-only items
 			VariantID:       itemReq.VariantID,
+			PipeConfigID:    itemReq.PipeConfigID,
 			ProductName:     itemReq.ProductName,
 			SKU:             itemReq.SKU,
 			Quantity:        itemReq.Quantity,
@@ -223,11 +225,11 @@ func (sos *SalesOrderService) Create(req SalesOrderCreateRequest) (*models.Sales
 			Notes:           itemReq.Notes,
 		}
 
-		// Calculate line amounts
+		// Calculate line amounts (use safe local vars, not raw pointers)
 		lineSubtotal := itemReq.Quantity.Mul(itemReq.UnitPrice)
-		lineDiscount := lineSubtotal.Mul(*itemReq.DiscountPercent).Div(decimal.NewFromInt(100))
+		lineDiscount := lineSubtotal.Mul(discountPercent).Div(decimal.NewFromInt(100))
 		lineBase := lineSubtotal.Sub(lineDiscount)
-		lineTax := lineBase.Mul(*itemReq.TaxRate).Div(decimal.NewFromInt(100))
+		lineTax := lineBase.Mul(taxRate).Div(decimal.NewFromInt(100))
 		item.DiscountAmount = lineDiscount
 		item.TaxAmount = lineTax
 		item.LineTotal = lineBase.Add(lineTax)
@@ -324,6 +326,7 @@ func (sos *SalesOrderService) Update(id int, req SalesOrderUpdateRequest) (*mode
 				SalesOrderID:    so.ID,
 				ProductID:       itemReq.ProductID,
 				VariantID:       itemReq.VariantID,
+				PipeConfigID:    itemReq.PipeConfigID,
 				ProductName:     itemReq.ProductName,
 				SKU:             itemReq.SKU,
 				Quantity:        itemReq.Quantity,
@@ -334,9 +337,9 @@ func (sos *SalesOrderService) Update(id int, req SalesOrderUpdateRequest) (*mode
 			}
 
 			lineSubtotal := itemReq.Quantity.Mul(itemReq.UnitPrice)
-			lineDiscount := lineSubtotal.Mul(*itemReq.DiscountPercent).Div(decimal.NewFromInt(100))
+			lineDiscount := lineSubtotal.Mul(discountPercent).Div(decimal.NewFromInt(100))
 			lineBase := lineSubtotal.Sub(lineDiscount)
-			lineTax := lineBase.Mul(*itemReq.TaxRate).Div(decimal.NewFromInt(100))
+			lineTax := lineBase.Mul(taxRate).Div(decimal.NewFromInt(100))
 			item.DiscountAmount = lineDiscount
 			item.TaxAmount = lineTax
 			item.LineTotal = lineBase.Add(lineTax)
@@ -365,6 +368,114 @@ func (sos *SalesOrderService) Update(id int, req SalesOrderUpdateRequest) (*mode
 
 	return sos.GetByID(so.ID)
 }
+
+// GetByID with PipeConfig preloaded on items
+func (sos *SalesOrderService) GetByIDWithPipeConfig(id int) (*models.SalesOrder, error) {
+	so := &models.SalesOrder{}
+	if err := sos.db.
+		Preload("Customer").
+		Preload("Outlet").
+		Preload("CreatedByUser").
+		Preload("Items", func(db *gorm.DB) *gorm.DB { return db.Order("id ASC") }).
+		Preload("Items.PipeConfig").
+		Preload("Items.ProductionOrder").
+		First(so, id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, &util.ResourceNotFoundException{Message: fmt.Sprintf("Sales Order with ID %d not found", id)}
+		}
+		return nil, err
+	}
+	return so, nil
+}
+
+// ConvertItemToPO converts a single sales order item into a Production Order
+func (sos *SalesOrderService) ConvertItemToPO(soItemID int, outletID int) (*models.ProductionOrder, error) {
+	// Load the item with its parent SO and pipe config
+	item := &models.SalesOrderItem{}
+	if err := sos.db.Preload("SalesOrder").Preload("PipeConfig").First(item, soItemID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, &util.ResourceNotFoundException{Message: "Sales order item not found"}
+		}
+		return nil, err
+	}
+
+	if item.PipeConfigID == nil {
+		return nil, &util.BusinessException{Message: "This item has no pipe config — cannot convert to Production Order"}
+	}
+	if item.ProductionOrderID != nil {
+		return nil, &util.BusinessException{Message: "This item has already been converted to a Production Order"}
+	}
+
+	// Generate PO number
+	poNum, err := util.GeneratePONumber(sos.db)
+	if err != nil {
+		return nil, err
+	}
+
+	// Derive delivery date from SO required date
+	plannedQty := int(item.Quantity.InexactFloat64())
+
+	po := &models.ProductionOrder{
+		PONumber:      poNum,
+		PipeConfigID:  *item.PipeConfigID,
+		OutletID:      outletID,
+		SalesOrderID:  &item.SalesOrderID,
+		PlannedQty:    plannedQty,
+		Status:        models.ProdOrderPlanned,
+		PlannedStart:  &item.SalesOrder.OrderDate,
+		PlannedEnd:    item.SalesOrder.RequiredDate,
+		Notes:         strPtr(fmt.Sprintf("Created from Sales Order %s", item.SalesOrder.SONumber)),
+	}
+
+	if err := sos.db.Create(po).Error; err != nil {
+		return nil, err
+	}
+
+	// Link item → PO
+	if err := sos.db.Model(item).Update("production_order_id", po.ID).Error; err != nil {
+		return nil, err
+	}
+
+	// Auto-update SO status to IN_PRODUCTION if not already
+	if item.SalesOrder.Status == models.SalesOrderStatusConfirmed ||
+		item.SalesOrder.Status == models.SalesOrderStatusDraft {
+		sos.db.Model(&models.SalesOrder{}).Where("id = ?", item.SalesOrderID).
+			Update("status", models.SalesOrderStatusInProduction)
+	}
+
+	// Reload PO with relationships
+	if err := sos.db.Preload("PipeConfig").First(po, po.ID).Error; err != nil {
+		return nil, err
+	}
+	return po, nil
+}
+
+// ConvertAllToPOs converts all unconverted pipe items in a SO to Production Orders
+func (sos *SalesOrderService) ConvertAllToPOs(soID int, outletID int) ([]*models.ProductionOrder, error) {
+	so, err := sos.GetByIDWithPipeConfig(soID)
+	if err != nil {
+		return nil, err
+	}
+
+	var created []*models.ProductionOrder
+	for _, item := range so.Items {
+		if item.PipeConfigID == nil || item.ProductionOrderID != nil {
+			continue // skip non-pipe items and already-converted items
+		}
+		po, err := sos.ConvertItemToPO(item.ID, outletID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert item %d: %w", item.ID, err)
+		}
+		created = append(created, po)
+	}
+
+	if len(created) == 0 {
+		return nil, &util.BusinessException{Message: "No unconverted pipe items found"}
+	}
+	return created, nil
+}
+
+func strPtr(s string) *string { return &s }
 
 // Helper to calculate totals
 type soCalculation struct {

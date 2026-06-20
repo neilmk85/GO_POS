@@ -184,33 +184,60 @@ func (ch *CustomerHandler) Update(w http.ResponseWriter, r *http.Request) {
 	util.SendSuccess(w, "Customer updated", customer)
 }
 
-// ImportCSV POST /api/customers/import
+// ToggleActive PATCH /api/customers/{id}/toggle-active
+func (ch *CustomerHandler) ToggleActive(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil {
+		util.SendError(w, http.StatusBadRequest, "Invalid customer ID")
+		return
+	}
+
+	customer, err := ch.service.ToggleActive(id)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+
+	status := "disabled"
+	if customer.Active {
+		status = "enabled"
+	}
+	util.SendSuccess(w, fmt.Sprintf("Customer %s", status), customer)
+}
+
+// ImportCSV POST /api/customers/import?dryRun=true|false
 func (ch *CustomerHandler) ImportCSV(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		util.SendError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
-	// Parse multipart form
+	dryRun := r.URL.Query().Get("dryRun") == "true"
+
+	// Parse multipart form (max 10 MB)
 	if err := r.ParseMultipartForm(10 << 20); err != nil {
 		util.SendError(w, http.StatusBadRequest, "Failed to parse form")
 		return
 	}
 
-	file, _, err := r.FormFile("file")
+	file, header, err := r.FormFile("file")
 	if err != nil {
 		util.SendError(w, http.StatusBadRequest, "File is required")
 		return
 	}
 	defer file.Close()
 
-	imported, err := ch.service.ImportCSV(file)
+	result, err := ch.service.ImportFile(file, header.Filename, dryRun)
 	if err != nil {
 		handleError(w, err)
 		return
 	}
 
-	util.SendSuccess(w, fmt.Sprintf("Imported %d customers", imported), map[string]int{"imported": imported})
+	msg := fmt.Sprintf("Imported %d customers", result.Created)
+	if dryRun {
+		msg = fmt.Sprintf("Preview: %d rows ready, %d errors", result.Created, result.Skipped)
+	}
+	util.SendSuccess(w, msg, result)
 }
 
 // ExportCSV GET /api/customers/export/csv

@@ -1,32 +1,51 @@
 import { useState } from 'react'
-import { Search, CreditCard, Plus } from 'lucide-react'
-
-const MOCK_PAYMENTS = [
-  { id: 1, ref: 'PMT-001', vendor: 'ABC Suppliers', date: '2026-03-05', method: 'Bank Transfer', amount: 15000, bills: 'BILL-001' },
-  { id: 2, ref: 'PMT-002', vendor: 'Global Goods',  date: '2026-03-18', method: 'Cheque',        amount: 5000,  bills: 'BILL-003' },
-]
+import { useQuery } from '@tanstack/react-query'
+import { Search, CreditCard, Plus, Loader2 } from 'lucide-react'
+import { vendorPaymentApi } from '@/services/api'
+import { useAuthStore } from '@/store/authStore'
 
 const METHOD_COLORS: Record<string, string> = {
-  'Bank Transfer': 'bg-blue-100 text-blue-700',
-  'Cheque':        'bg-purple-100 text-purple-700',
-  'Cash':          'bg-green-100 text-green-700',
-  'UPI':           'bg-orange-100 text-orange-700',
+  BANK_TRANSFER: 'bg-blue-100 text-blue-700',
+  CHEQUE:        'bg-purple-100 text-purple-700',
+  CASH:          'bg-green-100 text-green-700',
+  UPI:           'bg-orange-100 text-orange-700',
+  OTHER:         'bg-gray-100 text-gray-600',
+}
+
+const METHOD_LABELS: Record<string, string> = {
+  BANK_TRANSFER: 'Bank Transfer',
+  CHEQUE: 'Cheque',
+  CASH: 'Cash',
+  UPI: 'UPI',
+  OTHER: 'Other',
+}
+
+function fmt(n: number) {
+  return n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 export default function PaymentsMadeTab() {
+  const { outletId } = useAuthStore()
   const [search, setSearch] = useState('')
-  const filtered = MOCK_PAYMENTS.filter(p =>
-    p.ref.toLowerCase().includes(search.toLowerCase()) ||
-    p.vendor.toLowerCase().includes(search.toLowerCase())
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['vendor-payments', outletId],
+    queryFn: () => vendorPaymentApi.getAll({ outletId: outletId ?? undefined, size: 200 })
+      .then(r => r.data.data?.content ?? r.data.data ?? []),
+    enabled: true,
+  })
+
+  const payments: any[] = Array.isArray(data) ? data : (data as any)?.content ?? []
+
+  const filtered = payments.filter(p =>
+    (p.supplier?.name ?? '').toLowerCase().includes(search.toLowerCase()) ||
+    (p.referenceNumber ?? '').toLowerCase().includes(search.toLowerCase())
   )
 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">Payments Made</h2>
-          <p className="text-sm text-gray-500 mt-0.5">Payments sent to vendors against bills</p>
-        </div>
+        <div />
         <button className="flex items-center gap-2 bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-700 hover:to-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
           <Plus size={16} /> Record Payment
         </button>
@@ -39,37 +58,43 @@ export default function PaymentsMadeTab() {
           className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none" />
       </div>
 
-      {filtered.length === 0 ? (
+      {isLoading ? (
+        <div className="flex justify-center py-16">
+          <Loader2 size={28} className="animate-spin text-violet-400" />
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
           <CreditCard size={40} className="mx-auto mb-3 opacity-30" />
-          <p>No payments recorded yet</p>
+          <p>{search ? 'No payments match your search' : 'No payments recorded yet'}</p>
         </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b text-left text-gray-500 text-xs uppercase tracking-wide">
-                <th className="pb-3 font-semibold">Reference</th>
-                <th className="pb-3 font-semibold">Vendor</th>
-                <th className="pb-3 font-semibold">Date</th>
-                <th className="pb-3 font-semibold">Method</th>
-                <th className="pb-3 font-semibold">Applied to</th>
-                <th className="pb-3 font-semibold text-right">Amount</th>
+              <tr className="bg-gradient-to-r from-violet-50 to-blue-50 border-y border-violet-100">
+                <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Reference</th>
+                <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Vendor</th>
+                <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Date</th>
+                <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Method</th>
+                <th className="px-4 py-3 text-right text-[11px] font-bold text-violet-500 uppercase tracking-widest">Amount</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filtered.map(p => (
+              {filtered.map((p: any) => (
                 <tr key={p.id} className="hover:bg-gray-50">
-                  <td className="py-3 font-mono font-medium text-primary-700">{p.ref}</td>
-                  <td className="py-3 text-gray-800">{p.vendor}</td>
-                  <td className="py-3 text-gray-500">{p.date}</td>
-                  <td className="py-3">
-                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${METHOD_COLORS[p.method] ?? 'bg-gray-100 text-gray-600'}`}>
-                      {p.method}
+                  <td className="px-4 py-3 font-mono font-medium text-violet-700">
+                    {p.referenceNumber || <span className="text-gray-400 italic">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-gray-800">{p.supplier?.name ?? '—'}</td>
+                  <td className="px-4 py-3 text-gray-500">
+                    {p.paymentDate ? new Date(p.paymentDate).toLocaleDateString('en-IN') : '—'}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${METHOD_COLORS[p.paymentMethod] ?? 'bg-gray-100 text-gray-600'}`}>
+                      {METHOD_LABELS[p.paymentMethod] ?? p.paymentMethod}
                     </span>
                   </td>
-                  <td className="py-3 text-gray-500 font-mono text-xs">{p.bills}</td>
-                  <td className="py-3 text-right font-semibold text-green-700">₹{p.amount.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-right font-semibold text-green-700">₹{fmt(parseFloat(p.amount))}</td>
                 </tr>
               ))}
             </tbody>

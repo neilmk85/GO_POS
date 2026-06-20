@@ -20,7 +20,6 @@ func NewActivityLogHandler(db *gorm.DB) *ActivityLogHandler {
 
 // GetAll retrieves paginated activity logs with optional filters
 func (alh *ActivityLogHandler) GetAll(w http.ResponseWriter, r *http.Request) {
-	outletIDStr := r.URL.Query().Get("outletId")
 	userIDStr := r.URL.Query().Get("userId")
 	module := r.URL.Query().Get("module")
 	action := r.URL.Query().Get("action")
@@ -28,15 +27,8 @@ func (alh *ActivityLogHandler) GetAll(w http.ResponseWriter, r *http.Request) {
 	fromStr := r.URL.Query().Get("from")
 	toStr := r.URL.Query().Get("to")
 
-	var outletID, userID *int
+	var userID *int
 	var from, to *time.Time
-
-	if outletIDStr != "" {
-		id, err := strconv.Atoi(outletIDStr)
-		if err == nil {
-			outletID = &id
-		}
-	}
 
 	if userIDStr != "" {
 		id, err := strconv.Atoi(userIDStr)
@@ -61,11 +53,9 @@ func (alh *ActivityLogHandler) GetAll(w http.ResponseWriter, r *http.Request) {
 
 	page, size := util.ParsePagination(r)
 
-	// Build query
+	// Build query — outletID is accepted but not used as a hard filter
+	// so logs created before outlet tracking was added are still visible
 	query := alh.db
-	if outletID != nil {
-		query = query.Where("outlet_id = ?", *outletID)
-	}
 	if userID != nil {
 		query = query.Where("user_id = ?", *userID)
 	}
@@ -80,7 +70,7 @@ func (alh *ActivityLogHandler) GetAll(w http.ResponseWriter, r *http.Request) {
 	}
 	if search != "" {
 		query = query.Where(
-			"description ILIKE ? OR user_name ILIKE ? OR user_email ILIKE ? OR module ILIKE ?",
+			"description LIKE ? OR user_name LIKE ? OR user_email LIKE ? OR module LIKE ?",
 			"%"+search+"%",
 			"%"+search+"%",
 			"%"+search+"%",

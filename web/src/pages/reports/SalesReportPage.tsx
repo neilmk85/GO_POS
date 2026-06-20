@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { format, subDays, startOfMonth } from 'date-fns'
 import {
   AreaChart, Area, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -7,8 +7,9 @@ import {
 } from 'recharts'
 import {
   IndianRupee, ShoppingCart, TrendingUp, TrendingDown, RotateCcw,
-  Loader2, RefreshCw, Banknote, Smartphone, BadgePercent, Search,
+  Loader2, RefreshCw, Search,
   ChevronLeft, ChevronRight, Download, Users, Tag, Package,
+  Calendar, ChevronDown, X,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { reportApi, orderApi } from '@/services/api'
@@ -18,12 +19,96 @@ import OrderDetailModal from './OrderDetailModal'
 const COLORS     = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#f97316']
 const PIE_COLORS = ['#0d9488','#3b82f6','#f59e0b','#ef4444','#14b8a6','#60a5fa','#fbbf24','#f87171','#2dd4bf','#93c5fd']
 
+function startOf(unit: 'month' | 'quarter', d = new Date()) {
+  const r = new Date(d)
+  if (unit === 'month')   r.setDate(1)
+  else                    r.setMonth(Math.floor(r.getMonth() / 3) * 3, 1)
+  r.setHours(0, 0, 0, 0)
+  return r
+}
+
 const PRESETS = [
-  { label: 'Today',      from: () => format(new Date(), 'yyyy-MM-dd'),             to: () => format(new Date(), 'yyyy-MM-dd') },
-  { label: 'Last 7d',   from: () => format(subDays(new Date(), 6), 'yyyy-MM-dd'),  to: () => format(new Date(), 'yyyy-MM-dd') },
-  { label: 'Last 30d',  from: () => format(subDays(new Date(), 29), 'yyyy-MM-dd'), to: () => format(new Date(), 'yyyy-MM-dd') },
-  { label: 'This Month',from: () => format(startOfMonth(new Date()), 'yyyy-MM-dd'),to: () => format(new Date(), 'yyyy-MM-dd') },
+  { label: 'Today',         from: () => format(new Date(), 'yyyy-MM-dd'),              to: () => format(new Date(), 'yyyy-MM-dd') },
+  { label: 'Last 7d',      from: () => format(subDays(new Date(), 6), 'yyyy-MM-dd'),   to: () => format(new Date(), 'yyyy-MM-dd') },
+  { label: 'Last 30d',     from: () => format(subDays(new Date(), 29), 'yyyy-MM-dd'),  to: () => format(new Date(), 'yyyy-MM-dd') },
+  { label: 'This Month',   from: () => format(startOf('month'), 'yyyy-MM-dd'),          to: () => format(new Date(), 'yyyy-MM-dd') },
+  { label: 'This Quarter', from: () => format(startOf('quarter'), 'yyyy-MM-dd'),        to: () => format(new Date(), 'yyyy-MM-dd') },
 ]
+
+function dmy(iso: string) {
+  if (!iso) return ''
+  const [y, m, d] = iso.split('-')
+  return d && m && y ? `${d}/${m}/${y}` : iso
+}
+
+function CustomRangePicker({ fromDate, toDate, onChange }: {
+  fromDate: string; toDate: string; onChange: (f: string, t: string) => void
+}) {
+  const [open, setOpen]       = useState(false)
+  const [tmpFrom, setTmpFrom] = useState(fromDate)
+  const [tmpTo,   setTmpTo]   = useState(toDate)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  const presetActive = PRESETS.some(p => fromDate === p.from() && toDate === p.to())
+  const customActive = !presetActive && !!(fromDate || toDate)
+
+  function openPicker() { setTmpFrom(fromDate); setTmpTo(toDate); setOpen(true) }
+  function apply()      { onChange(tmpFrom, tmpTo); setOpen(false) }
+  function clear()      { setTmpFrom(''); setTmpTo(''); onChange('', ''); setOpen(false) }
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={openPicker}
+        className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+          customActive
+            ? 'bg-white text-violet-700 shadow-sm'
+            : 'text-white/70 hover:text-white hover:bg-white/10'
+        }`}
+      >
+        <Calendar size={11} />
+        {customActive ? `${dmy(fromDate)} – ${dmy(toDate)}` : 'Custom'}
+        {customActive
+          ? <X size={10} className="ml-0.5 opacity-70 hover:opacity-100" onClick={e => { e.stopPropagation(); clear() }} />
+          : <ChevronDown size={10} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+        }
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full mt-2 z-50 bg-white rounded-2xl shadow-xl border border-gray-100 p-4 w-64">
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Custom Range</p>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">From</label>
+              <input type="date" value={tmpFrom} onChange={e => setTmpFrom(e.target.value)}
+                className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-400 text-gray-800" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">To</label>
+              <input type="date" value={tmpTo} onChange={e => setTmpTo(e.target.value)}
+                className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-400 text-gray-800" />
+            </div>
+          </div>
+          <div className="flex gap-2 mt-4">
+            <button onClick={clear}
+              className="flex-1 py-1.5 text-xs font-medium text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+              Clear
+            </button>
+            <button onClick={apply} disabled={!tmpFrom && !tmpTo}
+              className="flex-1 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-violet-600 to-blue-600 rounded-xl hover:from-violet-700 hover:to-blue-700 disabled:opacity-40 transition-all">
+              Apply
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 const STATUS_COLORS: Record<string, string> = {
   COMPLETED:          'bg-green-50 text-green-700',
@@ -185,95 +270,101 @@ export default function SalesReportPage() {
   const digitalTotal = paymentMethods.filter(m => m.method?.toUpperCase() !== 'CASH').reduce((s, m) => s + parseFloat(String(m.amount ?? 0)), 0)
   const discountTotal = summary?.totalDiscount ?? 0
 
-  const kpiCards = summary ? [
-    { label: 'Total Revenue',    value: fmt(summary.totalRevenue ?? 0),          icon: <IndianRupee size={18} />, gradient: 'from-blue-500 to-indigo-600',    color: '#3b82f6' },
-    { label: 'Total Orders',     value: (summary.totalOrders ?? 0).toString(),   icon: <ShoppingCart size={18} />,gradient: 'from-emerald-500 to-teal-600',   color: '#10b981' },
-    { label: 'Avg Order Value',  value: fmt(summary.avgOrderValue ?? 0),         icon: <TrendingUp size={18} />,  gradient: 'from-amber-400 to-orange-500',   color: '#f59e0b' },
-    { label: 'Total Returns',    value: (summary.returnedOrders ?? 0).toString(),icon: <RotateCcw size={18} />,   gradient: 'from-rose-500 to-red-600',        color: '#f43f5e' },
-    { label: 'Gross Profit',     value: fmt(summary.grossProfit ?? 0),           icon: <TrendingUp size={18} />,  gradient: 'from-teal-500 to-emerald-600',   color: '#10b981' },
-    { label: 'Cash Collections', value: fmt(cashTotal),                           icon: <Banknote size={18} />,   gradient: 'from-sky-500 to-blue-600',        color: '#0ea5e9' },
-    { label: 'Digital Payments', value: fmt(digitalTotal),                        icon: <Smartphone size={18} />, gradient: 'from-violet-500 to-purple-600',  color: '#8b5cf6' },
-    { label: 'Discount Given',   value: fmt(discountTotal),                       icon: <BadgePercent size={18} />,gradient: 'from-orange-400 to-amber-500',  color: '#f59e0b' },
-  ] : []
-
   const catTotalRev = catData.reduce((s, r) => s + Number(r.totalRevenue ?? 0), 0)
 
   return (
     <>
-    <div className="p-6">
-      <div className="relative bg-white border border-gray-200 rounded-xl px-5 py-3.5 mb-5 flex flex-wrap items-center gap-3">
-        <button onClick={load} disabled={loading || txLoading}
-          className="absolute top-2.5 right-3 p-1.5 rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100 disabled:opacity-50 transition-colors">
-          {loading || txLoading
-            ? <Loader2 size={14} className="animate-spin text-green-500" />
-            : <RefreshCw size={14} className="text-green-500" />}
-        </button>
-        <h1 className="text-lg font-bold text-gray-900 shrink-0">Sales Report</h1>
+    <div className="min-h-screen bg-gray-50/60 p-6 space-y-6">
+      {/* ── Gradient Hero ── */}
+      <div className="bg-gradient-to-br from-violet-700 via-violet-600 to-blue-600 rounded-2xl shadow-[0_8px_40px_rgba(109,40,217,0.30)] overflow-hidden">
+        <div className="px-6 pt-6 pb-4">
+          {/* Title row */}
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-amber-400/20 border border-amber-400/30 flex items-center justify-center shrink-0">
+                <ShoppingCart size={24} className="text-amber-300" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-white leading-tight">Sales Report</h1>
+                <p className="text-sm text-white/60 mt-0.5">Revenue · Orders · Returns · Customers</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button onClick={load} disabled={loading || txLoading}
+                className="p-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 disabled:opacity-50 transition-colors">
+                {loading || txLoading
+                  ? <Loader2 size={14} className="animate-spin text-white" />
+                  : <RefreshCw size={14} className="text-white" />}
+              </button>
+              <button onClick={handleExport} disabled={exporting}
+                className="flex items-center gap-1.5 bg-amber-400 hover:bg-amber-300 active:scale-95 text-amber-900 px-3.5 py-1.5 rounded-xl text-xs font-semibold disabled:opacity-60 transition-all shadow-sm">
+                <Download size={11} className={exporting ? 'animate-bounce' : ''} />
+                {exporting ? 'Exporting…' : 'Export CSV'}
+              </button>
+            </div>
+          </div>
 
-        <div className="flex gap-1 bg-gray-100 rounded-full p-1">
-          {TABS.map(t => (
-            <button key={t.key} onClick={() => setTab(t.key)}
-              className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
-                tab === t.key
-                  ? 'bg-gradient-to-r from-violet-500 to-blue-500 text-white shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200'
-              }`}>
-              {t.label}
-            </button>
-          ))}
+          {/* Tab switcher + date filters — separate strips */}
+          <div className="flex items-center justify-between gap-3">
+            {/* Tabs */}
+            <div className="bg-white/10 rounded-xl p-1 backdrop-blur-sm flex items-center gap-1">
+              {TABS.map(t => (
+                <button key={t.key} onClick={() => setTab(t.key)}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    tab === t.key
+                      ? 'bg-white text-violet-700 shadow-sm'
+                      : 'text-white/70 hover:text-white hover:bg-white/10'
+                  }`}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Date presets + custom picker */}
+            <div className="bg-white/10 rounded-xl p-1 backdrop-blur-sm flex items-center gap-1">
+              {PRESETS.map(p => (
+                <button key={p.label} onClick={() => { setFrom(p.from()); setTo(p.to()) }}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                    from === p.from() && to === p.to()
+                      ? 'bg-white text-violet-700 shadow-sm'
+                      : 'text-white/70 hover:text-white hover:bg-white/10'
+                  }`}>
+                  {p.label}
+                </button>
+              ))}
+              <CustomRangePicker fromDate={from} toDate={to} onChange={(f, t) => { setFrom(f); setTo(t) }} />
+            </div>
+          </div>
         </div>
 
-        <div className="ml-auto flex items-center gap-2 flex-wrap">
-          {PRESETS.map(p => (
-            <button key={p.label} onClick={() => { setFrom(p.from()); setTo(p.to()) }}
-              className={`px-2.5 py-1 text-xs font-medium rounded-md border transition-colors ${
-                from === p.from() && to === p.to()
-                  ? 'bg-gradient-to-r from-violet-500 to-blue-500 text-white border-transparent'
-                  : 'border-gray-300 text-gray-600 hover:border-gray-400'
-              }`}>
-              {p.label}
-            </button>
+        {/* Stats strip */}
+        <div className="grid grid-cols-8 divide-x divide-white/10 border-t border-white/10 mt-2">
+          {[
+            { label: 'Total Revenue',  value: summary ? fmt(summary.totalRevenue ?? 0)    : '—' },
+            { label: 'Total Orders',   value: summary ? String(summary.totalOrders ?? 0)  : '—' },
+            { label: 'Avg Order',      value: summary ? fmt(summary.avgOrderValue ?? 0)   : '—' },
+            { label: 'Gross Profit',   value: summary ? fmt(summary.grossProfit ?? 0)     : '—' },
+            { label: 'Cash',           value: fmt(cashTotal) },
+            { label: 'Digital',        value: fmt(digitalTotal) },
+            { label: 'Returns',        value: summary ? String(summary.returnedOrders ?? 0) : '—', cls: (summary?.returnedOrders ?? 0) > 0 ? 'text-amber-300' : undefined },
+            { label: 'Discount',       value: fmt(discountTotal), cls: discountTotal > 0 ? 'text-amber-300' : undefined },
+          ].map(st => (
+            <div key={st.label} className="px-3 py-3 text-center">
+              <p className={`text-sm font-bold truncate ${st.cls ?? 'text-white'}`}>{st.value}</p>
+              <p className="text-[11px] text-white/50 mt-0.5 truncate">{st.label}</p>
+            </div>
           ))}
-          <div className="flex items-center gap-1.5 border border-gray-300 rounded-md px-2 py-1">
-            <input type="date" value={from} onChange={e => setFrom(e.target.value)}
-              className="text-xs text-gray-700 bg-transparent focus:outline-none" />
-            <span className="text-gray-400 text-xs">–</span>
-            <input type="date" value={to} onChange={e => setTo(e.target.value)}
-              className="text-xs text-gray-700 bg-transparent focus:outline-none" />
-          </div>
-          <button onClick={handleExport} disabled={exporting}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 transition-colors">
-            <Download size={13} className="text-green-600" />
-            {exporting ? 'Exporting…' : 'Export CSV'}
-          </button>
         </div>
       </div>
 
       {tab === 'summary' && (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            {loading && !summary ? Array(8).fill(0).map((_, i) => (
-              <div key={i} className="rounded-xl p-5 bg-gray-100 animate-pulse">
-                <div className="h-8 w-8 bg-gray-200 rounded-lg mb-3" />
-                <div className="h-6 bg-gray-200 rounded w-3/4 mb-2" />
-                <div className="h-3 bg-gray-200 rounded w-1/2" />
-              </div>
-            )) : kpiCards.map((c, i) => (
-              <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-shadow">
-                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${c.gradient} flex items-center justify-center text-white shrink-0 shadow-sm`}>
-                  {c.icon}
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 font-medium">{c.label}</p>
-                  <p className="text-xl font-bold text-gray-900">{c.value}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
-            <div className="bg-white rounded-xl border p-5">
-              <h2 className="text-sm font-semibold text-gray-900 mb-4">Daily Revenue & Orders</h2>
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-5 py-3.5" style={{background:'linear-gradient(to right,#eff6ff 0%,#eef2ff 100%)',borderBottom:'1px solid #dbeafe'}}>
+                <h2 className="text-sm font-semibold" style={{color:'#1f2937'}}>Daily Revenue & Orders</h2>
+              </div>
+              <div className="p-5">
               {dailyTrend.length === 0 ? (
                 <div className="flex items-center justify-center h-52 text-gray-200"><TrendingUp size={40} /></div>
               ) : (() => {
@@ -338,16 +429,18 @@ export default function SalesReportPage() {
                 )
               })()}
             </div>
+            </div>
 
-            <div className="bg-white rounded-xl shadow-lg p-5">
-              <h2 className="text-sm font-semibold text-gray-900 mb-4">
-                Payment Methods
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-5 py-3.5 flex items-center justify-between" style={{background:'linear-gradient(to right,#eff6ff 0%,#eef2ff 100%)',borderBottom:'1px solid #dbeafe'}}>
+                <h2 className="text-sm font-semibold" style={{color:'#1f2937'}}>Payment Methods</h2>
                 {paymentMethods.length > 0 && (
-                  <span className="ml-2 text-xs font-normal text-gray-400">
+                  <span className="text-xs" style={{color:'#6b7280'}}>
                     Total: ₹{paymentMethods.reduce((s: number, m: any) => s + (m.amount ?? 0), 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
                   </span>
                 )}
-              </h2>
+              </div>
+              <div className="p-5">
               {paymentMethods.length === 0 ? (
                 <div className="flex items-center justify-center h-52 text-gray-200"><IndianRupee size={40} /></div>
               ) : (
@@ -391,10 +484,14 @@ export default function SalesReportPage() {
                 </ResponsiveContainer>
               )}
             </div>
+            </div>
           </div>
 
-          <div className="bg-white rounded-xl border p-5">
-            <h2 className="text-sm font-semibold text-gray-900 mb-4">Top Selling Products</h2>
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="px-5 py-3.5" style={{background:'linear-gradient(to right,#eff6ff 0%,#eef2ff 100%)',borderBottom:'1px solid #dbeafe'}}>
+              <h2 className="text-sm font-semibold" style={{color:'#1f2937'}}>Top Selling Products</h2>
+            </div>
+            <div className="p-5">
             {topProducts.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-48 text-gray-300 gap-2">
                 <TrendingDown size={36} /><p className="text-sm text-gray-400">No sales data for this period</p>
@@ -436,20 +533,22 @@ export default function SalesReportPage() {
               )
             })()}
           </div>
+          </div>
         </>
       )}
 
       {tab === 'transactions' && (
         <div className="space-y-5">
         {dailyTrend.length > 0 && (
-          <div className="bg-white rounded-xl border p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-gray-900">Sales Trend</h2>
-              <div className="flex items-center gap-4 text-xs text-gray-500">
-                <span className="flex items-center gap-1.5"><span className="w-3 h-1 bg-indigo-500 rounded inline-block" /> Revenue</span>
-                <span className="flex items-center gap-1.5"><span className="w-3 h-1 bg-emerald-400 rounded inline-block" /> Orders</span>
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="bg-gradient-to-r from-violet-600 to-blue-500 px-5 py-3.5 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-white">Sales Trend</h2>
+              <div className="flex items-center gap-4 text-xs text-white/70">
+                <span className="flex items-center gap-1.5"><span className="w-3 h-1 bg-white/70 rounded inline-block" /> Revenue</span>
+                <span className="flex items-center gap-1.5"><span className="w-3 h-1 bg-emerald-300 rounded inline-block" /> Orders</span>
               </div>
             </div>
+            <div className="p-5">
             <ResponsiveContainer width="100%" height={180}>
               <ComposedChart data={dailyTrend}>
                 <defs>
@@ -474,24 +573,25 @@ export default function SalesReportPage() {
                   dot={false} strokeDasharray="4 3" />
               </ComposedChart>
             </ResponsiveContainer>
+            </div>
           </div>
         )}
-        <div className="bg-white rounded-xl border overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b bg-gray-50">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="bg-gradient-to-r from-violet-600 to-blue-500 px-5 py-3.5 flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-semibold text-gray-900">Transactions</h2>
-              {txTotal > 0 && <p className="text-xs text-gray-400 mt-0.5">{txTotal} orders in this period</p>}
+              <h2 className="text-sm font-semibold text-white">Transactions</h2>
+              {txTotal > 0 && <p className="text-xs text-white/60 mt-0.5">{txTotal} orders in this period</p>}
             </div>
             <div className="relative">
-              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/50" />
               <input value={txSearch} onChange={e => setTxSearch(e.target.value)} placeholder="Search order #..."
-                className="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg w-44 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400" />
+                className="pl-8 pr-3 py-1.5 text-xs bg-white/15 border border-white/25 rounded-xl text-white placeholder:text-white/40 focus:outline-none w-44" />
             </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50 text-[11px] text-gray-500 uppercase tracking-wide">
-                <tr>
+              <thead className="text-[11px] uppercase tracking-wide" >
+                <tr style={{background:'linear-gradient(to right,#eff6ff 0%,#eef2ff 100%)',borderBottom:'1px solid #dbeafe',color:'#1f2937'}}>
                   <th className="px-4 py-3 text-left">Order #</th>
                   <th className="px-4 py-3 text-left">Date & Time</th>
                   <th className="px-4 py-3 text-left">Customer</th>
@@ -570,29 +670,12 @@ export default function SalesReportPage() {
 
       {tab === 'by-category' && (
         <div className="space-y-5">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[
-              { label: 'Categories',    value: catData.length.toString(),                                              icon: <Tag size={18} />,         color: '#3b82f6' },
-              { label: 'Total Revenue', value: fmt(catTotalRev),                                                       icon: <IndianRupee size={18} />,  color: '#10b981' },
-              { label: 'Top Category',  value: catData[0]?.category ?? '—',                                            icon: <TrendingUp size={18} />,  color: '#f59e0b' },
-              { label: 'Top Revenue',   value: catData[0] ? fmt(Number(catData[0].totalRevenue ?? 0)) : '—',           icon: <IndianRupee size={18} />,  color: '#8b5cf6' },
-            ].map((c, i) => (
-              <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-shadow">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0 shadow-sm"
-                  style={{ background: `linear-gradient(135deg, ${c.color}cc, ${c.color})` }}>
-                  {c.icon}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs text-gray-500 font-medium">{c.label}</p>
-                  <p className="text-xl font-bold text-gray-900 truncate">{c.value}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
           {catData.length > 0 && (
-            <div className="bg-white rounded-xl shadow-lg p-5">
-              <h2 className="text-sm font-semibold text-gray-900 mb-4">Revenue by Category</h2>
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="bg-gradient-to-r from-violet-600 to-blue-500 px-5 py-3.5">
+                <h2 className="text-sm font-semibold text-white">Revenue by Category</h2>
+              </div>
+              <div className="p-5">
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={catData.slice(0, 12)}>
                   <defs>
@@ -610,12 +693,13 @@ export default function SalesReportPage() {
                   <Bar dataKey="totalRevenue" fill="url(#catBarGrad)" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
+              </div>
             </div>
           )}
 
-          <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-            <div className="px-5 py-3.5 border-b bg-gray-50">
-              <h2 className="text-sm font-semibold text-gray-900">Category Breakdown</h2>
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="bg-gradient-to-r from-violet-600 to-blue-500 px-5 py-3.5">
+              <h2 className="text-sm font-semibold text-white">Category Breakdown</h2>
             </div>
             {loading ? (
               <div className="flex items-center justify-center h-40"><Loader2 size={24} className="animate-spin text-gray-300" /></div>
@@ -624,8 +708,8 @@ export default function SalesReportPage() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gray-50 text-[11px] text-gray-500 uppercase tracking-wide">
-                    <tr>
+                  <thead className="text-[11px] uppercase tracking-wide" >
+                    <tr style={{background:'linear-gradient(to right,#eff6ff 0%,#eef2ff 100%)',borderBottom:'1px solid #dbeafe',color:'#1f2937'}}>
                       <th className="px-4 py-3 text-left">Category</th>
                       <th className="px-4 py-3 text-right">Qty Sold</th>
                       <th className="px-4 py-3 text-right">Revenue</th>
@@ -670,29 +754,12 @@ export default function SalesReportPage() {
         )
         return (
           <div className="space-y-5">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {[
-                { label: 'Products Sold',  value: prodData.length.toString(),                                          icon: <Package size={18} />,       color: '#3b82f6' },
-                { label: 'Total Revenue',  value: fmt(prodTotalRev),                                                   icon: <IndianRupee size={18} />,   color: '#10b981' },
-                { label: 'Top Product',    value: prodData[0]?.productName ?? '—',                                     icon: <TrendingUp size={18} />,    color: '#f59e0b' },
-                { label: 'Top Revenue',    value: prodData[0] ? fmt(Number(prodData[0].totalRevenue ?? 0)) : '—',      icon: <IndianRupee size={18} />,   color: '#8b5cf6' },
-              ].map((c, i) => (
-                <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-shadow">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0 shadow-sm"
-                    style={{ background: `linear-gradient(135deg, ${c.color}cc, ${c.color})` }}>
-                    {c.icon}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs text-gray-500 font-medium">{c.label}</p>
-                    <p className="text-xl font-bold text-gray-900 truncate">{c.value}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-
             {prodData.length > 0 && (
-              <div className="bg-white rounded-xl shadow-lg p-5">
-                <h2 className="text-sm font-semibold text-gray-900 mb-4">Top 15 Products by Revenue</h2>
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="bg-gradient-to-r from-violet-600 to-blue-500 px-5 py-3.5">
+                  <h2 className="text-sm font-semibold text-white">Top 15 Products by Revenue</h2>
+                </div>
+                <div className="p-5">
                 <ResponsiveContainer width="100%" height={Math.max(280, Math.min(prodData.length, 15) * 36)}>
                   <BarChart data={prodData.slice(0, 15)} layout="vertical">
                     <defs>
@@ -710,19 +777,20 @@ export default function SalesReportPage() {
                     <Bar dataKey="totalRevenue" fill="url(#prodBarGrad)" radius={[0, 6, 6, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
+                </div>
               </div>
             )}
 
-            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-              <div className="flex items-center justify-between px-5 py-3.5 border-b bg-gray-50">
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="bg-gradient-to-r from-violet-600 to-blue-500 px-5 py-3.5 flex items-center justify-between">
                 <div>
-                  <h2 className="text-sm font-semibold text-gray-900">Product Breakdown</h2>
-                  {prodData.length > 0 && <p className="text-xs text-gray-400 mt-0.5">{prodData.length} products in this period</p>}
+                  <h2 className="text-sm font-semibold text-white">Product Breakdown</h2>
+                  {prodData.length > 0 && <p className="text-xs text-white/60 mt-0.5">{prodData.length} products in this period</p>}
                 </div>
                 <div className="relative">
-                  <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/50" />
                   <input value={prodSearch} onChange={e => setProdSearch(e.target.value)} placeholder="Search product, SKU, category..."
-                    className="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg w-52 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400" />
+                    className="pl-8 pr-3 py-1.5 text-xs bg-white/15 border border-white/25 rounded-xl text-white placeholder:text-white/40 focus:outline-none w-52" />
                 </div>
               </div>
               {loading ? (
@@ -734,8 +802,8 @@ export default function SalesReportPage() {
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full">
-                    <thead className="bg-gray-50 text-[11px] text-gray-500 uppercase tracking-wide">
-                      <tr>
+                    <thead className="text-[11px] uppercase tracking-wide" >
+                      <tr style={{background:'linear-gradient(to right,#eff6ff 0%,#eef2ff 100%)',borderBottom:'1px solid #dbeafe',color:'#1f2937'}}>
                         <th className="px-4 py-3 text-left">#</th>
                         <th className="px-4 py-3 text-left">Product</th>
                         <th className="px-4 py-3 text-left">Category</th>
@@ -798,8 +866,11 @@ export default function SalesReportPage() {
         <div className="space-y-5">
         {custData.length > 0 && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <div className="bg-white rounded-xl shadow-lg p-5">
-              <h2 className="text-sm font-semibold text-gray-900 mb-4">Top 10 Customers by Revenue</h2>
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="bg-gradient-to-r from-violet-600 to-blue-500 px-5 py-3.5">
+                <h2 className="text-sm font-semibold text-white">Top 10 Customers by Revenue</h2>
+              </div>
+              <div className="p-5">
               <ResponsiveContainer width="100%" height={Math.max(200, Math.min(custData.length, 10) * 34)}>
                 <BarChart data={custData.slice(0, 10)} layout="vertical">
                   <defs>
@@ -818,16 +889,18 @@ export default function SalesReportPage() {
                   <Bar dataKey="totalSpend" fill="url(#custBarGrad)" radius={[0, 6, 6, 0]} />
                 </BarChart>
               </ResponsiveContainer>
+              </div>
             </div>
-            <div className="bg-white rounded-xl shadow-lg p-5">
-              <h2 className="text-sm font-semibold text-gray-900 mb-4">
-                Revenue Share (Top 8)
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="bg-gradient-to-r from-violet-600 to-blue-500 px-5 py-3.5 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-white">Revenue Share (Top 8)</h2>
                 {custData.length > 0 && (
-                  <span className="ml-2 text-xs font-normal text-gray-400">
+                  <span className="text-xs text-white/60">
                     Total: ₹{custData.slice(0, 8).reduce((s: number, r: any) => s + Number(r.totalSpend ?? 0), 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
                   </span>
                 )}
-              </h2>
+              </div>
+              <div className="p-5">
               <ResponsiveContainer width="100%" height={340}>
                 <PieChart>
                   <Pie data={custData.slice(0, 8)} dataKey="totalSpend" nameKey="customerName"
@@ -867,19 +940,20 @@ export default function SalesReportPage() {
                   }} />
                 </PieChart>
               </ResponsiveContainer>
+              </div>
             </div>
           </div>
         )}
-        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b bg-gray-50">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="bg-gradient-to-r from-violet-600 to-blue-500 px-5 py-3.5 flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-semibold text-gray-900">Sales by Customer</h2>
-              {custData.length > 0 && <p className="text-xs text-gray-400 mt-0.5">{custData.length} customers in this period</p>}
+              <h2 className="text-sm font-semibold text-white">Sales by Customer</h2>
+              {custData.length > 0 && <p className="text-xs text-white/60 mt-0.5">{custData.length} customers in this period</p>}
             </div>
             <div className="relative">
-              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/50" />
               <input value={custSearch} onChange={e => setCustSearch(e.target.value)} placeholder="Search customer..."
-                className="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg w-44 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400" />
+                className="pl-8 pr-3 py-1.5 text-xs bg-white/15 border border-white/25 rounded-xl text-white placeholder:text-white/40 focus:outline-none w-44" />
             </div>
           </div>
           {loading ? (
@@ -891,8 +965,8 @@ export default function SalesReportPage() {
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50 text-[11px] text-gray-500 uppercase tracking-wide">
-                  <tr>
+                <thead className="text-[11px] uppercase tracking-wide" >
+                  <tr style={{background:'linear-gradient(to right,#eff6ff 0%,#eef2ff 100%)',borderBottom:'1px solid #dbeafe',color:'#1f2937'}}>
                     <th className="px-4 py-3 text-left">#</th>
                     <th className="px-4 py-3 text-left">Customer</th>
                     <th className="px-4 py-3 text-center">Orders</th>
@@ -928,20 +1002,6 @@ export default function SalesReportPage() {
       {/* ── Sale Returns ── */}
       {tab === 'returns' && (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {[
-              { label: 'Total Returns',   value: returnData.length.toString(),                                                                     color: '#f43f5e' },
-              { label: 'Total Refunded',  value: fmt(returnData.reduce((s, r) => s + Number(r.refundAmount ?? 0), 0)),                             color: '#f59e0b' },
-              { label: 'Items Returned',  value: returnData.reduce((s, r) => s + Number(r.itemCount ?? 0), 0).toString(),                          color: '#f59e0b' },
-              { label: 'Full Refunds',    value: returnData.filter(r => r.status === 'REFUNDED').length.toString(),                                color: '#ef4444' },
-            ].map((c, i) => (
-              <div key={i} className="bg-white rounded-xl p-5 shadow-[0_2px_16px_0_rgba(0,0,0,0.07)] border border-gray-100">
-                <p className="text-xl font-bold text-gray-900">{c.value}</p>
-                <p className="text-sm font-medium text-gray-600 mt-0.5">{c.label}</p>
-              </div>
-            ))}
-          </div>
-
           {/* Returns chart: revenue vs refunds overlay */}
           {dailyTrend.length > 0 && (
             <div className="bg-white rounded-xl border p-5">
@@ -973,16 +1033,16 @@ export default function SalesReportPage() {
             </div>
           )}
 
-          <div className="bg-white rounded-xl border overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-3.5 border-b bg-gray-50">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="bg-gradient-to-r from-violet-600 to-blue-500 px-5 py-3.5 flex items-center justify-between">
               <div>
-                <h2 className="text-sm font-semibold text-gray-900">Sale Returns / Refunds</h2>
-                {returnData.length > 0 && <p className="text-xs text-gray-400 mt-0.5">{returnData.length} returns in this period</p>}
+                <h2 className="text-sm font-semibold text-white">Sale Returns / Refunds</h2>
+                {returnData.length > 0 && <p className="text-xs text-white/60 mt-0.5">{returnData.length} returns in this period</p>}
               </div>
               <div className="relative">
-                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/50" />
                 <input value={returnSearch} onChange={e => setReturnSearch(e.target.value)} placeholder="Search order / customer..."
-                  className="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg w-52 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400" />
+                  className="pl-8 pr-3 py-1.5 text-xs bg-white/15 border border-white/25 rounded-xl text-white placeholder:text-white/40 focus:outline-none w-52" />
               </div>
             </div>
             {loading ? (
@@ -994,8 +1054,8 @@ export default function SalesReportPage() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gray-50 text-[11px] text-gray-500 uppercase tracking-wide">
-                    <tr>
+                  <thead className="text-[11px] uppercase tracking-wide" >
+                    <tr style={{background:'linear-gradient(to right,#eff6ff 0%,#eef2ff 100%)',borderBottom:'1px solid #dbeafe',color:'#1f2937'}}>
                       <th className="px-4 py-3 text-left">Order #</th>
                       <th className="px-4 py-3 text-left">Date</th>
                       <th className="px-4 py-3 text-left">Customer</th>
@@ -1037,19 +1097,6 @@ export default function SalesReportPage() {
       {/* ── Outstanding Receivable ── */}
       {tab === 'outstanding' && (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {[
-              { label: 'Customers with Dues', value: outData.length.toString(),                                                                color: '#f59e0b' },
-              { label: 'Total Outstanding',   value: fmt(outData.reduce((s, r) => s + Number(r.outstandingDue ?? 0), 0)),                      color: '#f43f5e' },
-              { label: 'Total Credit Limit',  value: fmt(outData.reduce((s, r) => s + Number(r.creditLimit ?? 0), 0)),                         color: '#3b82f6' },
-            ].map((c, i) => (
-              <div key={i} className="bg-white rounded-xl p-5 shadow-[0_2px_16px_0_rgba(0,0,0,0.07)] border border-gray-100">
-                <p className="text-2xl font-bold text-gray-900">{c.value}</p>
-                <p className="text-sm font-medium text-gray-600 mt-0.5">{c.label}</p>
-              </div>
-            ))}
-          </div>
-
           {outData.length > 0 && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
               <div className="bg-white rounded-xl border p-5">
@@ -1094,16 +1141,16 @@ export default function SalesReportPage() {
             </div>
           )}
 
-          <div className="bg-white rounded-xl border overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-3.5 border-b bg-gray-50">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="bg-gradient-to-r from-violet-600 to-blue-500 px-5 py-3.5 flex items-center justify-between">
               <div>
-                <h2 className="text-sm font-semibold text-gray-900">Outstanding Receivable</h2>
-                <p className="text-xs text-gray-400 mt-0.5">Customers with pending credit dues</p>
+                <h2 className="text-sm font-semibold text-white">Outstanding Receivable</h2>
+                <p className="text-xs text-white/60 mt-0.5">Customers with pending credit dues</p>
               </div>
               <div className="relative">
-                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/50" />
                 <input value={outSearch} onChange={e => setOutSearch(e.target.value)} placeholder="Search customer..."
-                  className="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg w-52 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400" />
+                  className="pl-8 pr-3 py-1.5 text-xs bg-white/15 border border-white/25 rounded-xl text-white placeholder:text-white/40 focus:outline-none w-52" />
               </div>
             </div>
             {loading ? (
@@ -1115,8 +1162,8 @@ export default function SalesReportPage() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gray-50 text-[11px] text-gray-500 uppercase tracking-wide">
-                    <tr>
+                  <thead className="text-[11px] uppercase tracking-wide" >
+                    <tr style={{background:'linear-gradient(to right,#eff6ff 0%,#eef2ff 100%)',borderBottom:'1px solid #dbeafe',color:'#1f2937'}}>
                       <th className="px-4 py-3 text-left">#</th>
                       <th className="px-4 py-3 text-left">Customer</th>
                       <th className="px-4 py-3 text-center">Segment</th>

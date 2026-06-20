@@ -13,10 +13,10 @@ import BarcodePrintModal from './BarcodePrintModal'
 function validate(form: any) {
   const e: Record<string, string> = {}
   if (!form.name?.trim()) e.name = 'Product name is required'
-  if (!form.sellingPrice || form.sellingPrice <= 0) e.sellingPrice = 'Selling price must be greater than 0'
-  if (form.costPrice < 0) e.costPrice = 'Cannot be negative'
-  if (form.mrp < 0) e.mrp = 'Cannot be negative'
-  if (form.mrp > 0 && form.sellingPrice > form.mrp) e.sellingPrice = 'Selling price cannot exceed MRP'
+  if (form.itemType === 'FINISHED_PIPE') {
+    if (!form.sellingPrice || form.sellingPrice <= 0) e.sellingPrice = 'Selling price must be greater than 0'
+    if (form.mrp > 0 && form.sellingPrice > form.mrp) e.sellingPrice = 'Selling price cannot exceed MRP'
+  }
   if (form.reorderLevel < 0) e.reorderLevel = 'Cannot be negative'
   return e
 }
@@ -88,11 +88,12 @@ export default function ProductForm() {
     name: '', sku: '', barcode: '', description: '',
     sellingPrice: '' as any, costPrice: '' as any, mrp: '' as any,
     hsnCode: '', unitOfMeasure: 'pcs', reorderLevel: 10,
-    trackInventory: true, featured: false, active: true,
+    trackInventory: true, featured: false, active: true, purchasable: true,
     purchaseUom: '' as string,
     saleUom:     '' as string,
     purchaseFactor: 1 as number,
     saleFactor:     1 as number,
+    itemType: 'GENERAL' as string,
   })
   const [categoryId, setCategoryId] = useState<number | undefined>()
   const [taxGroupId, setTaxGroupId] = useState<number | undefined>()
@@ -289,10 +290,12 @@ export default function ProductForm() {
       trackInventory: product.trackInventory ?? true,
       featured: product.featured ?? false,
       active: product.active ?? true,
+      purchasable:    (product as any).purchasable    ?? true,
       purchaseUom:    (product as any).purchaseUom    ?? '',
       saleUom:        (product as any).saleUom        ?? '',
       purchaseFactor: (product as any).purchaseFactor ?? 1,
       saleFactor:     (product as any).saleFactor     ?? 1,
+      itemType:       (product as any).itemType       ?? 'GENERAL',
     })
     setCategoryId(product.category?.id)
     setTaxGroupId(product.taxGroup?.id)
@@ -308,15 +311,48 @@ export default function ProductForm() {
     touchAll()
     if (Object.keys(errors).length > 0) return
     setSaving(true)
+
+    const isPipe = form.itemType === 'FINISHED_PIPE'
+
+    // Build explicit, clean payload matching the backend CreateProductDTO exactly.
+    // categoryId + taxGroupId go in the JSON body (backend reads body only, not query params).
+    // Empty strings → null so backend validation doesn't reject them.
+    const payload = {
+      name:            form.name.trim(),
+      sku:             form.sku.trim()              || null,
+      barcode:         form.barcode.trim()           || null,
+      description:     form.description.trim()       || null,
+      hsnCode:         (form.hsnCode ?? '').trim()   || null,
+      // Category and tax group MUST be in the body — backend ignores query params
+      categoryId:      categoryId ?? null,
+      taxGroupId:      taxGroupId ?? null,
+      unitOfMeasure:   form.unitOfMeasure,
+      reorderLevel:    Number(form.reorderLevel) || 0,
+      trackInventory:  form.trackInventory,
+      featured:        form.featured,
+      active:          form.active,
+      itemType:        form.itemType,
+      productType:     'PHYSICAL',
+      // Pricing — 0 for non-pipe so backend accepts valid decimal
+      sellingPrice:    isPipe ? (parseFloat(form.sellingPrice) || 0) : 0,
+      costPrice:       isPipe ? (parseFloat(form.costPrice)    || 0) : 0,
+      mrp:             isPipe ? (parseFloat(form.mrp)          || 0) : 0,
+      // UoM conversion — empty string MUST be null, never ""
+      purchaseUom:     form.purchaseUom.trim() || null,
+      saleUom:         form.saleUom.trim()     || null,
+      purchaseFactor:  Number(form.purchaseFactor) || 1,
+      saleFactor:      Number(form.saleFactor)     || 1,
+    }
+
     try {
       if (isEdit && product) {
-        const res = await productApi.update(product.id, form, categoryId, taxGroupId)
+        const res = await productApi.update(product.id, payload)
         const updatedBarcode = res.data.data?.barcode
         if (updatedBarcode) setForm((prev: any) => ({ ...prev, barcode: updatedBarcode }))
-        qc.invalidateQueries({ queryKey: ['product', product.id] })
+        qc.invalidateQueries({ queryKey: ['product'] })
         toast.success('Product updated')
       } else {
-        const res = await productApi.create(form, categoryId, taxGroupId)
+        const res = await productApi.create(payload)
         const newId = res.data.data?.id
         if (newId) {
           for (const { file } of pendingImgs) {
@@ -326,9 +362,15 @@ export default function ProductForm() {
         toast.success('Product created')
       }
       qc.invalidateQueries({ queryKey: ['products'] })
+      qc.invalidateQueries({ queryKey: ['products', 'all-uom'] })
       goBack()
     } catch (err: any) {
-      toast.error(err.response?.data?.message ?? 'Failed to save product')
+      const msg = err.response?.data?.message
+        ?? err.response?.data?.error
+        ?? err.message
+        ?? 'Failed to save product'
+      console.error('Product save error:', err.response?.data ?? err)
+      toast.error(msg, { duration: 6000 })
     } finally {
       setSaving(false)
     }
@@ -536,10 +578,15 @@ export default function ProductForm() {
             </Card>
 
             <Card title="Pricing">
-              <div className="grid grid-cols-3 gap-4">
-                <Field label="Selling Price * (₹)" name="sellingPrice" type="number" step="0.01" min="0" placeholder="0.00" {...f} />
-                <Field label="Cost Price (₹)" name="costPrice" type="number" step="0.01" min="0" placeholder="0.00" {...f} />
-                <Field label="MRP (₹)" name="mrp" type="number" step="0.01" min="0" placeholder="0.00" {...f} />
+              {form.itemType !== 'FINISHED_PIPE' && (
+                <div className="mb-3 flex items-center gap-2 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 text-xs text-amber-700">
+                  <span className="font-semibold">Pricing disabled</span> — only PCCP Pipes have selling price, cost price and MRP.
+                </div>
+              )}
+              <div className={`grid grid-cols-3 gap-4 ${form.itemType !== 'FINISHED_PIPE' ? 'opacity-40 pointer-events-none select-none' : ''}`}>
+                <Field label="Selling Price (₹)" name="sellingPrice" type="number" step="0.01" min="0" placeholder="0.00" disabled={form.itemType !== 'FINISHED_PIPE'} {...f} />
+                <Field label="Cost Price (₹)" name="costPrice" type="number" step="0.01" min="0" placeholder="0.00" disabled={form.itemType !== 'FINISHED_PIPE'} {...f} />
+                <Field label="MRP (₹)" name="mrp" type="number" step="0.01" min="0" placeholder="0.00" disabled={form.itemType !== 'FINISHED_PIPE'} {...f} />
               </div>
             </Card>
 
@@ -666,12 +713,28 @@ export default function ProductForm() {
             <Card title="Classification">
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                  <select value={categoryId ?? ''} onChange={e => setCategoryId(Number(e.target.value) || undefined)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none">
-                    <option value="">No Category</option>
-                    {(categories ?? []).map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                  <div className="flex gap-2">
+                    {[
+                      { value: 'GENERAL',        label: 'No Category'    },
+                      { value: 'RAW_MATERIAL',   label: 'Raw Material'   },
+                      { value: 'FINISHED_PIPE',  label: 'PCCP Pipes'     },
+                      { value: 'STORE_MATERIAL', label: 'Store Material' },
+                    ].map(opt => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setForm((prev: any) => ({ ...prev, itemType: opt.value }))}
+                        className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold border-2 transition-all ${
+                          form.itemType === opt.value
+                            ? 'border-violet-500 bg-gradient-to-br from-violet-600 to-blue-600 text-white shadow-sm'
+                            : 'border-gray-200 bg-white text-gray-600 hover:border-violet-300 hover:bg-violet-50/40'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Tax Group</label>
@@ -726,6 +789,27 @@ export default function ProductForm() {
               <div className="mt-3">
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${form.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                   {form.active ? 'Active' : 'Inactive'}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
+                <div>
+                  <p className="text-sm font-medium text-gray-800">Purchasable</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {form.purchasable ? 'Available in Purchase Orders & Direct Purchase' : 'Hidden from all purchase flows'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setForm((prev: any) => ({ ...prev, purchasable: !prev.purchasable }))}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${form.purchasable ? 'bg-green-500' : 'bg-gray-300'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${form.purchasable ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+              <div className="mt-3">
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${form.purchasable ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
+                  {form.purchasable ? 'Purchasable' : 'Not Purchasable'}
                 </span>
               </div>
             </Card>

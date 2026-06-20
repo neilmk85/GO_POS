@@ -1,331 +1,297 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import {
-  Plus, Search, FileText, Clock, CheckCircle2, Truck, PackageCheck,
-  XCircle, AlertCircle, ChevronLeft, ChevronRight, Eye, X,
-  TrendingUp, Package, IndianRupee, ShoppingBag, Filter,
+  Plus, Search, FileText, CheckCircle2, Truck,
+  Factory, User, ChevronRight, CalendarDays, X,
 } from 'lucide-react'
 import { format } from 'date-fns'
-import toast from 'react-hot-toast'
 import { salesOrderApi } from '@/services/api'
 import { useAuthStore } from '@/store/authStore'
 
-// ── Status config ─────────────────────────────────────────────────────────────
-const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactNode; bg: string; text: string; dot: string }> = {
-  DRAFT:               { label: 'Draft',               icon: <FileText size={12} />,       bg: 'bg-gray-100',    text: 'text-gray-600',   dot: 'bg-gray-400' },
-  CONFIRMED:           { label: 'Confirmed',            icon: <CheckCircle2 size={12} />,   bg: 'bg-blue-50',     text: 'text-blue-700',   dot: 'bg-blue-500' },
-  PROCESSING:          { label: 'Processing',           icon: <Clock size={12} />,           bg: 'bg-amber-50',    text: 'text-amber-700',  dot: 'bg-amber-500' },
-  PARTIALLY_DELIVERED: { label: 'Part. Delivered',      icon: <Truck size={12} />,           bg: 'bg-purple-50',   text: 'text-purple-700', dot: 'bg-purple-500' },
-  DELIVERED:           { label: 'Delivered',            icon: <PackageCheck size={12} />,    bg: 'bg-teal-50',     text: 'text-teal-700',   dot: 'bg-teal-500' },
-  INVOICED:            { label: 'Invoiced',             icon: <CheckCircle2 size={12} />,   bg: 'bg-green-50',    text: 'text-green-700',  dot: 'bg-green-500' },
-  CANCELLED:           { label: 'Cancelled',            icon: <XCircle size={12} />,         bg: 'bg-red-50',      text: 'text-red-600',    dot: 'bg-red-400' },
-  ON_HOLD:             { label: 'On Hold',              icon: <AlertCircle size={12} />,     bg: 'bg-orange-50',   text: 'text-orange-700', dot: 'bg-orange-400' },
+const STATUS_CFG: Record<string, { label: string; bg: string; text: string; dot: string }> = {
+  DRAFT:               { label: 'Draft',          bg: 'bg-gray-100',  text: 'text-gray-600',   dot: 'bg-gray-400'   },
+  CONFIRMED:           { label: 'Confirmed',       bg: 'bg-blue-50',   text: 'text-blue-700',   dot: 'bg-blue-500'   },
+  IN_PRODUCTION:       { label: 'In Production',   bg: 'bg-amber-50',  text: 'text-amber-700',  dot: 'bg-amber-500'  },
+  PROCESSING:          { label: 'Processing',      bg: 'bg-orange-50', text: 'text-orange-700', dot: 'bg-orange-400' },
+  PARTIALLY_DELIVERED: { label: 'Part. Delivered', bg: 'bg-purple-50', text: 'text-purple-700', dot: 'bg-purple-500' },
+  DELIVERED:           { label: 'Delivered',       bg: 'bg-teal-50',   text: 'text-teal-700',   dot: 'bg-teal-500'   },
+  INVOICED:            { label: 'Invoiced',        bg: 'bg-green-50',  text: 'text-green-700',  dot: 'bg-green-500'  },
+  CANCELLED:           { label: 'Cancelled',       bg: 'bg-red-50',    text: 'text-red-600',    dot: 'bg-red-400'    },
+  ON_HOLD:             { label: 'On Hold',         bg: 'bg-slate-100', text: 'text-slate-600',  dot: 'bg-slate-400'  },
 }
 
-const ALL_STATUSES = ['ALL', 'DRAFT', 'CONFIRMED', 'PROCESSING', 'PARTIALLY_DELIVERED', 'DELIVERED', 'INVOICED', 'ON_HOLD', 'CANCELLED']
-
-const DATE_PRESETS = [
-  { label: 'All Time',   from: '', to: '' },
-  { label: 'Today',      from: format(new Date(), 'yyyy-MM-dd'), to: format(new Date(), 'yyyy-MM-dd') },
-  { label: 'This Week',  from: format(new Date(new Date().setDate(new Date().getDate() - 6)), 'yyyy-MM-dd'), to: format(new Date(), 'yyyy-MM-dd') },
-  { label: 'This Month', from: format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), 'yyyy-MM-dd'), to: format(new Date(), 'yyyy-MM-dd') },
-  { label: 'Custom',     from: '', to: '' },
-]
-
 function StatusBadge({ status }: { status: string }) {
-  const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.DRAFT
+  const c = STATUS_CFG[status] ?? STATUS_CFG.DRAFT
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${cfg.bg} ${cfg.text}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
-      {cfg.label}
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${c.bg} ${c.text}`}>
+      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${c.dot}`} />
+      {c.label}
     </span>
   )
 }
 
 export default function SalesOrdersPage() {
   const navigate = useNavigate()
-  const qc = useQueryClient()
   const { outletId } = useAuthStore()
+  const [search, setSearch]         = useState('')
+  const [status, setStatus]         = useState('ALL')
+  const [showFilter, setShowFilter] = useState(false)
+  const [fromDate, setFromDate]     = useState('')
+  const [toDate, setToDate]         = useState('')
+  const [page, setPage]             = useState(0)
+  const filterRef                   = useRef<HTMLDivElement>(null)
 
-  const [statusFilter, setStatusFilter] = useState('ALL')
-  const [search, setSearch] = useState('')
-  const [searchInput, setSearchInput] = useState('')
-  const [datePreset, setDatePreset] = useState(0)
-  const [customFrom, setCustomFrom] = useState('')
-  const [customTo, setCustomTo] = useState('')
-  const [page, setPage] = useState(0)
-  const PAGE_SIZE = 15
-
-  const isCustom = datePreset === DATE_PRESETS.length - 1
-  const preset = DATE_PRESETS[datePreset]
-  const fromDate = isCustom ? customFrom : preset.from
-  const toDate   = isCustom ? customTo   : preset.to
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (filterRef.current && !filterRef.current.contains(e.target as Node)) setShowFilter(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
 
   const { data, isLoading } = useQuery({
-    queryKey: ['sales-orders', outletId, statusFilter, search, fromDate, toDate, page],
+    queryKey: ['sales-orders', status, fromDate, toDate, page, outletId],
     queryFn: () => salesOrderApi.getAll({
-      outletId,
-      status: statusFilter === 'ALL' ? undefined : statusFilter,
-      search: search || undefined,
-      from: fromDate || undefined,
-      to: toDate || undefined,
-      page,
-      size: PAGE_SIZE,
-    }).then(r => r.data.data),
-    staleTime: 30_000,
+      outletId: outletId ?? 1,
+      ...(status !== 'ALL' ? { status } : {}),
+      ...(fromDate ? { from: fromDate } : {}),
+      ...(toDate   ? { to: toDate }     : {}),
+      page, size: 50,
+    }).then(r => r.data),
   })
 
-  const orders: any[] = data?.content ?? []
-  const total: number = data?.totalElements ?? 0
-  const totalPages = Math.ceil(total / PAGE_SIZE)
-
-  // KPI counts by status from current list
-  const kpiCounts = orders.reduce((acc: Record<string, number>, o: any) => {
-    acc[o.status] = (acc[o.status] ?? 0) + 1
-    return acc
-  }, {})
-
-  function handleSearch() {
-    setSearch(searchInput)
-    setPage(0)
-  }
-
-  const totalValue = orders.reduce((s: number, o: any) => s + parseFloat(o.totalAmount ?? 0), 0)
+  const allOrders: any[] = data?.data?.content ?? data?.data ?? []
+  const orders = allOrders.filter((o: any) => {
+    if (!search) return true
+    const q = search.toLowerCase()
+    return o.soNumber?.toLowerCase().includes(q) || o.customer?.name?.toLowerCase().includes(q)
+  })
+  const total: number = data?.data?.totalElements ?? allOrders.length
+  const inProduction = allOrders.filter((o: any) => o.status === 'IN_PRODUCTION').length
+  const confirmed    = allOrders.filter((o: any) => o.status === 'CONFIRMED').length
+  const delivered    = allOrders.filter((o: any) => ['DELIVERED','INVOICED'].includes(o.status)).length
 
   return (
-    <div className="min-h-full bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20">
+    <div className="min-h-full bg-gray-50/60 p-6 space-y-6">
 
-      {/* ── Hero header ── */}
-      <div className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 py-5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-blue-600 flex items-center justify-center shadow-lg shadow-violet-200">
-                <ShoppingBag size={22} className="text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Sales Orders</h1>
-                <p className="text-sm text-gray-500 mt-0.5">Manage customer purchase orders end-to-end</p>
-              </div>
+      {/* ── Hero header ───────────────────────────────────────────── */}
+      <div className="relative rounded-2xl shadow-[0_8px_40px_rgba(109,40,217,0.30)]">
+        {/* Background */}
+        <div className="absolute inset-0 overflow-hidden rounded-2xl bg-gradient-to-br from-violet-700 via-violet-600 to-blue-600 pointer-events-none">
+          <div className="absolute -top-8 -right-8 w-52 h-52 rounded-full bg-white/5 blur-2xl" />
+          <div className="absolute bottom-0 left-1/4 w-64 h-28 rounded-full bg-blue-400/10 blur-3xl" />
+          <div className="absolute inset-0 opacity-[0.07]"
+            style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+        </div>
+
+        {/* Top row */}
+        <div className="relative flex items-center justify-between px-8 py-6">
+          <div className="flex items-center gap-5">
+            <div className="w-14 h-14 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center shadow-inner flex-shrink-0">
+              <FileText size={26} className="text-amber-300" />
             </div>
-            <button
-              onClick={() => navigate('/sales-orders/new')}
-              className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-700 hover:to-blue-700 text-white rounded-xl font-semibold text-sm shadow-lg shadow-violet-200 transition-all hover:shadow-xl hover:-translate-y-0.5"
-            >
-              <Plus size={16} /> New Sales Order
-            </button>
+            <div>
+              <p className="text-xs font-semibold text-blue-200 uppercase tracking-widest mb-0.5">Commerce</p>
+              <h1 className="text-2xl font-extrabold text-white tracking-tight leading-tight">Sales Orders</h1>
+              <p className="text-sm text-blue-200 mt-0.5">Manage customer pipe orders and convert to production</p>
+            </div>
           </div>
+          <button
+            onClick={() => navigate('/sales-orders/new')}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-white/15 border border-white/25 text-white text-sm font-semibold rounded-xl backdrop-blur-sm hover:bg-white/25 transition-all"
+          >
+            <Plus size={16} /> New Sales Order
+          </button>
+        </div>
 
-          {/* KPI strip */}
-          <div className="grid grid-cols-4 gap-4 mt-5">
-            {[
-              { label: 'Total Orders', value: total, icon: <FileText size={16} />, gradient: 'from-violet-500 to-purple-600', light: 'bg-violet-50 text-violet-600' },
-              { label: 'Pending Delivery', value: (kpiCounts['CONFIRMED'] ?? 0) + (kpiCounts['PARTIALLY_DELIVERED'] ?? 0), icon: <Truck size={16} />, gradient: 'from-amber-400 to-orange-500', light: 'bg-amber-50 text-amber-600' },
-              { label: 'Delivered', value: kpiCounts['DELIVERED'] ?? 0, icon: <PackageCheck size={16} />, gradient: 'from-teal-500 to-emerald-600', light: 'bg-teal-50 text-teal-600' },
-              { label: 'Order Value', value: `₹${(totalValue / 1000).toFixed(1)}K`, icon: <IndianRupee size={16} />, gradient: 'from-blue-500 to-cyan-500', light: 'bg-blue-50 text-blue-600' },
-            ].map((kpi, i) => (
-              <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-shadow">
-                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${kpi.gradient} flex items-center justify-center text-white shrink-0 shadow-sm`}>
-                  {kpi.icon}
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 font-medium">{kpi.label}</p>
-                  <p className="text-xl font-bold text-gray-900">{kpi.value}</p>
-                </div>
-              </div>
-            ))}
-          </div>
+        {/* Stat strip */}
+        <div className="relative border-t border-white/10 grid grid-cols-4 divide-x divide-white/10">
+          {[
+            { label: 'Total Orders',   value: total,        sub: 'all time'            },
+            { label: 'Confirmed',      value: confirmed,    sub: 'awaiting production' },
+            { label: 'In Production',  value: inProduction, sub: 'currently active',   warn: inProduction > 0 },
+            { label: 'Delivered',      value: delivered,    sub: 'completed & invoiced' },
+          ].map(s => (
+            <div key={s.label} className="px-6 py-3.5">
+              <p className={`text-xl font-extrabold tabular-nums leading-none ${(s as any).warn ? 'text-amber-300' : 'text-white'}`}>{s.value}</p>
+              <p className="text-xs text-blue-200 mt-0.5">{s.label}</p>
+              <p className="text-[10px] text-white/40 mt-0.5">{s.sub}</p>
+            </div>
+          ))}
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 py-6 space-y-4">
+      {/* Table card */}
+      <div className="bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.08)] overflow-hidden ring-1 ring-gray-100">
 
-        {/* ── Filters bar ── */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex flex-wrap items-center gap-3">
-          {/* Search */}
-          <div className="flex items-center gap-2 flex-1 min-w-[220px] bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
-            <Search size={14} className="text-gray-400 shrink-0" />
-            <input
-              value={searchInput}
-              onChange={e => setSearchInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleSearch()}
-              placeholder="Search SO#, customer PO# or customer name…"
-              className="flex-1 text-sm bg-transparent text-gray-700 placeholder-gray-400 focus:outline-none"
-            />
-            {searchInput && (
-              <button onClick={() => { setSearchInput(''); setSearch(''); setPage(0) }}>
-                <X size={13} className="text-gray-400 hover:text-gray-600" />
-              </button>
-            )}
-          </div>
-
-          {/* Date presets */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex gap-1">
-              {DATE_PRESETS.map((p, i) => (
-                <button key={i} onClick={() => { setDatePreset(i); setPage(0) }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                    datePreset === i
-                      ? 'bg-gradient-to-r from-violet-500 to-blue-500 text-white border-transparent'
-                      : 'border-gray-200 text-gray-600 hover:border-gray-300'
-                  }`}>
-                  {p.label}
-                </button>
-              ))}
+        {/* Dark header */}
+        <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-violet-600 to-blue-600">
+          <div className="flex items-center gap-3.5">
+            <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center">
+              <FileText size={18} className="text-amber-400" />
             </div>
-            {isCustom && (
-              <div className="flex items-center gap-2">
-                <input
-                  type="date"
-                  value={customFrom}
-                  onChange={e => { setCustomFrom(e.target.value); setPage(0) }}
-                  className="border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs text-gray-700 focus:ring-2 focus:ring-violet-300 focus:border-violet-400 focus:outline-none"
-                />
-                <span className="text-xs text-gray-400">to</span>
-                <input
-                  type="date"
-                  value={customTo}
-                  min={customFrom}
-                  onChange={e => { setCustomTo(e.target.value); setPage(0) }}
-                  className="border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs text-gray-700 focus:ring-2 focus:ring-violet-300 focus:border-violet-400 focus:outline-none"
-                />
-              </div>
-            )}
-            {fromDate && toDate && !isCustom && (
-              <span className="text-xs text-gray-400">{fromDate} → {toDate}</span>
-            )}
+            <div>
+              <h2 className="text-sm font-bold text-white tracking-wide">All Sales Orders</h2>
+              <p className="text-xs text-blue-100 mt-0.5">{total} order{total !== 1 ? 's' : ''}</p>
+            </div>
           </div>
-
-          {search && (
-            <button onClick={() => { setSearch(''); setSearchInput(''); setPage(0) }}
-              className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1">
-              <X size={12} /> Clear search
-            </button>
-          )}
+          <div className="text-right">
+            <p className="text-xs text-blue-100">Total Orders</p>
+            <p className="text-sm font-bold text-white tabular-nums">{total}</p>
+          </div>
         </div>
 
-        {/* ── Status tabs ── */}
-        <div className="flex gap-1 bg-gray-100 rounded-full p-1 w-fit flex-wrap">
-          {ALL_STATUSES.map(s => (
-            <button key={s} onClick={() => { setStatusFilter(s); setPage(0) }}
-              className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
-                statusFilter === s
-                  ? 'bg-gradient-to-r from-violet-500 to-blue-500 text-white shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200'
-              }`}>
-              {s === 'ALL' ? 'All Orders' : STATUS_CONFIG[s]?.label ?? s}
-            </button>
-          ))}
-        </div>
-
-        {/* ── Table ── */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-20">
-              <div className="w-8 h-8 border-4 border-violet-200 border-t-violet-600 rounded-full animate-spin" />
-            </div>
-          ) : orders.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-gray-400">
-              <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center mb-4">
-                <ShoppingBag size={28} className="opacity-40" />
-              </div>
-              <p className="font-medium text-gray-500">No sales orders found</p>
-              <p className="text-sm mt-1">Create your first sales order to get started</p>
-              <button onClick={() => navigate('/sales-orders/new')}
-                className="mt-4 px-5 py-2 bg-gradient-to-r from-violet-600 to-blue-600 text-white rounded-xl text-sm font-semibold hover:opacity-90">
-                + New Sales Order
+        {/* Filter bar */}
+        <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-3 flex-wrap bg-gray-50/50">
+          <div className="relative flex-1 min-w-48">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search SO number or customer…"
+              className="w-full pl-8 pr-8 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-300 bg-white" />
+            {search && <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500"><X size={13} /></button>}
+          </div>
+          <div className="flex gap-1.5 flex-wrap">
+            {['ALL','DRAFT','CONFIRMED','IN_PRODUCTION','DELIVERED','CANCELLED'].map(s => (
+              <button key={s} onClick={() => setStatus(s)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${status === s ? 'bg-gradient-to-r from-violet-600 to-blue-600 text-white shadow-sm' : 'bg-white text-gray-500 border border-gray-200 hover:border-violet-400'}`}>
+                {s === 'ALL' ? 'All' : (STATUS_CFG[s]?.label ?? s)}
               </button>
-            </div>
-          ) : (
-            <>
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-gradient-to-r from-gray-50 to-slate-50 border-b border-gray-100">
-                    <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">SO Number</th>
-                    <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer</th>
-                    <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer PO#</th>
-                    <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
-                    <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Required By</th>
-                    <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-5 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Items</th>
-                    <th className="px-5 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
-                    <th className="px-5 py-3.5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {orders.map((so: any) => (
-                    <tr key={so.id}
-                      onClick={() => navigate(`/sales-orders/${so.id}`)}
-                      className="hover:bg-violet-50/40 cursor-pointer transition-colors group">
-                      <td className="px-5 py-3.5">
-                        <span className="font-mono text-sm font-semibold text-violet-700 group-hover:text-violet-900">{so.soNumber}</span>
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <div>
-                          <p className="text-sm font-semibold text-gray-900">{so.customer?.name}</p>
-                          <p className="text-xs text-gray-400">{so.customer?.phone}</p>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <span className="text-sm text-gray-600 font-mono">{so.customerPoNumber ?? '—'}</span>
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <span className="text-sm text-gray-600">{format(new Date(so.orderDate), 'dd MMM yyyy')}</span>
-                      </td>
-                      <td className="px-5 py-3.5">
-                        {so.requiredDate ? (
-                          <span className={`text-sm font-medium ${
-                            new Date(so.requiredDate) < new Date() && !['DELIVERED','INVOICED','CANCELLED'].includes(so.status)
-                              ? 'text-red-600' : 'text-gray-600'
-                          }`}>
-                            {format(new Date(so.requiredDate), 'dd MMM yyyy')}
-                          </span>
-                        ) : <span className="text-gray-300">—</span>}
-                      </td>
-                      <td className="px-5 py-3.5"><StatusBadge status={so.status} /></td>
-                      <td className="px-5 py-3.5 text-right">
-                        <span className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 bg-gray-100 rounded-full px-2.5 py-1">
-                          <Package size={11} /> {so.items?.length ?? 0}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3.5 text-right">
-                        <span className="text-sm font-bold text-gray-900">₹{parseFloat(so.totalAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                      </td>
-                      <td className="px-5 py-3.5 text-center" onClick={e => e.stopPropagation()}>
-                        <button
-                          onClick={() => navigate(`/sales-orders/${so.id}`)}
-                          className="p-1.5 rounded-lg text-gray-400 hover:text-violet-600 hover:bg-violet-50 transition-colors">
-                          <Eye size={15} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between px-5 py-3.5 border-t border-gray-100 bg-gray-50/50">
-                  <p className="text-xs text-gray-500">
-                    Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} of {total} orders
-                  </p>
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
-                      className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-white disabled:opacity-40">
-                      <ChevronLeft size={14} />
-                    </button>
-                    <span className="px-3 py-1 text-xs font-medium text-gray-700">{page + 1} / {totalPages}</span>
-                    <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
-                      className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-white disabled:opacity-40">
-                      <ChevronRight size={14} />
-                    </button>
+            ))}
+          </div>
+          <div ref={filterRef} className="relative">
+            <button onClick={() => setShowFilter(v => !v)}
+              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs border transition-all ${fromDate || toDate ? 'border-violet-500 bg-violet-50 text-violet-700 font-semibold' : 'border-gray-200 text-gray-500 hover:border-violet-400'}`}>
+              <CalendarDays size={13} />
+              {fromDate && toDate ? `${fromDate} – ${toDate}` : 'Date Range'}
+            </button>
+            {showFilter && (
+              <div className="absolute right-0 top-full mt-2 bg-white border border-gray-200 rounded-2xl shadow-xl p-4 z-30 w-60 space-y-3">
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Date Range</p>
+                {[['From', fromDate, setFromDate] as const, ['To', toDate, setToDate] as const].map(([lbl, val, set]) => (
+                  <div key={lbl}>
+                    <label className="text-xs text-gray-500 mb-1 block">{lbl}</label>
+                    <input type="date" value={val} onChange={e => set(e.target.value)}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300" />
                   </div>
+                ))}
+                <div className="flex gap-2 pt-1">
+                  <button onClick={() => { setFromDate(''); setToDate(''); setShowFilter(false) }}
+                    className="flex-1 py-1.5 text-xs text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50">Clear</button>
+                  <button onClick={() => setShowFilter(false)}
+                    className="flex-1 py-1.5 text-xs text-white bg-gradient-to-r from-violet-600 to-blue-600 rounded-lg hover:from-violet-700 hover:to-blue-700">Apply</button>
                 </div>
-              )}
-            </>
-          )}
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* Table */}
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-slate-50 border-y border-slate-200">
+              <th className="px-6 py-3 text-left   text-[11px] font-bold text-slate-500 uppercase tracking-widest">SO Number</th>
+              <th className="px-6 py-3 text-left   text-[11px] font-bold text-slate-500 uppercase tracking-widest">Customer</th>
+              <th className="px-6 py-3 text-center text-[11px] font-bold text-slate-500 uppercase tracking-widest">Pipe Items</th>
+              <th className="px-6 py-3 text-center text-[11px] font-bold text-slate-500 uppercase tracking-widest">Status</th>
+              <th className="px-6 py-3 text-center text-[11px] font-bold text-slate-500 uppercase tracking-widest">Order Date</th>
+              <th className="px-6 py-3 text-center text-[11px] font-bold text-slate-500 uppercase tracking-widest">Required By</th>
+              <th className="px-6 py-3 text-right  text-[11px] font-bold text-slate-500 uppercase tracking-widest">Amount</th>
+              <th className="px-5 py-3"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {isLoading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <tr key={i} className="animate-pulse">
+                  {Array.from({ length: 8 }).map((_, j) => (
+                    <td key={j} className="px-6 py-4"><div className="h-3 bg-gray-100 rounded" /></td>
+                  ))}
+                </tr>
+              ))
+            ) : orders.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="px-6 py-16 text-center">
+                  <FileText size={32} className="text-gray-200 mx-auto mb-3" />
+                  <p className="text-sm font-semibold text-gray-400">No sales orders found</p>
+                  <button onClick={() => navigate('/sales-orders/new')}
+                    className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-violet-600 to-blue-600 text-white text-xs font-semibold rounded-xl hover:from-violet-700 hover:to-blue-700">
+                    <Plus size={13} /> New Sales Order
+                  </button>
+                </td>
+              </tr>
+            ) : (
+              orders.map((o: any) => {
+                const pipeItems = (o.items ?? []).filter((i: any) => i.pipeConfigId)
+                const converted = pipeItems.filter((i: any) => i.productionOrderId).length
+                return (
+                  <tr key={o.id} onClick={() => navigate(`/sales-orders/${o.id}`)}
+                    className="hover:bg-violet-50/30 cursor-pointer transition-colors group">
+                    <td className="px-6 py-3.5">
+                      <span className="font-bold text-gray-900">{o.soNumber}</span>
+                      {o.customerPoNumber && <p className="text-[11px] text-gray-400 mt-0.5">Ref: {o.customerPoNumber}</p>}
+                    </td>
+                    <td className="px-6 py-3.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+                          <User size={13} className="text-slate-500" />
+                        </div>
+                        <span className="font-medium text-gray-800">{o.customer?.name ?? '—'}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-3.5 text-center">
+                      {pipeItems.length > 0 ? (
+                        <div className="flex flex-col items-center gap-0.5">
+                          <span className="font-semibold text-gray-800">{pipeItems.length} pipe{pipeItems.length !== 1 ? 's' : ''}</span>
+                          <span className={`text-[10px] font-semibold ${converted === pipeItems.length ? 'text-green-600' : 'text-amber-600'}`}>
+                            {converted}/{pipeItems.length} → PO
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 text-xs">{(o.items ?? []).length} items</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-3.5 text-center"><StatusBadge status={o.status} /></td>
+                    <td className="px-6 py-3.5 text-center text-xs text-gray-500">
+                      {o.orderDate ? format(new Date(o.orderDate), 'dd MMM yyyy') : '—'}
+                    </td>
+                    <td className="px-6 py-3.5 text-center">
+                      {o.requiredDate
+                        ? <span className="text-xs font-semibold text-orange-600">{format(new Date(o.requiredDate), 'dd MMM yyyy')}</span>
+                        : <span className="text-xs text-gray-300">—</span>}
+                    </td>
+                    <td className="px-6 py-3.5 text-right font-bold text-gray-900 tabular-nums">
+                      ₹{parseFloat(o.totalAmount ?? 0).toLocaleString('en-IN')}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <ChevronRight size={16} className="text-gray-300 group-hover:text-slate-600 mx-auto transition-colors" />
+                    </td>
+                  </tr>
+                )
+              })
+            )}
+          </tbody>
+          {orders.length > 1 && (
+            <tfoot>
+              <tr className="bg-violet-50 border-t-2 border-violet-200">
+                <td colSpan={6} className="px-6 py-3 text-xs font-bold text-violet-700 uppercase tracking-widest">{orders.length} orders shown</td>
+                <td className="px-6 py-3 text-right text-sm font-bold text-gray-900 tabular-nums">
+                  ₹{orders.reduce((s: number, o: any) => s + parseFloat(o.totalAmount ?? 0), 0).toLocaleString('en-IN')}
+                </td>
+                <td />
+              </tr>
+            </tfoot>
+          )}
+        </table>
+
+        {total > 50 && (
+          <div className="px-6 py-3.5 border-t border-gray-100 flex items-center justify-between bg-gray-50/40">
+            <p className="text-xs text-gray-500">Showing {page * 50 + 1}–{Math.min((page + 1) * 50, total)} of {total}</p>
+            <div className="flex gap-2">
+              <button disabled={page === 0} onClick={() => setPage(p => p - 1)}
+                className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50">Prev</button>
+              <button disabled={(page + 1) * 50 >= total} onClick={() => setPage(p => p + 1)}
+                className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50">Next</button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

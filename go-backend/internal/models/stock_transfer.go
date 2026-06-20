@@ -4,7 +4,7 @@ import "time"
 
 type StockTransfer struct {
 	ID             int            `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
-	TransferNumber string         `gorm:"uniqueIndex;column:transfer_number" json:"transferNumber"`
+	TransferNumber string         `gorm:"uniqueIndex;size:191;column:transfer_number" json:"transferNumber"`
 	FromOutletID   int            `gorm:"column:from_outlet_id" json:"fromOutletId"`
 	ToOutletID     int            `gorm:"column:to_outlet_id" json:"toOutletId"`
 	RequestedByID  *int           `gorm:"column:requested_by" json:"requestedById"`

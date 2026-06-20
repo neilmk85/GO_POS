@@ -5,7 +5,7 @@ services:
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: posdb
+      MYSQL_DATABASE: pppipesdb
       MYSQL_USER: pos
       MYSQL_PASSWORD: pos
     ports:
@@ -30,7 +30,7 @@ services:
       mysql:
         condition: service_healthy
     environment:
-      DB_DSN: pos:pos@tcp(mysql:3306)/posdb?charset=utf8mb4&parseTime=True&loc=Local
+      DB_DSN: pos:pos@tcp(mysql:3306)/pppipesdb?charset=utf8mb4&parseTime=True&loc=Local
       JWT_SECRET: pos-super-secret-jwt-key-change-in-production
       JWT_EXPIRY: 720h
       JWT_REFRESH_EXPIRY: 8760h

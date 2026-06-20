@@ -5,10 +5,10 @@ import "time"
 type User struct {
 	ID                 int        `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
 	Name               string     `gorm:"column:name" json:"name"`
-	Email              string     `gorm:"uniqueIndex;column:email" json:"email"`
+	Email              string     `gorm:"uniqueIndex;size:191;column:email" json:"email"`
 	Password           string     `gorm:"column:password" json:"password"`
 	Phone              *string    `gorm:"column:phone" json:"phone"`
-	EmployeeCode       *string    `gorm:"uniqueIndex;column:employee_code" json:"employeeCode"`
+	EmployeeCode       *string    `gorm:"uniqueIndex;size:191;column:employee_code" json:"employeeCode"`
 	PinCode            *string    `gorm:"column:pin_code" json:"pinCode"`
 	OutletID           *int       `gorm:"column:outlet_id" json:"outletId"`
 	Active             bool       `gorm:"column:is_active;default:true" json:"active"`

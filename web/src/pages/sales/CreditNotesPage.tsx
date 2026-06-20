@@ -105,17 +105,49 @@ export default function CreditNotesPage() {
 
   return (
     <div className="p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Credit Notes</h1>
-          <p className="text-sm text-gray-500 mt-0.5">All credit notes — filter by customer to narrow down</p>
+      {/* Hero Header */}
+      <div className="relative rounded-2xl shadow-[0_8px_40px_rgba(109,40,217,0.30)] mb-6">
+        <div className="absolute inset-0 overflow-hidden rounded-2xl">
+          <div className="absolute inset-0 bg-gradient-to-br from-violet-700 via-violet-600 to-blue-600" />
+          <div className="absolute inset-0 opacity-[0.15]"
+            style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+          <div className="absolute -top-10 -right-10 w-72 h-72 rounded-full bg-blue-400/20 blur-3xl" />
+          <div className="absolute -bottom-8 -left-8 w-56 h-56 rounded-full bg-violet-300/20 blur-2xl" />
         </div>
-        <button onClick={handleRefresh} disabled={notesLoading}
-          className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50">
-          <RefreshCw size={14} className={`text-green-600 ${notesLoading ? 'animate-spin' : ''}`} />
-          Refresh
-        </button>
+        {/* Top row */}
+        <div className="relative flex items-center justify-between px-8 py-6">
+          <div className="flex items-center gap-4">
+            <FileX size={26} className="text-amber-300" />
+            <div>
+              <p className="text-violet-200 text-xs font-semibold tracking-widest uppercase">Sales</p>
+              <h1 className="text-white text-2xl font-bold tracking-tight">Credit Notes</h1>
+            </div>
+          </div>
+          <button onClick={handleRefresh} disabled={notesLoading}
+            className="flex items-center gap-2 bg-white text-violet-700 hover:bg-violet-50 px-4 py-2 rounded-lg font-semibold text-sm shadow-sm transition-colors disabled:opacity-50">
+            <RefreshCw size={14} className={notesLoading ? 'animate-spin' : ''} />
+            Refresh
+          </button>
+        </div>
+        {/* Stat strip */}
+        <div className="relative border-t border-white/10 grid grid-cols-4 divide-x divide-white/10">
+          <div className="px-6 py-3 text-center">
+            <p className="text-white text-xl font-bold">{notes.length}</p>
+            <p className="text-violet-200 text-xs mt-0.5">Total</p>
+          </div>
+          <div className="px-6 py-3 text-center">
+            <p className="text-white text-xl font-bold">{notes.filter(n => n.status === 'ACTIVE').length}</p>
+            <p className="text-violet-200 text-xs mt-0.5">Active</p>
+          </div>
+          <div className="px-6 py-3 text-center">
+            <p className="text-white text-xl font-bold">₹{totalActive.toFixed(2)}</p>
+            <p className="text-violet-200 text-xs mt-0.5">Available Credit</p>
+          </div>
+          <div className="px-6 py-3 text-center">
+            <p className="text-white text-xl font-bold">{notes.filter(n => n.status === 'EXPIRED').length}</p>
+            <p className="text-violet-200 text-xs mt-0.5">Expired</p>
+          </div>
+        </div>
       </div>
 
       {/* Customer search */}
@@ -149,17 +181,17 @@ export default function CreditNotesPage() {
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <table className="w-full">
-          <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
-            <tr>
-              <th className="px-4 py-3 text-left">Credit Note #</th>
-              <th className="px-4 py-3 text-left">Customer</th>
-              <th className="px-4 py-3 text-right">Original Amount</th>
-              <th className="px-4 py-3 text-right">Used</th>
-              <th className="px-4 py-3 text-right">Remaining</th>
-              <th className="px-4 py-3 text-left">Reason</th>
-              <th className="px-4 py-3 text-left">Expiry</th>
-              <th className="px-4 py-3 text-center">Status</th>
-              <th className="px-4 py-3 text-right">Actions</th>
+          <thead>
+            <tr className="bg-gradient-to-r from-violet-50 to-blue-50 border-y border-violet-100">
+              <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Credit Note #</th>
+              <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Customer</th>
+              <th className="px-4 py-3 text-right text-[11px] font-bold text-violet-500 uppercase tracking-widest">Original Amount</th>
+              <th className="px-4 py-3 text-right text-[11px] font-bold text-violet-500 uppercase tracking-widest">Used</th>
+              <th className="px-4 py-3 text-right text-[11px] font-bold text-violet-500 uppercase tracking-widest">Remaining</th>
+              <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Reason</th>
+              <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Expiry</th>
+              <th className="px-4 py-3 text-center text-[11px] font-bold text-violet-500 uppercase tracking-widest">Status</th>
+              <th className="px-4 py-3 text-right text-[11px] font-bold text-violet-500 uppercase tracking-widest">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">

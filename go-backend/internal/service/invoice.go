@@ -25,8 +25,11 @@ type InvoiceCreateRequest struct {
 	IssueDate        *time.Time            `json:"issueDate,omitempty"`
 	DueDate          *time.Time            `json:"dueDate,omitempty"`
 	PaymentTerms     *string               `json:"paymentTerms,omitempty"`
-	PONumber         *string               `json:"poNumber,omitempty"`
-	ShippingAmount   *decimal.Decimal      `json:"shippingAmount,omitempty"`
+	PONumber          *string               `json:"poNumber,omitempty"`
+	DeliveryChallanNo *string               `json:"deliveryChallanNo,omitempty"`
+	EWayBillNo        *string               `json:"eWayBillNo,omitempty"`
+	EInvoiceNo        *string               `json:"eInvoiceNo,omitempty"`
+	ShippingAmount    *decimal.Decimal      `json:"shippingAmount,omitempty"`
 	Notes            *string               `json:"notes,omitempty"`
 	TermsConditions  *string               `json:"termsConditions,omitempty"`
 	BillDiscountPct  *decimal.Decimal      `json:"billDiscountPct,omitempty"`
@@ -180,6 +183,9 @@ func (is *InvoiceService) Create(req InvoiceCreateRequest) (*models.Invoice, err
 		DueDate:           req.DueDate,
 		PaymentTerms:      req.PaymentTerms,
 		PONumber:          req.PONumber,
+		DeliveryChallanNo: req.DeliveryChallanNo,
+		EWayBillNo:        req.EWayBillNo,
+		EInvoiceNo:        req.EInvoiceNo,
 		ShippingAmount:    shippingAmount,
 		Notes:             req.Notes,
 		TermsConditions:   req.TermsConditions,
@@ -335,8 +341,11 @@ func (is *InvoiceService) Update(id int, req InvoiceCreateRequest) (*models.Invo
 		"issue_date":         req.IssueDate,
 		"due_date":           req.DueDate,
 		"payment_terms":      req.PaymentTerms,
-		"po_number":          req.PONumber,
-		"shipping_amount":    shippingAmount,
+		"po_number":           req.PONumber,
+		"delivery_challan_no": req.DeliveryChallanNo,
+		"e_way_bill_no":       req.EWayBillNo,
+		"e_invoice_no":        req.EInvoiceNo,
+		"shipping_amount":     shippingAmount,
 		"notes":              req.Notes,
 		"terms_conditions":   req.TermsConditions,
 		"bill_discount_pct":  billDiscPct,

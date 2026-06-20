@@ -1,7 +1,7 @@
-import { useRef, useEffect, useState, useMemo } from 'react'
+import { useRef, useEffect, useState, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useReactToPrint } from 'react-to-print'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   X, Printer, Minus, Plus, Eye, EyeOff, GripVertical,
   AlignLeft, AlignCenter, AlignRight, AlertCircle, RotateCcw, Store,
@@ -9,27 +9,14 @@ import {
 } from 'lucide-react'
 import JsBarcode from 'jsbarcode'
 import type { Product } from '@/types'
-import { outletApi } from '@/services/api'
+import { outletApi, userPreferenceApi } from '@/services/api'
 import { useAuthStore } from '@/store/authStore'
 
-// ─── Persistence ──────────────────────────────────────────────────────────────
-const STORAGE_KEY = 'pos_barcode_label_design'
-
+// ─── Design type (stored in DB as JSON string under key 'barcode_label_design') ──
 interface SavedDesign {
   fields:        FieldConfig[]
   fontFamily:    string
   storeNameText: string
-}
-
-function loadSavedDesign(): SavedDesign | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? (JSON.parse(raw) as SavedDesign) : null
-  } catch { return null }
-}
-
-function persistDesign(d: SavedDesign) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(d))
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -580,22 +567,36 @@ interface Props {
 }
 
 export default function BarcodePrintModal({ product, onClose }: Props) {
-  // ── Load saved design once on mount ──
-  const saved = useMemo(() => loadSavedDesign(), [])
+  const qc = useQueryClient()
+
+  // ── Load saved design from DB ─────────────────────────────────────────────
+  const { data: userPrefs = {} } = useQuery({
+    queryKey: ['user-preferences'],
+    queryFn:  () => userPreferenceApi.getAll().then(r => r.data.data ?? {}),
+  })
+  const savedDesign = useMemo<SavedDesign | null>(() => {
+    const raw = (userPrefs as Record<string, string>)['barcode_label_design']
+    if (!raw) return null
+    try { return JSON.parse(raw) as SavedDesign } catch { return null }
+  }, [userPrefs])
 
   const [tab,           setTab]           = useState<'setup' | 'design'>('setup')
   const [size,          setSize]          = useState<LabelSize>('standard')
   const [qty,           setQty]           = useState(1)
-  const [fields,        setFields]        = useState<FieldConfig[]>(
-    saved?.fields ?? DEFAULT_FIELDS.map(f => ({ ...f }))
-  )
-  const [fontFamily,    setFontFamily]    = useState(saved?.fontFamily ?? 'Arial')
-  const [storeNameText, setStoreNameText] = useState(saved?.storeNameText ?? '')
+  const [fields,        setFields]        = useState<FieldConfig[]>(DEFAULT_FIELDS.map(f => ({ ...f })))
+  const [fontFamily,    setFontFamily]    = useState('Arial')
+  const [storeNameText, setStoreNameText] = useState('')
   const [isSaved,       setIsSaved]       = useState(false)
-  // Track the last-persisted snapshot to detect unsaved changes
-  const [savedSnapshot, setSavedSnapshot] = useState<string>(
-    saved ? JSON.stringify(saved) : ''
-  )
+  const [savedSnapshot, setSavedSnapshot] = useState('')
+
+  // Apply saved design once prefs are loaded
+  useEffect(() => {
+    if (!savedDesign) return
+    setFields(savedDesign.fields)
+    setFontFamily(savedDesign.fontFamily)
+    if (savedDesign.storeNameText) setStoreNameText(savedDesign.storeNameText)
+    setSavedSnapshot(JSON.stringify(savedDesign))
+  }, [savedDesign])
 
   const printRef = useRef<HTMLDivElement>(null)
   const outletId = useAuthStore(s => s.outletId)
@@ -615,13 +616,14 @@ export default function BarcodePrintModal({ product, onClose }: Props) {
   const currentSnapshot = JSON.stringify({ fields, fontFamily, storeNameText })
   const hasUnsaved = savedSnapshot !== '' && currentSnapshot !== savedSnapshot
 
-  const handleSaveDesign = () => {
+  const handleSaveDesign = useCallback(async () => {
     const design: SavedDesign = { fields, fontFamily, storeNameText }
-    persistDesign(design)
+    await userPreferenceApi.set('barcode_label_design', JSON.stringify(design))
+    qc.invalidateQueries({ queryKey: ['user-preferences'] })
     setSavedSnapshot(JSON.stringify(design))
     setIsSaved(true)
     setTimeout(() => setIsSaved(false), 2500)
-  }
+  }, [fields, fontFamily, storeNameText, qc])
 
   const handleReset = () => {
     const defaults = DEFAULT_FIELDS.map(f => ({ ...f }))

@@ -30,7 +30,7 @@ func main() {
 	// Initialize logger
 	initLogger(cfg.Env)
 
-	slog.Info("POS Backend starting",
+	slog.Info("P&P Pipe Products Backend starting",
 		"env", cfg.Env,
 		"port", cfg.Port,
 		"frontend_url", cfg.FrontendUrl,

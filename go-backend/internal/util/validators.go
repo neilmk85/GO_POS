@@ -82,7 +82,7 @@ func ParsePagination(r *http.Request) (page, size int) {
 	if page < 0 {
 		page = 0
 	}
-	if size < 1 || size > 100 {
+	if size < 1 || size > 500 {
 		size = 20
 	}
 

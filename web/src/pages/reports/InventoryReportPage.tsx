@@ -1,13 +1,13 @@
-import { useState, useEffect } from 'react'
-import { format, subDays, startOfMonth } from 'date-fns'
+import { useState, useEffect, useRef } from 'react'
+import { format, subDays } from 'date-fns'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   Cell, PieChart, Pie, Legend,
 } from 'recharts'
 import {
-  Package, AlertTriangle, XCircle, Boxes, Loader2, RefreshCw, ArrowUpDown,
+  Package, AlertTriangle, Boxes, Loader2, RefreshCw, ArrowUpDown,
   Search, TrendingUp, TrendingDown, ArrowLeftRight, History,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, BarChart2, Calendar, ChevronDown, X, Download,
 } from 'lucide-react'
 import { inventoryApi, productApi } from '@/services/api'
 import { useAuthStore } from '@/store/authStore'
@@ -16,12 +16,96 @@ import toast from 'react-hot-toast'
 const COLORS     = ['#0d9488','#3b82f6','#f59e0b','#ef4444','#14b8a6','#60a5fa','#fbbf24','#f87171','#2dd4bf','#93c5fd']
 const PIE_COLORS = ['#0d9488','#3b82f6','#f59e0b','#ef4444','#14b8a6','#60a5fa','#fbbf24','#f87171']
 
+function startOf(unit: 'month' | 'quarter', d = new Date()) {
+  const r = new Date(d)
+  if (unit === 'month')   r.setDate(1)
+  else                    r.setMonth(Math.floor(r.getMonth() / 3) * 3, 1)
+  r.setHours(0, 0, 0, 0)
+  return r
+}
+
 const PRESETS = [
-  { label: 'Today',      from: () => format(new Date(), 'yyyy-MM-dd'),              to: () => format(new Date(), 'yyyy-MM-dd') },
-  { label: 'Last 7d',   from: () => format(subDays(new Date(), 6), 'yyyy-MM-dd'),   to: () => format(new Date(), 'yyyy-MM-dd') },
-  { label: 'Last 30d',  from: () => format(subDays(new Date(), 29), 'yyyy-MM-dd'),  to: () => format(new Date(), 'yyyy-MM-dd') },
-  { label: 'This Month',from: () => format(startOfMonth(new Date()), 'yyyy-MM-dd'), to: () => format(new Date(), 'yyyy-MM-dd') },
+  { label: 'Today',         from: () => format(new Date(), 'yyyy-MM-dd'),              to: () => format(new Date(), 'yyyy-MM-dd') },
+  { label: 'Last 7d',      from: () => format(subDays(new Date(), 6), 'yyyy-MM-dd'),   to: () => format(new Date(), 'yyyy-MM-dd') },
+  { label: 'Last 30d',     from: () => format(subDays(new Date(), 29), 'yyyy-MM-dd'),  to: () => format(new Date(), 'yyyy-MM-dd') },
+  { label: 'This Month',   from: () => format(startOf('month'), 'yyyy-MM-dd'),          to: () => format(new Date(), 'yyyy-MM-dd') },
+  { label: 'This Quarter', from: () => format(startOf('quarter'), 'yyyy-MM-dd'),        to: () => format(new Date(), 'yyyy-MM-dd') },
 ]
+
+function dmy(iso: string) {
+  if (!iso) return ''
+  const [y, m, d] = iso.split('-')
+  return d && m && y ? `${d}/${m}/${y}` : iso
+}
+
+function CustomRangePicker({ fromDate, toDate, onChange }: {
+  fromDate: string; toDate: string; onChange: (f: string, t: string) => void
+}) {
+  const [open, setOpen]       = useState(false)
+  const [tmpFrom, setTmpFrom] = useState(fromDate)
+  const [tmpTo,   setTmpTo]   = useState(toDate)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  const presetActive = PRESETS.some(p => fromDate === p.from() && toDate === p.to())
+  const customActive = !presetActive && !!(fromDate || toDate)
+
+  function openPicker() { setTmpFrom(fromDate); setTmpTo(toDate); setOpen(true) }
+  function apply()      { onChange(tmpFrom, tmpTo); setOpen(false) }
+  function clear()      { setTmpFrom(''); setTmpTo(''); onChange('', ''); setOpen(false) }
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={openPicker}
+        className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+          customActive
+            ? 'bg-white text-violet-700 shadow-sm'
+            : 'text-white/70 hover:text-white hover:bg-white/10'
+        }`}
+      >
+        <Calendar size={11} />
+        {customActive ? `${dmy(fromDate)} – ${dmy(toDate)}` : 'Custom'}
+        {customActive
+          ? <X size={10} className="ml-0.5 opacity-70 hover:opacity-100" onClick={e => { e.stopPropagation(); clear() }} />
+          : <ChevronDown size={10} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+        }
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-2 z-50 bg-white rounded-2xl shadow-xl border border-gray-100 p-4 w-64">
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Custom Range</p>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">From</label>
+              <input type="date" value={tmpFrom} onChange={e => setTmpFrom(e.target.value)}
+                className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-400 text-gray-800" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">To</label>
+              <input type="date" value={tmpTo} onChange={e => setTmpTo(e.target.value)}
+                className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-400 text-gray-800" />
+            </div>
+          </div>
+          <div className="flex gap-2 mt-4">
+            <button onClick={clear}
+              className="flex-1 py-1.5 text-xs font-medium text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+              Clear
+            </button>
+            <button onClick={apply} disabled={!tmpFrom && !tmpTo}
+              className="flex-1 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-violet-600 to-blue-600 rounded-xl hover:from-violet-700 hover:to-blue-700 disabled:opacity-40 transition-all">
+              Apply
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 type Tab = 'overview' | 'stock-status' | 'adjustments' | 'transfers'
 const TABS: { key: Tab; label: string }[] = [
@@ -31,16 +115,25 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'transfers',    label: 'Transfers'     },
 ]
 
+type TypeFilter = 'raw_material' | 'finished_pipe' | 'store_material'
+const TYPE_TABS: { key: TypeFilter; label: string; value: string }[] = [
+  { key: 'raw_material',   label: 'Raw Material',   value: 'RAW_MATERIAL'   },
+  { key: 'finished_pipe',  label: 'Pipes',          value: 'FINISHED_PIPE'  },
+  { key: 'store_material', label: 'Store Material', value: 'STORE_MATERIAL' },
+]
+
 type SortKey = 'name' | 'stock' | 'value'
 
 export default function InventoryReportPage() {
   const { outletId } = useAuthStore()
   const oid = outletId ?? 1
 
-  const [tab, setTab]   = useState<Tab>('overview')
+  const [tab, setTab]         = useState<Tab>('overview')
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('raw_material')
   const [from, setFrom] = useState(format(subDays(new Date(), 29), 'yyyy-MM-dd'))
   const [to, setTo]     = useState(format(new Date(), 'yyyy-MM-dd'))
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading]     = useState(false)
+  const [exporting, setExporting] = useState(false)
 
   const [products, setProducts]       = useState<any[]>([])
   const [lowStock, setLowStock]       = useState<any[]>([])
@@ -103,23 +196,62 @@ export default function InventoryReportPage() {
     else if (tab === 'transfers')   { setTxPage(0); fetchTransfers(0) }
   }
 
+  const handleExport = async () => {
+    setExporting(true)
+    try {
+      // Build CSV from current products data
+      const rows = [
+        ['Product', 'SKU', 'Category', 'Stock Qty', 'Reorder At', 'Cost Price', 'Selling Price', 'Stock Value', 'Status'],
+        ...typeFilteredProducts.map(p => {
+          const qty = p.stockQuantity ?? 0
+          const val = qty * (p.costPrice ?? p.sellingPrice ?? 0)
+          const status = qty <= 0 ? 'Out of Stock' : qty <= (p.reorderPoint ?? 5) ? 'Low Stock' : 'In Stock'
+          return [
+            p.name ?? '',
+            p.sku ?? '',
+            p.category?.name ?? '',
+            qty,
+            p.reorderPoint ?? 5,
+            p.costPrice ?? 0,
+            p.sellingPrice ?? 0,
+            val.toFixed(0),
+            status,
+          ]
+        }),
+      ]
+      const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+      const a = document.createElement('a'); a.href = url; a.download = `inventory_${from}_${to}.csv`; a.click()
+      URL.revokeObjectURL(url)
+      toast.success('CSV downloaded')
+    } catch { toast.error('Export failed') }
+    finally { setExporting(false) }
+  }
+
   useEffect(() => { load() }, [oid, tab, from, to])
   useEffect(() => { if (tab === 'adjustments') fetchAdjustments(adjPage) }, [adjPage])
   useEffect(() => { if (tab === 'transfers')   fetchTransfers(txPage)    }, [txPage])
 
+  // ── Type-filtered products ───────────────────────────────────────────────────
+
+  const activeTypeValue = TYPE_TABS.find(t => t.key === typeFilter)?.value ?? 'RAW_MATERIAL'
+  const typeFilteredProducts = products.filter(p =>
+    (p.itemType ?? p.productType ?? p.type) === activeTypeValue
+  )
+
   // ── Derived stats ────────────────────────────────────────────────────────────
 
-  const totalProducts  = products.length
-  const outOfStock     = products.filter(p => (p.stockQuantity ?? 0) <= 0).length
+  const totalProducts  = typeFilteredProducts.length
+  const outOfStock     = typeFilteredProducts.filter(p => (p.stockQuantity ?? 0) <= 0).length
   const lowStockCount  = lowStock.length
-  const inStockCount   = products.filter(p => (p.stockQuantity ?? 0) > (p.reorderPoint ?? 5)).length
-  const totalValue     = products.reduce((s, p) => s + ((p.stockQuantity ?? 0) * (p.costPrice ?? p.sellingPrice ?? 0)), 0)
-  const totalRetail    = products.reduce((s, p) => s + ((p.stockQuantity ?? 0) * (p.sellingPrice ?? 0)), 0)
+  const inStockCount   = typeFilteredProducts.filter(p => (p.stockQuantity ?? 0) > (p.reorderPoint ?? 5)).length
+  const totalValue     = typeFilteredProducts.reduce((s, p) => s + ((p.stockQuantity ?? 0) * (p.costPrice ?? p.sellingPrice ?? 0)), 0)
+  const totalRetail    = typeFilteredProducts.reduce((s, p) => s + ((p.stockQuantity ?? 0) * (p.sellingPrice ?? 0)), 0)
   const potentialProfit = totalRetail - totalValue
 
   // Category chart
   const catMap: Record<string, number> = {}
-  products.forEach(p => {
+  typeFilteredProducts.forEach(p => {
     const cat = p.category?.name ?? 'Uncategorized'
     catMap[cat] = (catMap[cat] ?? 0) + ((p.stockQuantity ?? 0) * (p.costPrice ?? p.sellingPrice ?? 0))
   })
@@ -136,13 +268,13 @@ export default function InventoryReportPage() {
   ].filter(d => d.value > 0)
 
   // Top by value
-  const topByValue = [...products]
+  const topByValue = [...typeFilteredProducts]
     .map(p => ({ name: p.name, value: (p.stockQuantity ?? 0) * (p.costPrice ?? p.sellingPrice ?? 0) }))
     .sort((a, b) => b.value - a.value)
     .slice(0, 10)
 
   // Filtered + sorted stock list
-  const filteredProducts = [...products]
+  const filteredProducts = [...typeFilteredProducts]
     .filter(p => {
       if (search && !p.name?.toLowerCase().includes(search.toLowerCase())
         && !p.sku?.toLowerCase().includes(search.toLowerCase())) return false
@@ -177,90 +309,119 @@ export default function InventoryReportPage() {
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
+  const statStrip = [
+    { label: 'Total Products',   value: totalProducts.toString(),        sub: 'all SKUs' },
+    { label: 'In Stock',         value: inStockCount.toString(),         sub: 'above reorder' },
+    { label: 'Low Stock',        value: lowStockCount.toString(),        sub: 'needs reorder',  warn: lowStockCount > 0 },
+    { label: 'Out of Stock',     value: outOfStock.toString(),           sub: 'zero qty',       warn: outOfStock > 0 },
+    { label: 'Stock Cost Value', value: fmt(totalValue),                 sub: 'at cost price' },
+    { label: 'Retail Value',     value: fmt(totalRetail),                sub: 'at selling price' },
+    { label: 'Potential Profit', value: fmt(potentialProfit),            sub: 'retail − cost' },
+    { label: 'Categories',       value: catChartData.length.toString(),  sub: 'product groups' },
+  ]
+
   return (
-    <div className="p-6">
+    <div className="min-h-screen bg-gray-50/60 p-6 space-y-6">
 
-      {/* ── Toolbar ── */}
-      <div className="relative bg-white border border-gray-200 rounded-xl px-5 py-3.5 mb-5 flex flex-wrap items-center gap-3">
-        <button onClick={load} disabled={loading}
-          className="absolute top-2.5 right-3 p-1.5 rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100 disabled:opacity-50 transition-colors">
-          {loading
-            ? <Loader2 size={14} className="animate-spin text-green-500" />
-            : <RefreshCw size={14} className="text-green-500" />}
-        </button>
-
-        <h1 className="text-lg font-bold text-gray-900 shrink-0">Inventory Report</h1>
-
-        <div className="flex gap-1 bg-gray-100 rounded-full p-1">
-          {TABS.map(t => (
-            <button key={t.key} onClick={() => setTab(t.key)}
-              className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
-                tab === t.key
-                  ? 'bg-gradient-to-r from-violet-500 to-blue-500 text-white shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200'
-              }`}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="ml-auto flex items-center gap-2 flex-wrap">
-            {PRESETS.map(p => (
-              <button key={p.label} onClick={() => { setFrom(p.from()); setTo(p.to()) }}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md border transition-colors ${
-                  from === p.from() && to === p.to()
-                    ? 'bg-gradient-to-r from-violet-500 to-blue-500 text-white border-transparent'
-                    : 'border-gray-300 text-gray-600 hover:border-gray-400'
-                }`}>
-                {p.label}
+      {/* ── Hero header ── */}
+      <div className="bg-gradient-to-br from-violet-700 via-violet-600 to-blue-600 rounded-2xl shadow-[0_8px_40px_rgba(109,40,217,0.30)] overflow-hidden">
+        <div className="px-6 pt-6 pb-4">
+          {/* Title row */}
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-amber-400/20 border border-amber-400/30 flex items-center justify-center shrink-0">
+                <BarChart2 size={24} className="text-amber-300" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-white leading-tight">Inventory Report</h1>
+                <p className="text-sm text-white/60 mt-0.5">Stock · Adjustments · Transfers</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button onClick={load} disabled={loading}
+                className="p-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 disabled:opacity-50 transition-colors">
+                {loading
+                  ? <Loader2 size={14} className="animate-spin text-white" />
+                  : <RefreshCw size={14} className="text-white" />}
               </button>
-            ))}
-            <div className="flex items-center gap-1.5 border border-gray-300 rounded-md px-2 py-1">
-              <input type="date" value={from} onChange={e => setFrom(e.target.value)}
-                className="text-xs text-gray-700 bg-transparent focus:outline-none" />
-              <span className="text-gray-400 text-xs">–</span>
-              <input type="date" value={to} onChange={e => setTo(e.target.value)}
-                className="text-xs text-gray-700 bg-transparent focus:outline-none" />
+              <button onClick={handleExport} disabled={exporting || typeFilteredProducts.length === 0}
+                className="flex items-center gap-1.5 bg-amber-400 hover:bg-amber-300 active:scale-95 text-amber-900 px-3.5 py-1.5 rounded-xl text-xs font-semibold disabled:opacity-60 transition-all shadow-sm">
+                <Download size={11} className={exporting ? 'animate-bounce' : ''} />
+                {exporting ? 'Exporting…' : 'Export CSV'}
+              </button>
             </div>
           </div>
+
+          {/* Material type tabs */}
+          <div className="bg-white/10 rounded-xl p-1 backdrop-blur-sm flex items-center gap-1 mb-3">
+            {TYPE_TABS.map(t => (
+              <button key={t.key} onClick={() => setTypeFilter(t.key)}
+                className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  typeFilter === t.key
+                    ? 'bg-white text-violet-700 shadow-sm'
+                    : 'text-white/70 hover:text-white hover:bg-white/10'
+                }`}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab switcher + date filters — separate strips */}
+          <div className="flex items-center justify-between gap-3">
+            {/* Tabs */}
+            <div className="bg-white/10 rounded-xl p-1 backdrop-blur-sm flex items-center gap-1">
+              {TABS.map(t => (
+                <button key={t.key} onClick={() => setTab(t.key)}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    tab === t.key
+                      ? 'bg-white text-violet-700 shadow-sm'
+                      : 'text-white/70 hover:text-white hover:bg-white/10'
+                  }`}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Date presets + custom picker */}
+            <div className="bg-white/10 rounded-xl p-1 backdrop-blur-sm flex items-center gap-1">
+              {PRESETS.map(p => (
+                <button key={p.label} onClick={() => { setFrom(p.from()); setTo(p.to()) }}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                    from === p.from() && to === p.to()
+                      ? 'bg-white text-violet-700 shadow-sm'
+                      : 'text-white/70 hover:text-white hover:bg-white/10'
+                  }`}>
+                  {p.label}
+                </button>
+              ))}
+              <CustomRangePicker fromDate={from} toDate={to} onChange={(f, t) => { setFrom(f); setTo(t) }} />
+            </div>
+          </div>
+        </div>
+
+        {/* Stats strip */}
+        <div className="grid grid-cols-8 divide-x divide-white/10 border-t border-white/10 mt-2">
+          {statStrip.map(s => (
+            <div key={s.label} className="px-3 py-3 text-center">
+              <p className={`text-sm font-bold truncate ${s.warn ? 'text-amber-300' : 'text-white'}`}>
+                {loading ? <span className="inline-block w-10 h-3.5 bg-white/20 rounded animate-pulse" /> : s.value}
+              </p>
+              <p className="text-[11px] text-white/50 mt-0.5 truncate">{s.label}</p>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* ══════════════════════ OVERVIEW TAB ══════════════════════ */}
       {tab === 'overview' && (
         <>
-          {/* KPI cards — gradient */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            {(loading && products.length === 0 ? Array(8).fill(null) : [
-              { label: 'Total Products',   value: totalProducts.toString(),       icon: <Package size={18} />,       gradient: 'from-blue-500 to-indigo-600'   },
-              { label: 'In Stock',         value: inStockCount.toString(),        icon: <Boxes size={18} />,         gradient: 'from-emerald-500 to-teal-600'  },
-              { label: 'Low Stock',        value: lowStockCount.toString(),       icon: <AlertTriangle size={18} />, gradient: 'from-amber-400 to-orange-500'  },
-              { label: 'Out of Stock',     value: outOfStock.toString(),          icon: <XCircle size={18} />,       gradient: 'from-rose-500 to-red-600'      },
-              { label: 'Stock Cost Value', value: fmt(totalValue),                icon: <TrendingDown size={18} />,  gradient: 'from-sky-500 to-blue-600'      },
-              { label: 'Retail Value',     value: fmt(totalRetail),              icon: <TrendingUp size={18} />,    gradient: 'from-violet-500 to-indigo-600' },
-              { label: 'Potential Profit', value: fmt(potentialProfit),          icon: <TrendingUp size={18} />,    gradient: 'from-emerald-400 to-teal-500'  },
-              { label: 'Categories',       value: catChartData.length.toString(),icon: <Package size={18} />,       gradient: 'from-amber-500 to-yellow-600'  },
-            ]).map((c, i) => c === null ? (
-              <div key={i} className="rounded-2xl p-4 bg-gray-100 animate-pulse flex items-center gap-3">
-                <div className="w-10 h-10 bg-gray-200 rounded-xl shrink-0" />
-                <div className="flex-1"><div className="h-3 bg-gray-200 rounded w-1/2 mb-2" /><div className="h-5 bg-gray-200 rounded w-3/4" /></div>
-              </div>
-            ) : (
-              <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-shadow">
-                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${c.gradient} flex items-center justify-center text-white shrink-0 shadow-sm`}>
-                  {c.icon}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs text-gray-500 font-medium">{c.label}</p>
-                  <p className="text-xl font-bold text-gray-900 truncate">{c.value}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
           {/* Charts row */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
-            <div className="bg-white rounded-xl border p-5">
-              <h2 className="text-sm font-semibold text-gray-900 mb-4">Stock Value by Category</h2>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <div className="bg-white rounded-xl border overflow-hidden">
+              <div className="px-5 py-3 bg-gradient-to-r from-violet-400 to-blue-400">
+                <h2 className="text-sm font-semibold text-white">Stock Value by Category</h2>
+              </div>
+              <div className="p-5">
               {catChartData.length === 0 ? (
                 <div className="flex items-center justify-center h-52 text-gray-200"><Boxes size={40} /></div>
               ) : (
@@ -279,17 +440,19 @@ export default function InventoryReportPage() {
                   </BarChart>
                 </ResponsiveContainer>
               )}
+              </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-lg p-5">
-              <h2 className="text-sm font-semibold text-gray-900 mb-4">
-                Stock Health Distribution
+            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+              <div className="px-5 py-3 bg-gradient-to-r from-violet-400 to-blue-400 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-white">Stock Health Distribution</h2>
                 {stockPie.length > 0 && (
-                  <span className="ml-2 text-xs font-normal text-gray-400">
-                    Total: {stockPie.reduce((s, d) => s + d.value, 0)} products
+                  <span className="text-xs text-blue-100">
+                    {stockPie.reduce((s, d) => s + d.value, 0)} products
                   </span>
                 )}
-              </h2>
+              </div>
+              <div className="p-5">
               {stockPie.length === 0 ? (
                 <div className="flex items-center justify-center h-52 text-gray-200"><Package size={40} /></div>
               ) : (
@@ -334,13 +497,17 @@ export default function InventoryReportPage() {
                   </PieChart>
                 </ResponsiveContainer>
               )}
+              </div>
             </div>
           </div>
 
           {/* Top by value */}
           {topByValue.length > 0 && (
-            <div className="bg-white rounded-xl border p-5 mb-5">
-              <h2 className="text-sm font-semibold text-gray-900 mb-4">Top 10 Products by Stock Value</h2>
+            <div className="bg-white rounded-xl border overflow-hidden">
+              <div className="px-5 py-3 bg-gradient-to-r from-violet-400 to-blue-400">
+                <h2 className="text-sm font-semibold text-white">Top 10 Products by Stock Value</h2>
+              </div>
+              <div className="p-5">
               {(() => {
                 const maxVal = Math.max(...topByValue.map(r => r.value))
                 return (
@@ -368,16 +535,19 @@ export default function InventoryReportPage() {
                   </div>
                 )
               })()}
+              </div>
             </div>
           )}
 
           {/* Low stock alerts */}
           {lowStock.length > 0 && (
             <div className="bg-white rounded-xl border overflow-hidden">
-              <div className="flex items-center gap-2 px-5 py-3.5 border-b bg-amber-50">
-                <AlertTriangle size={15} className="text-amber-600" />
-                <h2 className="text-sm font-semibold text-amber-800">Low Stock Alerts</h2>
-                <span className="ml-auto text-xs bg-amber-200 text-amber-700 px-2 py-0.5 rounded-full font-medium">{lowStockCount}</span>
+              <div className="flex items-center justify-between px-5 py-3 bg-gradient-to-r from-violet-400 to-blue-400">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle size={14} className="text-amber-200" />
+                  <h2 className="text-sm font-semibold text-white">Low Stock Alerts</h2>
+                </div>
+                <span className="text-xs bg-white/20 text-white px-2 py-0.5 rounded-full font-medium">{lowStockCount}</span>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -421,46 +591,27 @@ export default function InventoryReportPage() {
       {/* ══════════════════════ STOCK STATUS TAB ══════════════════════ */}
       {tab === 'stock-status' && (
         <div className="space-y-5">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[
-              { label: 'Total Products', value: totalProducts.toString(), icon: <Package size={18} />,       gradient: 'from-blue-500 to-indigo-600'  },
-              { label: 'In Stock',       value: inStockCount.toString(),  icon: <Boxes size={18} />,         gradient: 'from-emerald-500 to-teal-600' },
-              { label: 'Low Stock',      value: lowStockCount.toString(), icon: <AlertTriangle size={18} />, gradient: 'from-amber-400 to-orange-500' },
-              { label: 'Out of Stock',   value: outOfStock.toString(),    icon: <XCircle size={18} />,       gradient: 'from-rose-500 to-red-600'     },
-            ].map((c, i) => (
-              <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-shadow">
-                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${c.gradient} flex items-center justify-center text-white shrink-0 shadow-sm`}>
-                  {c.icon}
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 font-medium">{c.label}</p>
-                  <p className="text-xl font-bold text-gray-900">{c.value}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
           <div className="bg-white rounded-xl border overflow-hidden shadow-lg">
-            <div className="flex items-center justify-between px-5 py-3.5 border-b bg-gray-50 flex-wrap gap-3">
+            <div className="flex items-center justify-between px-5 py-3 bg-gradient-to-r from-violet-400 to-blue-400 rounded-t-xl flex-wrap gap-3">
               <div>
-                <h2 className="text-sm font-semibold text-gray-900">All Products — Stock Status</h2>
-                <p className="text-xs text-gray-400 mt-0.5">{filteredProducts.length} of {products.length} products</p>
+                <h2 className="text-sm font-semibold text-white">All Products — Stock Status</h2>
+                <p className="text-xs text-blue-100 mt-0.5">{filteredProducts.length} of {products.length} products</p>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 {(['all', 'in-stock', 'low', 'out'] as const).map(s => (
                   <button key={s} onClick={() => setStatusFilter(s)}
-                    className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${
+                    className={`px-2.5 py-1 text-xs rounded-lg border font-medium transition-all ${
                       statusFilter === s
-                        ? 'bg-gradient-to-r from-violet-500 to-blue-500 text-white border-transparent'
-                        : 'border-gray-300 text-gray-600 hover:border-gray-400'
+                        ? 'bg-white text-violet-700 border-transparent'
+                        : 'border-white/30 text-white/80 hover:bg-white/10 hover:text-white'
                     }`}>
                     {s === 'all' ? 'All' : s === 'in-stock' ? 'In Stock' : s === 'low' ? 'Low Stock' : 'Out of Stock'}
                   </button>
                 ))}
                 <div className="relative">
-                  <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/60" />
                   <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search product, SKU…"
-                    className="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg w-48 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400" />
+                    className="pl-8 pr-3 py-1.5 text-xs bg-white/15 border border-white/25 text-white placeholder:text-white/50 rounded-lg w-48 focus:outline-none focus:ring-2 focus:ring-white/30 backdrop-blur-sm" />
                 </div>
               </div>
             </div>
@@ -558,9 +709,9 @@ export default function InventoryReportPage() {
           })()}
 
           <div className="bg-white rounded-xl border overflow-hidden">
-            <div className="px-5 py-3.5 border-b bg-gray-50">
-              <h2 className="text-sm font-semibold text-gray-900">Stock Adjustment History</h2>
-              {adjTotal > 0 && <p className="text-xs text-gray-400 mt-0.5">{adjTotal} adjustments in this period</p>}
+            <div className="px-5 py-3 bg-gradient-to-r from-violet-400 to-blue-400 rounded-t-xl">
+              <h2 className="text-sm font-semibold text-white">Stock Adjustment History</h2>
+              {adjTotal > 0 && <p className="text-xs text-blue-100 mt-0.5">{adjTotal} adjustments in this period</p>}
             </div>
             {loading ? (
               <div className="flex items-center justify-center h-48"><Loader2 size={24} className="animate-spin text-gray-300" /></div>
@@ -635,9 +786,9 @@ export default function InventoryReportPage() {
       {tab === 'transfers' && (
         <div className="space-y-5">
           <div className="bg-white rounded-xl border overflow-hidden">
-            <div className="px-5 py-3.5 border-b bg-gray-50">
-              <h2 className="text-sm font-semibold text-gray-900">Stock Transfers</h2>
-              {transfers.length > 0 && <p className="text-xs text-gray-400 mt-0.5">{transfers.length} transfers</p>}
+            <div className="px-5 py-3 bg-gradient-to-r from-violet-400 to-blue-400 rounded-t-xl">
+              <h2 className="text-sm font-semibold text-white">Stock Transfers</h2>
+              {transfers.length > 0 && <p className="text-xs text-blue-100 mt-0.5">{transfers.length} transfers</p>}
             </div>
             {loading ? (
               <div className="flex items-center justify-center h-48"><Loader2 size={24} className="animate-spin text-gray-300" /></div>

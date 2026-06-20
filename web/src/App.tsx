@@ -4,7 +4,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/authStore'
 import AppLayout from '@/layouts/AppLayout'
 import LoginPage from '@/pages/auth/LoginPage'
-import POSPage from '@/pages/pos/POSPage'
 import ReportsPage from '@/pages/reports/ReportsPage'
 import SalesReportPage from '@/pages/reports/SalesReportPage'
 import PurchaseReportPage from '@/pages/reports/PurchaseReportPage'
@@ -13,15 +12,18 @@ import GstReportPage from '@/pages/reports/GstReportPage'
 import DebtorsReportPage from '@/pages/reports/DebtorsReportPage'
 import PaymentReportPage from '@/pages/reports/PaymentReportPage'
 import CreditorsReportPage from '@/pages/reports/CreditorsReportPage'
+import LedgerReportPage from '@/pages/reports/LedgerReportPage'
+import TDSReportPage from '@/pages/reports/TDSReportPage'
 import ProductsPage from '@/pages/products/ProductsPage'
 import ProductForm from '@/pages/products/ProductForm'
+import ProductViewPage from '@/pages/products/ProductViewPage'
 import CustomersPage from '@/pages/customers/CustomersPage'
+import CustomerFormPage from '@/pages/customers/CustomerFormPage'
 import InventoryPage from '@/pages/inventory/InventoryPage'
 import CategoriesPage from '@/pages/inventory/CategoriesPage'
 import UomConversionPage from '@/pages/inventory/UomConversionPage'
 import BulkPurchasePage from '@/pages/inventory/BulkPurchasePage'
 import DirectPurchasePage from '@/pages/purchases/DirectPurchasePage'
-import DiscountsPage from '@/pages/discounts/DiscountsPage'
 import TransfersPage from '@/pages/inventory/TransfersPage'
 import OrdersPage from '@/pages/orders/OrdersPage'
 import CreateOrderPage from '@/pages/orders/CreateOrderPage'
@@ -44,10 +46,52 @@ import ActivityLogsPage from '@/pages/activity/ActivityLogsPage'
 import ExpensesPage from '@/pages/expenses/ExpensesPage'
 import ExpenseCategoriesPage from '@/pages/expenses/ExpenseCategoriesPage'
 import InvoiceViewPage from '@/pages/public/InvoiceViewPage'
-import PriceListsPage from '@/pages/pricing/PriceListsPage'
+import DashboardPage from '@/pages/dashboard/DashboardPage'
+import PipeConfigsPage from '@/pages/production/PipeConfigsPage'
+import PipeConfigFormPage from '@/pages/production/PipeConfigFormPage'
+import ProductionOrdersPage from '@/pages/production/ProductionOrdersPage'
+import CreateProductionOrderPage from '@/pages/production/CreateProductionOrderPage'
+import ProductionOrderDetailPage from '@/pages/production/ProductionOrderDetailPage'
+import ProductionEntryPage from '@/pages/production/ProductionEntryPage'
+import ProductionEntriesPage from '@/pages/production/ProductionEntriesPage'
+import MachinesPage from '@/pages/production/MachinesPage'
+import OverheadConfigsPage from '@/pages/production/OverheadConfigsPage'
+import ProductionReportsPage from '@/pages/production/ProductionReportsPage'
+import ProductionEntryDetailPage from '@/pages/production/ProductionEntryDetailPage'
+import BusinessPage from '@/pages/business/BusinessPage'
+import CementBagsPage from '@/pages/business/CementBagsPage'
+import VehiclesPage from '@/pages/business/VehiclesPage'
+import MaintenancePage from '@/pages/business/MaintenancePage'
+import SiloPage from '@/pages/business/SiloPage'
+import DieselMaintenancePage from '@/pages/business/DieselMaintenancePage'
+import StoreRoomMaterialPage from '@/pages/business/StoreRoomMaterialPage'
+import ExtraVehiclesPage from '@/pages/business/ExtraVehiclesPage'
+import SiloExtractionPage from '@/pages/business/SiloExtractionPage'
+import TestingLabPage from '@/pages/business/TestingLabPage'
+import ConversionPage from '@/pages/business/ConversionPage'
+import DiscardPage from '@/pages/business/DiscardPage'
+import PDIPage from '@/pages/business/PDIPage'
+import LoadingPage from '@/pages/business/LoadingPage'
+import LoadingRecordDetailPage from '@/pages/business/LoadingRecordDetailPage'
+import DiameterHeatmapPage from '@/pages/business/DiameterHeatmapPage'
+import TransportReportPage from '@/pages/business/TransportReportPage'
+import LabourPage from '@/pages/business/LabourPage'
+import BusinessSettingsPage from '@/pages/business/BusinessSettingsPage'
+import SitePage from '@/pages/site/SitePage'
+import SitesPage from '@/pages/site/SitesPage'
+import ProjectDetailPage from '@/pages/site/ProjectDetailPage'
+import ContractorsPage from '@/pages/site/ContractorsPage'
+import WorkOrdersPage from '@/pages/site/WorkOrdersPage'
+import WorkBillsPage from '@/pages/site/WorkBillsPage'
+import MaterialIssuesPage from '@/pages/site/MaterialIssuesPage'
+import ProgressClaimsPage from '@/pages/site/ProgressClaimsPage'
+import DailyProgressPage from '@/pages/site/DailyProgressPage'
+import MaterialStockPage from '@/pages/site/MaterialStockPage'
+import FinancialSummaryPage from '@/pages/site/reports/FinancialSummaryPage'
+import ProgressReportPage from '@/pages/site/reports/ProgressReportPage'
 
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: 1, staleTime: 30_000 } }
+  defaultOptions: { queries: { retry: 1, staleTime: 0 } }
 })
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -63,16 +107,41 @@ export default function App() {
         <Routes>
           <Route path="/invoice/:invoiceNumber" element={<InvoiceViewPage />} />
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/" element={<Navigate to="/pos" />} />
-          <Route path="/pos" element={<ProtectedRoute><POSPage /></ProtectedRoute>} />
+          <Route path="/" element={<Navigate to="/dashboard" />} />
+          <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+          <Route path="/business" element={<ProtectedRoute><BusinessPage /></ProtectedRoute>} />
+          <Route path="/business/cement-bags" element={<ProtectedRoute><CementBagsPage /></ProtectedRoute>} />
+          <Route path="/business/vehicles" element={<ProtectedRoute><VehiclesPage /></ProtectedRoute>} />
+          <Route path="/business/maintenance" element={<ProtectedRoute><MaintenancePage /></ProtectedRoute>} />
+          <Route path="/business/silo" element={<ProtectedRoute><SiloPage /></ProtectedRoute>} />
+          <Route path="/business/diesel-maintenance" element={<ProtectedRoute><DieselMaintenancePage /></ProtectedRoute>} />
+          <Route path="/business/store-material" element={<ProtectedRoute><StoreRoomMaterialPage /></ProtectedRoute>} />
+          <Route path="/business/extra-vehicles" element={<ProtectedRoute><ExtraVehiclesPage /></ProtectedRoute>} />
+          <Route path="/business/silo-extraction" element={<ProtectedRoute><SiloExtractionPage /></ProtectedRoute>} />
+          <Route path="/business/testing-lab" element={<ProtectedRoute><TestingLabPage /></ProtectedRoute>} />
+          <Route path="/business/conversion" element={<ProtectedRoute><ConversionPage /></ProtectedRoute>} />
+          <Route path="/business/discard" element={<ProtectedRoute><DiscardPage /></ProtectedRoute>} />
+          <Route path="/business/pdi" element={<ProtectedRoute><PDIPage /></ProtectedRoute>} />
+          <Route path="/business/loading" element={<ProtectedRoute><LoadingPage /></ProtectedRoute>} />
+          <Route path="/business/loading/diameter-view" element={<ProtectedRoute><DiameterHeatmapPage /></ProtectedRoute>} />
+          <Route path="/business/loading/:id" element={<ProtectedRoute><LoadingRecordDetailPage /></ProtectedRoute>} />
+          <Route path="/business/transport-report" element={<ProtectedRoute><TransportReportPage /></ProtectedRoute>} />
+          <Route path="/business/labour" element={<ProtectedRoute><LabourPage /></ProtectedRoute>} />
+          <Route path="/business/settings" element={<ProtectedRoute><BusinessSettingsPage /></ProtectedRoute>} />
+          <Route path="/business/pccp" element={<Navigate to="/production/entry" replace />} />
+          <Route path="/business/:section" element={<ProtectedRoute><BusinessPage /></ProtectedRoute>} />
           <Route path="/products" element={<ProtectedRoute><ProductsPage /></ProtectedRoute>} />
           <Route path="/products/new" element={<ProtectedRoute><ProductForm /></ProtectedRoute>} />
+          <Route path="/products/:id" element={<ProtectedRoute><ProductViewPage /></ProtectedRoute>} />
           <Route path="/products/:id/edit" element={<ProtectedRoute><ProductForm /></ProtectedRoute>} />
           <Route path="/inventory" element={<ProtectedRoute><InventoryPage /></ProtectedRoute>} />
           <Route path="/inventory/categories" element={<ProtectedRoute><CategoriesPage /></ProtectedRoute>} />
           <Route path="/inventory/uom" element={<ProtectedRoute><UomConversionPage /></ProtectedRoute>} />
           <Route path="/inventory/bulk-purchase" element={<ProtectedRoute><BulkPurchasePage /></ProtectedRoute>} />
-          <Route path="/customers/*" element={<ProtectedRoute><CustomersPage /></ProtectedRoute>} />
+          <Route path="/customers" element={<ProtectedRoute><CustomersPage /></ProtectedRoute>} />
+          <Route path="/customers/new" element={<ProtectedRoute><CustomerFormPage /></ProtectedRoute>} />
+          <Route path="/customers/:id/edit" element={<ProtectedRoute><CustomerFormPage /></ProtectedRoute>} />
+          <Route path="/pos" element={<ProtectedRoute><CreateOrderPage /></ProtectedRoute>} />
           <Route path="/orders" element={<ProtectedRoute><OrdersPage /></ProtectedRoute>} />
           <Route path="/orders/new" element={<ProtectedRoute><CreateOrderPage /></ProtectedRoute>} />
           <Route path="/sales-orders" element={<ProtectedRoute><SalesOrdersPage /></ProtectedRoute>} />
@@ -85,7 +154,6 @@ export default function App() {
           <Route path="/sales/invoices" element={<ProtectedRoute><InvoicesPage /></ProtectedRoute>} />
           <Route path="/sales/quotations" element={<ProtectedRoute><QuotationsPage /></ProtectedRoute>} />
           <Route path="/sales/delivery-challans" element={<ProtectedRoute><DeliveryChallansPage /></ProtectedRoute>} />
-          <Route path="/discounts/*" element={<ProtectedRoute><DiscountsPage /></ProtectedRoute>} />
           <Route path="/transfers/*" element={<ProtectedRoute><TransfersPage /></ProtectedRoute>} />
           <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
           <Route path="/reports/sales" element={<ProtectedRoute><SalesReportPage /></ProtectedRoute>} />
@@ -95,6 +163,9 @@ export default function App() {
           <Route path="/reports/payments" element={<ProtectedRoute><PaymentReportPage /></ProtectedRoute>} />
           <Route path="/reports/debtors" element={<ProtectedRoute><DebtorsReportPage /></ProtectedRoute>} />
           <Route path="/reports/creditors" element={<ProtectedRoute><CreditorsReportPage /></ProtectedRoute>} />
+          <Route path="/reports/ledger" element={<ProtectedRoute><LedgerReportPage /></ProtectedRoute>} />
+          <Route path="/reports/tds" element={<ProtectedRoute><TDSReportPage /></ProtectedRoute>} />
+          <Route path="/reports/transport" element={<ProtectedRoute><TransportReportPage /></ProtectedRoute>} />
           <Route path="/settings/*" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
           <Route path="/purchases/direct" element={<ProtectedRoute><DirectPurchasePage /></ProtectedRoute>} />
           <Route path="/purchases/*" element={<ProtectedRoute><PurchasesPage /></ProtectedRoute>} />
@@ -104,7 +175,30 @@ export default function App() {
           <Route path="/activity-logs" element={<ProtectedRoute><ActivityLogsPage /></ProtectedRoute>} />
           <Route path="/expenses" element={<ProtectedRoute><ExpensesPage /></ProtectedRoute>} />
           <Route path="/expenses/categories" element={<ProtectedRoute><ExpenseCategoriesPage /></ProtectedRoute>} />
-          <Route path="/price-lists" element={<ProtectedRoute><PriceListsPage /></ProtectedRoute>} />
+          <Route path="/production/pipe-configs" element={<ProtectedRoute><PipeConfigsPage /></ProtectedRoute>} />
+          <Route path="/production/pipe-configs/new" element={<ProtectedRoute><PipeConfigFormPage /></ProtectedRoute>} />
+          <Route path="/production/pipe-configs/:id/edit" element={<ProtectedRoute><PipeConfigFormPage /></ProtectedRoute>} />
+          <Route path="/production/orders" element={<ProtectedRoute><ProductionOrdersPage /></ProtectedRoute>} />
+          <Route path="/production/orders/new" element={<ProtectedRoute><CreateProductionOrderPage /></ProtectedRoute>} />
+          <Route path="/production/orders/:id" element={<ProtectedRoute><ProductionOrderDetailPage /></ProtectedRoute>} />
+          <Route path="/production/entry" element={<ProtectedRoute><ProductionEntryPage /></ProtectedRoute>} />
+          <Route path="/production/entries" element={<ProtectedRoute><ProductionEntriesPage /></ProtectedRoute>} />
+          <Route path="/production/entries/:id" element={<ProtectedRoute><ProductionEntryDetailPage /></ProtectedRoute>} />
+          <Route path="/production/machines" element={<ProtectedRoute><MachinesPage /></ProtectedRoute>} />
+          <Route path="/production/overhead-configs" element={<ProtectedRoute><OverheadConfigsPage /></ProtectedRoute>} />
+          <Route path="/production/reports" element={<ProtectedRoute><ProductionReportsPage /></ProtectedRoute>} />
+          <Route path="/site" element={<ProtectedRoute><SitePage /></ProtectedRoute>} />
+          <Route path="/site/projects" element={<ProtectedRoute><SitesPage /></ProtectedRoute>} />
+          <Route path="/site/projects/:id" element={<ProtectedRoute><ProjectDetailPage /></ProtectedRoute>} />
+          <Route path="/site/contractors" element={<ProtectedRoute><ContractorsPage /></ProtectedRoute>} />
+          <Route path="/site/work-orders" element={<ProtectedRoute><WorkOrdersPage /></ProtectedRoute>} />
+          <Route path="/site/work-bills" element={<ProtectedRoute><WorkBillsPage /></ProtectedRoute>} />
+          <Route path="/site/material-issues" element={<ProtectedRoute><MaterialIssuesPage /></ProtectedRoute>} />
+          <Route path="/site/progress-claims" element={<ProtectedRoute><ProgressClaimsPage /></ProtectedRoute>} />
+          <Route path="/site/daily-progress" element={<ProtectedRoute><DailyProgressPage /></ProtectedRoute>} />
+          <Route path="/site/material-stock" element={<ProtectedRoute><MaterialStockPage /></ProtectedRoute>} />
+          <Route path="/site/reports/financial-summary" element={<ProtectedRoute><FinancialSummaryPage /></ProtectedRoute>} />
+          <Route path="/site/reports/progress-report" element={<ProtectedRoute><ProgressReportPage /></ProtectedRoute>} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>

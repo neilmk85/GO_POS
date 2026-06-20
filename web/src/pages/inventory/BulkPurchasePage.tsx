@@ -1028,24 +1028,46 @@ export default function BulkPurchasePage() {
   const [convertingBp, setConvertingBp] = useState<any | null>(null)
 
   return (
-    <div className="min-h-full bg-gray-50">
+    <div className="min-h-full bg-gray-50/60 p-6 space-y-6">
 
-      {/* ── Page Header ── */}
-      <div className="bg-white border-b border-gray-100 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <ShoppingBag size={20} className="text-indigo-600" />
-              Bulk Purchase Entry
-            </h1>
-            <p className="text-sm text-gray-500 mt-0.5">
-              Add products, select units, enter prices — stock updates automatically
-            </p>
+      {/* ── Hero Header ── */}
+      <div className="relative rounded-2xl shadow-[0_8px_40px_rgba(109,40,217,0.30)]">
+        <div className="absolute inset-0 overflow-hidden rounded-2xl bg-gradient-to-br from-violet-700 via-violet-600 to-blue-600 pointer-events-none">
+          <div className="absolute -top-8 -right-8 w-52 h-52 rounded-full bg-white/5 blur-2xl" />
+          <div className="absolute bottom-0 left-1/4 w-64 h-28 rounded-full bg-blue-400/10 blur-3xl" />
+          <div className="absolute inset-0 opacity-[0.07]"
+            style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+        </div>
+
+        <div className="relative flex items-center justify-between px-8 py-6">
+          <div className="flex items-center gap-5">
+            <div className="w-14 h-14 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center shadow-inner flex-shrink-0">
+              <ShoppingBag size={26} className="text-amber-300" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-blue-200 uppercase tracking-widest mb-0.5">Inventory</p>
+              <h1 className="text-2xl font-extrabold text-white tracking-tight leading-tight">Bulk Purchase Entry</h1>
+              <p className="text-sm text-blue-200 mt-0.5">Add products, select units, enter prices — stock updates automatically</p>
+            </div>
           </div>
+        </div>
+
+        <div className="relative border-t border-white/10 grid grid-cols-3 divide-x divide-white/10">
+          {[
+            { label: 'Current Lines',    value: lines.filter(l => l.product).length,                                                                  sub: 'items in bill'    },
+            { label: 'Grand Total',      value: `₹${totals.grandTotal.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,                        sub: 'incl. GST'        },
+            { label: 'Purchase History', value: history.length,                                                                                        sub: 'recent entries'   },
+          ].map(s => (
+            <div key={s.label} className="px-5 py-3.5">
+              <p className="text-xl font-extrabold tabular-nums leading-none text-white">{s.value}</p>
+              <p className="text-xs text-blue-200 mt-0.5">{s.label}</p>
+              <p className="text-[10px] text-white/40 mt-0.5">{s.sub}</p>
+            </div>
+          ))}
         </div>
       </div>
 
-      <div className="p-6 max-w-6xl mx-auto space-y-5">
+      <div className="max-w-6xl mx-auto space-y-5">
 
         {/* ── Invoice Header ── */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
@@ -1060,7 +1082,6 @@ export default function BulkPurchasePage() {
                 onChange={e => setSelectedOutletId(e.target.value ? Number(e.target.value) : null)}
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
               >
-                <option value="">— Select Outlet —</option>
                 {outlets.map(o => (
                   <option key={o.id} value={o.id}>{o.name}{o.code ? ` (${o.code})` : ''}</option>
                 ))}

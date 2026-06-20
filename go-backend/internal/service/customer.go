@@ -1,16 +1,39 @@
 package service
 
 import (
+	"bytes"
 	"encoding/csv"
 	"fmt"
 	"io"
 	"strings"
 
+	excelize "github.com/xuri/excelize/v2"
 	"github.com/nilesh/pos-backend/internal/models"
 	"github.com/nilesh/pos-backend/internal/util"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
+
+// ImportRowResult holds per-row result for import preview/actual
+type ImportRowResult struct {
+	RowNumber int    `json:"rowNumber"`
+	Name      string `json:"name"`
+	Phone     string `json:"phone,omitempty"`
+	Email     string `json:"email,omitempty"`
+	City      string `json:"city,omitempty"`
+	Segment   string `json:"segment,omitempty"`
+	Status    string `json:"status"` // "OK" | "ERROR"
+	Error     string `json:"error,omitempty"`
+}
+
+// ImportResult is the structured response for import / dry-run
+type ImportResult struct {
+	TotalRows int               `json:"totalRows"`
+	Created   int               `json:"created"`
+	Skipped   int               `json:"skipped"`
+	DryRun    bool              `json:"dryRun"`
+	Rows      []ImportRowResult `json:"rows"`
+}
 
 type CustomerService struct {
 	db *gorm.DB
@@ -205,6 +228,21 @@ func (cs *CustomerService) RedeemLoyaltyPoints(customerId int, points decimal.De
 	})
 }
 
+// ToggleActive flips the is_active flag on a customer
+func (cs *CustomerService) ToggleActive(id int) (*models.Customer, error) {
+	customer, err := cs.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+	newActive := !customer.Active
+	if err := cs.db.Model(&models.Customer{}).Where("id = ?", id).
+		Update("is_active", newActive).Error; err != nil {
+		return nil, err
+	}
+	customer.Active = newActive
+	return customer, nil
+}
+
 // UpdateTotalSpent increments the total spent amount for a customer
 func (cs *CustomerService) UpdateTotalSpent(customerId int, amount decimal.Decimal) error {
 	return cs.db.Model(&models.Customer{}).Where("id = ?", customerId).
@@ -217,69 +255,175 @@ func (cs *CustomerService) UpdateOutstandingDue(customerId int, amount decimal.D
 		Update("outstanding_due", gorm.Expr("outstanding_due + ?", amount)).Error
 }
 
-// ImportCSV imports customers from a CSV file
-func (cs *CustomerService) ImportCSV(file io.Reader) (imported int, err error) {
-	reader := csv.NewReader(file)
+// parseFileRows reads all data rows (skipping the header) from a CSV or xlsx reader.
+// Filename is used to detect the format.
+func parseFileRows(file io.Reader, filename string) ([][]string, error) {
+	lower := strings.ToLower(filename)
+	isXlsx := strings.HasSuffix(lower, ".xlsx") || strings.HasSuffix(lower, ".xls")
 
-	// Skip header
-	_, err = reader.Read()
-	if err != nil {
-		return 0, err
+	if isXlsx {
+		data, err := io.ReadAll(file)
+		if err != nil {
+			return nil, err
+		}
+		f, err := excelize.OpenReader(bytes.NewReader(data))
+		if err != nil {
+			return nil, fmt.Errorf("failed to open excel file: %w", err)
+		}
+		defer f.Close()
+
+		sheets := f.GetSheetList()
+		if len(sheets) == 0 {
+			return nil, fmt.Errorf("no sheets found in excel file")
+		}
+		rows, err := f.GetRows(sheets[0])
+		if err != nil {
+			return nil, fmt.Errorf("failed to read rows: %w", err)
+		}
+		if len(rows) <= 1 {
+			return [][]string{}, nil
+		}
+		return rows[1:], nil // skip header row
 	}
 
+	// Default: treat as CSV
+	reader := csv.NewReader(file)
+	if _, err := reader.Read(); err != nil { // skip header
+		if err == io.EOF {
+			return [][]string{}, nil
+		}
+		return nil, err
+	}
+	var result [][]string
 	for {
 		record, err := reader.Read()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			return imported, err
+			return nil, err
 		}
+		result = append(result, record)
+	}
+	return result, nil
+}
 
-		if len(record) < 1 {
+// col safely returns the trimmed value at index i, or "" if out of range.
+func col(record []string, i int) string {
+	if i < len(record) {
+		return strings.TrimSpace(record[i])
+	}
+	return ""
+}
+
+// ImportFile imports customers from a CSV or xlsx file.
+// When dryRun=true it validates every row and returns a preview without touching the DB.
+func (cs *CustomerService) ImportFile(file io.Reader, filename string, dryRun bool) (*ImportResult, error) {
+	rows, err := parseFileRows(file, filename)
+	if err != nil {
+		return nil, err
+	}
+
+	validSegments := map[string]bool{
+		"REGULAR": true, "SILVER": true, "GOLD": true, "VIP": true,
+	}
+
+	result := &ImportResult{
+		DryRun: dryRun,
+		Rows:   make([]ImportRowResult, 0, len(rows)),
+	}
+
+	for i, record := range rows {
+		rowNum := i + 2 // 1-indexed; +1 to account for skipped header
+
+		// Skip fully-empty rows
+		allEmpty := true
+		for _, v := range record {
+			if strings.TrimSpace(v) != "" {
+				allEmpty = false
+				break
+			}
+		}
+		if allEmpty {
 			continue
 		}
 
+		rowResult := ImportRowResult{RowNumber: rowNum, Status: "OK"}
+		result.TotalRows++
+
+		name := col(record, 0)
+		if name == "" {
+			rowResult.Status = "ERROR"
+			rowResult.Error = "Name is required"
+			result.Skipped++
+			result.Rows = append(result.Rows, rowResult)
+			continue
+		}
+		rowResult.Name = name
+		rowResult.Phone = col(record, 1)
+		rowResult.Email = col(record, 2)
+		rowResult.City = col(record, 3)
+
+		segment := "REGULAR"
+		if s := strings.ToUpper(col(record, 5)); s != "" {
+			if !validSegments[s] {
+				rowResult.Status = "ERROR"
+				rowResult.Error = fmt.Sprintf("Invalid segment '%s' (must be REGULAR/SILVER/GOLD/VIP)", col(record, 5))
+				result.Skipped++
+				result.Rows = append(result.Rows, rowResult)
+				continue
+			}
+			segment = s
+		}
+		rowResult.Segment = segment
+
+		if dryRun {
+			// In dry-run mode just check if the phone already exists; still mark OK (will update).
+			result.Created++
+			result.Rows = append(result.Rows, rowResult)
+			continue
+		}
+
+		// ── Actual import ──
 		customer := models.Customer{
-			Name: record[0],
+			Name:    name,
+			Segment: models.CustomerSegment(segment),
+		}
+		if rowResult.Phone != "" {
+			customer.Phone = &rowResult.Phone
+		}
+		if rowResult.Email != "" {
+			customer.Email = &rowResult.Email
+		}
+		if rowResult.City != "" {
+			customer.City = &rowResult.City
+		}
+		if state := col(record, 4); state != "" {
+			customer.State = &state
 		}
 
-		if len(record) > 1 && record[1] != "" {
-			customer.Phone = &record[1]
-		}
-		if len(record) > 2 && record[2] != "" {
-			customer.Email = &record[2]
-		}
-		if len(record) > 3 && record[3] != "" {
-			customer.City = &record[3]
-		}
-		if len(record) > 4 && record[4] != "" {
-			customer.State = &record[4]
-		}
-		if len(record) > 5 && record[5] != "" {
-			customer.Segment = models.CustomerSegment(record[5])
-		} else {
-			customer.Segment = models.CustomerSegmentRegular
-		}
-
-		// Check if phone exists
+		// Upsert by phone: if phone matches an existing customer, update it.
 		if customer.Phone != nil && *customer.Phone != "" {
 			var existing models.Customer
-			if err := cs.db.Where("phone = ?", *customer.Phone).First(&existing).Error; err == nil {
-				// Update existing customer
+			if cs.db.Where("phone = ?", *customer.Phone).First(&existing).Error == nil {
 				cs.db.Model(&existing).Updates(customer)
-				imported++
+				result.Created++
+				result.Rows = append(result.Rows, rowResult)
 				continue
 			}
 		}
 
-		// Create new customer
-		if err := cs.db.Create(&customer).Error; err == nil {
-			imported++
+		if err := cs.db.Create(&customer).Error; err != nil {
+			rowResult.Status = "ERROR"
+			rowResult.Error = "Failed to save: " + err.Error()
+			result.Skipped++
+		} else {
+			result.Created++
 		}
+		result.Rows = append(result.Rows, rowResult)
 	}
 
-	return imported, nil
+	return result, nil
 }
 
 // ExportCSV exports all customers as CSV

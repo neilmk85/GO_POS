@@ -6,7 +6,7 @@ services:
     container_name: pos_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: posdb
+      POSTGRES_DB: pppipesdb
       POSTGRES_USER: posuser
       POSTGRES_PASSWORD: pospassword
     ports:
@@ -14,7 +14,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U posuser -d posdb"]
+      test: ["CMD-SHELL", "pg_isready -U posuser -d pppipesdb"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -46,7 +46,7 @@ services:
       redis:
         condition: service_healthy
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/posdb
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/pppipesdb
       SPRING_DATASOURCE_USERNAME: posuser
       SPRING_DATASOURCE_PASSWORD: pospassword
       SPRING_DATA_REDIS_HOST: redis

@@ -417,9 +417,6 @@ export default function CreateOrderPage() {
               onClear={() => setCustomer(null)}
               placeholder="Search customer (optional)…"
             />
-            {customer?.loyaltyPoints != null && (
-              <p className="mt-1.5 text-xs text-primary-600">{customer.loyaltyPoints} loyalty pts</p>
-            )}
           </div>
 
           {/* Order Type */}

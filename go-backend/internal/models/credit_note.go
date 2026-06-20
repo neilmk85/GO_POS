@@ -8,7 +8,7 @@ import (
 
 type CreditNote struct {
 	ID               int              `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
-	CreditNoteNumber string           `gorm:"uniqueIndex;column:credit_note_number" json:"creditNoteNumber"`
+	CreditNoteNumber string           `gorm:"uniqueIndex;size:191;column:credit_note_number" json:"creditNoteNumber"`
 	CustomerID       int              `gorm:"column:customer_id" json:"customerId"`
 	OriginalOrderID  *int             `gorm:"column:original_order_id" json:"originalOrderId"`
 	OutletID         int              `gorm:"column:outlet_id" json:"outletId"`

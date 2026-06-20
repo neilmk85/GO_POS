@@ -103,7 +103,7 @@ func Seed(db *gorm.DB) error {
 	if outletCount == 0 {
 		mainCode := "MAIN"
 		outlet := models.Outlet{
-			Name:                   "Main Store",
+			Name:                   "Main Factory",
 			Code:                   &mainCode,
 			CurrencyCode:           "INR",
 			CurrencySymbol:         "₹",

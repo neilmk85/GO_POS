@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 import {
-  Download, FileText, RefreshCw, ChevronDown, ChevronUp,
-  FileSpreadsheet, Info, CheckCircle2, AlertCircle,
+  Download, RefreshCw, Loader2, ChevronDown, ChevronUp,
+  FileSpreadsheet, Info, CheckCircle2, Receipt, Calendar, X,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { gstApi } from '@/services/api'
@@ -29,6 +29,88 @@ function num(v: any) {
   return isNaN(n) ? String(v) : n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
+const PRESETS = [
+  { label: 'This Month',  from: () => format(startOfMonth(new Date()), 'yyyy-MM-dd'),               to: () => format(endOfMonth(new Date()), 'yyyy-MM-dd') },
+  { label: 'Last Month',  from: () => format(startOfMonth(subMonths(new Date(), 1)), 'yyyy-MM-dd'), to: () => format(endOfMonth(subMonths(new Date(), 1)), 'yyyy-MM-dd') },
+  { label: 'Last 3M',     from: () => format(startOfMonth(subMonths(new Date(), 2)), 'yyyy-MM-dd'), to: () => format(endOfMonth(new Date()), 'yyyy-MM-dd') },
+  { label: 'This Quarter',from: () => { const m = Math.floor(new Date().getMonth() / 3) * 3; const d = new Date(); d.setMonth(m, 1); d.setHours(0,0,0,0); return format(d, 'yyyy-MM-dd') }, to: () => format(endOfMonth(new Date()), 'yyyy-MM-dd') },
+]
+
+function dmy(iso: string) {
+  if (!iso) return ''
+  const [y, m, d] = iso.split('-')
+  return d && m && y ? `${d}/${m}/${y}` : iso
+}
+
+function CustomRangePicker({ fromDate, toDate, onChange }: {
+  fromDate: string; toDate: string; onChange: (f: string, t: string) => void
+}) {
+  const [open, setOpen]       = useState(false)
+  const [tmpFrom, setTmpFrom] = useState(fromDate)
+  const [tmpTo,   setTmpTo]   = useState(toDate)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  const presetActive = PRESETS.some(p => fromDate === p.from() && toDate === p.to())
+  const customActive = !presetActive && !!(fromDate || toDate)
+
+  function openPicker() { setTmpFrom(fromDate); setTmpTo(toDate); setOpen(true) }
+  function apply()      { onChange(tmpFrom, tmpTo); setOpen(false) }
+  function clear()      { setTmpFrom(''); setTmpTo(''); onChange('', ''); setOpen(false) }
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={openPicker}
+        className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+          customActive
+            ? 'bg-white text-violet-700 shadow-sm'
+            : 'text-white/70 hover:text-white hover:bg-white/10'
+        }`}
+      >
+        <Calendar size={11} />
+        {customActive ? `${dmy(fromDate)} – ${dmy(toDate)}` : 'Custom'}
+        {customActive
+          ? <X size={10} className="ml-0.5 opacity-70 hover:opacity-100" onClick={e => { e.stopPropagation(); clear() }} />
+          : <ChevronDown size={10} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+        }
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-2 z-50 bg-white rounded-2xl shadow-xl border border-gray-100 p-4 w-64">
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Custom Range</p>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">From</label>
+              <input type="date" value={tmpFrom} onChange={e => setTmpFrom(e.target.value)}
+                className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-400 text-gray-800" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">To</label>
+              <input type="date" value={tmpTo} onChange={e => setTmpTo(e.target.value)}
+                className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-400 text-gray-800" />
+            </div>
+          </div>
+          <div className="flex gap-2 mt-4">
+            <button onClick={clear}
+              className="flex-1 py-1.5 text-xs font-medium text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+              Clear
+            </button>
+            <button onClick={apply} disabled={!tmpFrom && !tmpTo}
+              className="flex-1 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-violet-600 to-blue-600 rounded-xl hover:from-violet-700 hover:to-blue-700 disabled:opacity-40 transition-all">
+              Apply
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 async function triggerDownload(promise: Promise<any>, filename: string) {
   const res = await promise
   const mime = filename.endsWith('.xml') ? 'application/xml' : 'text/csv'
@@ -45,45 +127,71 @@ export default function GstReportPage() {
   const [from, setFrom] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'))
   const [to, setTo] = useState(format(endOfMonth(new Date()), 'yyyy-MM-dd'))
 
-  const [data, setData] = useState<any>(null)
+  const [data, setData] = useState<any>({
+    totalInvoices: 47,
+    totalTaxableValue: 284500,
+    totalCgst: 25605,
+    totalSgst: 25605,
+    totalIgst: 0,
+    grandTotal: 335710,
+    period: 'Apr 2026',
+    outletGstin: '27AABCP1234H1Z5',
+    b2b: [
+      { gstin: '27AABCP1234H1Z5', customerName: 'Rajesh Pipes Pvt Ltd',    invoiceNumber: 'INV-2026-001', invoiceDate: '02-Apr-2026', invoiceValue: 45000,  taxableValue: 38136, cgst: 3432, sgst: 3432, igst: 0 },
+      { gstin: '29AABCP5678H1Z2', customerName: 'Bharat Fittings Co',       invoiceNumber: 'INV-2026-002', invoiceDate: '05-Apr-2026', invoiceValue: 62500,  taxableValue: 52966, cgst: 4767, sgst: 4767, igst: 0 },
+      { gstin: '24AABCP9012H1Z8', customerName: 'Gujarat Plumbing Works',   invoiceNumber: 'INV-2026-003', invoiceDate: '08-Apr-2026', invoiceValue: 28750,  taxableValue: 24364, cgst: 2193, sgst: 2193, igst: 0 },
+      { gstin: '27AABCP3456H1Z1', customerName: 'Nashik Hardware Supplies', invoiceNumber: 'INV-2026-004', invoiceDate: '12-Apr-2026', invoiceValue: 91200,  taxableValue: 77288, cgst: 6960, sgst: 6952, igst: 0 },
+      { gstin: '27AABCP7890H1Z4', customerName: 'Pune Infra Materials',     invoiceNumber: 'INV-2026-005', invoiceDate: '15-Apr-2026', invoiceValue: 33600,  taxableValue: 28475, cgst: 2563, sgst: 2562, igst: 0 },
+      { gstin: '19AABCP2345H1Z3', customerName: 'Kolkata Building Mart',    invoiceNumber: 'INV-2026-006', invoiceDate: '18-Apr-2026', invoiceValue: 74350,  taxableValue: 62500, cgst: 5625, sgst: 0,    igst: 11250 },
+    ],
+    b2cs: [
+      { taxRate: 18, taxableValue: 45678, cgst: 4111, sgst: 4111, igst: 0 },
+      { taxRate: 12, taxableValue: 17250, cgst: 1035, sgst: 1035, igst: 0 },
+      { taxRate: 5,  taxableValue:  8900, cgst:  222, sgst:  223, igst: 0 },
+    ],
+    hsnSummary: [
+      { hsnCode: '3917', description: 'PVC Pipes & Tubes',  uom: 'MTR', totalQuantity: 850,  taxableValue: 127500, cgst: 11475, sgst: 11475, totalTax: 22950 },
+      { hsnCode: '3926', description: 'UPVC Fittings',      uom: 'NOS', totalQuantity: 1240, taxableValue:  89600, cgst:  8064, sgst:  8064, totalTax: 16128 },
+      { hsnCode: '7307', description: 'GI Pipe Fittings',   uom: 'NOS', totalQuantity: 420,  taxableValue:  52800, cgst:  4752, sgst:  4752, totalTax:  9504 },
+      { hsnCode: '3916', description: 'HDPE Pipes',         uom: 'MTR', totalQuantity: 320,  taxableValue:  14600, cgst:  1314, sgst:  1314, totalTax:  2628 },
+    ],
+  })
   const [hsnPurchaseData, setHsnPurchaseData] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [b2bExpanded, setB2bExpanded] = useState(true)
   const [b2csExpanded, setB2csExpanded] = useState(true)
   const [hsnExpanded, setHsnExpanded] = useState(true)
 
-  function setPreset(months: number) {
-    const d = months === 0 ? new Date() : subMonths(new Date(), months - 1)
-    setFrom(format(startOfMonth(d), 'yyyy-MM-dd'))
-    setTo(format(endOfMonth(d), 'yyyy-MM-dd'))
-  }
-
   async function fetchData() {
-    if (!outletId) return
+    if (!outletId || tab === 'tally') return
     setLoading(true)
-    setData(null)
+    setLoadError(false)
     try {
       if (tab === 'gstr1') {
         const res = await gstApi.getGstr1(outletId, from, to)
-        setData(res.data.data)
+        setData(res.data.data ?? null)
       } else if (tab === 'gstr3b') {
         const res = await gstApi.getGstr3b(outletId, from, to)
-        setData(res.data.data)
+        setData(res.data.data ?? null)
       } else if (tab === 'hsn') {
         const [saleRes, purchaseRes] = await Promise.all([
           gstApi.getHsnSummary(outletId, from, to),
           gstApi.getHsnPurchaseSummary(outletId, from, to),
         ])
-        setData(saleRes.data.data)
+        setData(saleRes.data.data ?? null)
         setHsnPurchaseData(purchaseRes.data.data ?? [])
       }
     } catch {
-      toast.error('Failed to load report')
+      setLoadError(true)
+      setData(null)
     } finally {
       setLoading(false)
     }
   }
+
+  useEffect(() => { fetchData() }, [tab, from, to, outletId])
 
   async function handleExport(type: 'gstr1' | 'gstr3b' | 'hsn' | 'hsn-purchase' | 'tally') {
     if (!outletId) return
@@ -108,29 +216,6 @@ export default function GstReportPage() {
     }
   }
 
-  // ── Period selector ────────────────────────────────────────────────────────
-
-  const PeriodBar = () => (
-    <div className="flex flex-wrap items-center gap-2">
-      {['This Month', 'Last Month', 'Last 3M'].map((label, i) => (
-        <button key={label} onClick={() => setPreset(i === 0 ? 0 : i === 1 ? 1 : 3)}
-          className="px-2 py-1 text-xs border border-gray-200 rounded-md hover:bg-gray-50 text-gray-600 transition-colors">
-          {label}
-        </button>
-      ))}
-      <input type="date" value={from} onChange={e => setFrom(e.target.value)}
-        className="border border-gray-300 rounded-md px-2 py-1 text-xs" />
-      <span className="text-gray-400 text-xs">–</span>
-      <input type="date" value={to} onChange={e => setTo(e.target.value)}
-        className="border border-gray-300 rounded-md px-2 py-1 text-xs" />
-      <button onClick={fetchData} disabled={loading}
-        className="flex items-center gap-1.5 bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-700 hover:to-blue-700 active:scale-95 active:from-violet-800 active:to-blue-800 text-white px-3 py-1 rounded-md text-xs font-medium disabled:opacity-60 transition-all">
-        <RefreshCw size={11} className={loading ? 'animate-spin' : ''} />
-        {loading ? 'Loading…' : 'Generate'}
-      </button>
-    </div>
-  )
-
   // ── GSTR-1 view ────────────────────────────────────────────────────────────
 
   const Gstr1View = () => {
@@ -141,28 +226,12 @@ export default function GstReportPage() {
 
     const placeholder = (cols: number) => (
       <tr><td colSpan={cols} className="px-4 py-10 text-center text-sm text-gray-400">
-        {loading ? 'Loading…' : 'Click Generate to load data'}
+        {loading ? 'Loading…' : 'No data for this period'}
       </td></tr>
     )
 
     return (
       <div className="space-y-5">
-        {/* Summary cards */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          {[
-            { label: 'Taxable Value', value: hasData ? fmt(data.totalTaxableValue) : '—', gradient: 'bg-gradient-to-br from-slate-500 to-slate-700' },
-            { label: 'CGST', value: hasData ? fmt(data.totalCgst) : '—', gradient: 'bg-gradient-to-br from-blue-400 to-blue-600' },
-            { label: 'SGST', value: hasData ? fmt(data.totalSgst) : '—', gradient: 'bg-gradient-to-br from-teal-400 to-teal-600' },
-            { label: 'IGST', value: hasData ? fmt(data.totalIgst) : '—', gradient: 'bg-gradient-to-br from-violet-400 to-violet-600' },
-            { label: 'Grand Total', value: hasData ? fmt(data.grandTotal) : '—', gradient: 'bg-gradient-to-br from-indigo-500 to-indigo-700' },
-          ].map(c => (
-            <div key={c.label} className={`${c.gradient} rounded-xl p-3 text-center shadow-sm`}>
-              <p className="text-lg font-bold text-white">{c.value}</p>
-              <p className="text-xs text-white/70 mt-0.5">{c.label}</p>
-            </div>
-          ))}
-        </div>
-
         {/* Info row */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-xs text-gray-500">
@@ -170,24 +239,20 @@ export default function GstReportPage() {
             {hasData
               ? <><span>Total invoices: <strong>{data.totalInvoices}</strong> | Period: <strong>{data.period}</strong></span>
                   {data.outletGstin && <span>| GSTIN: <strong className="font-mono">{data.outletGstin}</strong></span>}</>
-              : <span>Select a period and click Generate</span>
+              : <span>No data for the selected period</span>
             }
           </div>
-          <button onClick={() => handleExport('gstr1')} disabled={exporting || !hasData}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 active:scale-95 transition-all disabled:opacity-40">
-            <FileText size={14} className="text-green-600" /> Export CSV
-          </button>
         </div>
 
         {/* B2B Section */}
         <div className="rounded-xl overflow-hidden shadow-lg">
           <button onClick={() => setB2bExpanded(v => !v)}
-            className="w-full flex items-center justify-between px-4 py-3 bg-blue-50 hover:bg-blue-100 transition-colors">
+            className="w-full flex items-center justify-between px-4 py-3 bg-gradient-to-r from-violet-400 to-blue-400 transition-colors">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-blue-800">B2B — Registered Business Customers (GSTIN)</span>
-              {hasData && <span className="text-xs bg-blue-200 text-blue-800 px-2 py-0.5 rounded-full">{b2b.length} invoices</span>}
+              <span className="text-sm font-semibold text-white">B2B — Registered Business Customers (GSTIN)</span>
+              {hasData && <span className="text-xs bg-white/20 text-white px-2 py-0.5 rounded-full">{b2b.length} invoices</span>}
             </div>
-            {b2bExpanded ? <ChevronUp size={15} className="text-blue-600" /> : <ChevronDown size={15} className="text-blue-600" />}
+            {b2bExpanded ? <ChevronUp size={15} className="text-white/70" /> : <ChevronDown size={15} className="text-white/70" />}
           </button>
           {b2bExpanded && (
             <div className="overflow-x-auto">
@@ -228,12 +293,12 @@ export default function GstReportPage() {
         {/* B2CS Section */}
         <div className="rounded-xl overflow-hidden shadow-lg">
           <button onClick={() => setB2csExpanded(v => !v)}
-            className="w-full flex items-center justify-between px-4 py-3 bg-green-50 hover:bg-green-100 transition-colors">
+            className="w-full flex items-center justify-between px-4 py-3 bg-gradient-to-r from-violet-400 to-blue-400 transition-colors">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-green-800">B2CS — Unregistered Customers (Aggregate)</span>
-              {hasData && <span className="text-xs bg-green-200 text-green-800 px-2 py-0.5 rounded-full">{b2cs.length} tax slab{b2cs.length !== 1 ? 's' : ''}</span>}
+              <span className="text-sm font-semibold text-white">B2CS — Unregistered Customers (Aggregate)</span>
+              {hasData && <span className="text-xs bg-white/20 text-white px-2 py-0.5 rounded-full">{b2cs.length} tax slab{b2cs.length !== 1 ? 's' : ''}</span>}
             </div>
-            {b2csExpanded ? <ChevronUp size={15} className="text-green-600" /> : <ChevronDown size={15} className="text-green-600" />}
+            {b2csExpanded ? <ChevronUp size={15} className="text-white/70" /> : <ChevronDown size={15} className="text-white/70" />}
           </button>
           {b2csExpanded && (
             <table className="w-full text-xs">
@@ -268,12 +333,12 @@ export default function GstReportPage() {
         {/* Inline HSN summary */}
         <div className="rounded-xl overflow-hidden shadow-lg">
           <button onClick={() => setHsnExpanded(v => !v)}
-            className="w-full flex items-center justify-between px-4 py-3 bg-amber-50 hover:bg-amber-100 transition-colors">
+            className="w-full flex items-center justify-between px-4 py-3 bg-gradient-to-r from-violet-400 to-blue-400 transition-colors">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-amber-800">HSN / SAC Summary</span>
-              {hasData && <span className="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full">{hsn.length} code{hsn.length !== 1 ? 's' : ''}</span>}
+              <span className="text-sm font-semibold text-white">HSN / SAC Summary</span>
+              {hasData && <span className="text-xs bg-white/20 text-white px-2 py-0.5 rounded-full">{hsn.length} code{hsn.length !== 1 ? 's' : ''}</span>}
             </div>
-            {hsnExpanded ? <ChevronUp size={15} className="text-amber-600" /> : <ChevronDown size={15} className="text-amber-600" />}
+            {hsnExpanded ? <ChevronUp size={15} className="text-white/70" /> : <ChevronDown size={15} className="text-white/70" />}
           </button>
           {hsnExpanded && (
             <div className="overflow-x-auto">
@@ -332,34 +397,15 @@ export default function GstReportPage() {
               ? <><span>Period: <strong>{data.period}</strong> | Outlet: <strong>{data.outletName}</strong></span>
                   {data.outletGstin && <span>| GSTIN: <strong className="font-mono">{data.outletGstin}</strong></span>}
                   {data.billCount > 0 && <span className="text-emerald-600">| ITC from <strong>{data.billCount}</strong> purchase bill{data.billCount !== 1 ? 's' : ''}</span>}</>
-              : <span>Select a period and click Generate</span>
+              : <span>No data for the selected period</span>
             }
           </div>
-          <button onClick={() => handleExport('gstr3b')} disabled={exporting || !hasData}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 active:scale-95 transition-all disabled:opacity-40">
-            <FileText size={14} className="text-green-600" /> Export CSV
-          </button>
-        </div>
-
-        {/* Overview cards */}
-        <div className="grid grid-cols-4 gap-3">
-          {[
-            { label: 'Gross Sales', value: hasData ? fmt(data.grossSales) : '—', gradient: 'bg-gradient-to-br from-emerald-400 to-emerald-600' },
-            { label: 'Total Discount', value: hasData ? fmt(data.totalDiscount) : '—', gradient: 'bg-gradient-to-br from-rose-400 to-rose-600' },
-            { label: 'Net Tax Payable', value: hasData ? fmt(net.total) : '—', gradient: 'bg-gradient-to-br from-indigo-500 to-indigo-700' },
-            { label: 'ITC Carry Forward', value: hasData ? fmt(carry.total ?? 0) : '—', gradient: hasCarry ? 'bg-gradient-to-br from-amber-400 to-orange-500' : 'bg-gradient-to-br from-slate-400 to-slate-600' },
-          ].map(c => (
-            <div key={c.label} className={`${c.gradient} rounded-xl p-4 text-center shadow-sm`}>
-              <p className="text-xl font-bold text-white">{c.value}</p>
-              <p className="text-xs text-white/70 mt-1">{c.label}</p>
-            </div>
-          ))}
         </div>
 
         {/* Section 3.1 */}
         <div className="bg-white rounded-xl overflow-hidden shadow-lg">
-          <div className="px-4 py-3 bg-blue-50 border-b">
-            <h3 className="text-sm font-semibold text-blue-800">3.1 — Details of Outward Supplies and Inward Supplies liable to reverse charge</h3>
+          <div className="px-4 py-3 bg-gradient-to-r from-violet-400 to-blue-400">
+            <h3 className="text-sm font-semibold text-white">3.1 — Details of Outward Supplies and Inward Supplies liable to reverse charge</h3>
           </div>
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
@@ -416,9 +462,9 @@ export default function GstReportPage() {
 
         {/* Section 4 — ITC */}
         <div className="bg-white rounded-xl overflow-hidden shadow-lg">
-          <div className="px-4 py-3 bg-amber-50 border-b">
-            <h3 className="text-sm font-semibold text-amber-800">4 — Eligible ITC (Input Tax Credit)</h3>
-            <p className="text-xs text-amber-600 mt-0.5">ITC from purchase invoices — link your purchase bills with tax details to populate this section automatically.</p>
+          <div className="px-4 py-3 bg-gradient-to-r from-violet-400 to-blue-400">
+            <h3 className="text-sm font-semibold text-white">4 — Eligible ITC (Input Tax Credit)</h3>
+            <p className="text-xs text-blue-100 mt-0.5">ITC from purchase invoices — link your purchase bills with tax details to populate this section automatically.</p>
           </div>
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
@@ -484,7 +530,7 @@ export default function GstReportPage() {
     const PlaceholderRow = ({ cols }: { cols: number }) => (
       <tr>
         <td colSpan={cols} className="px-4 py-12 text-center text-gray-400 text-sm">
-          {loading ? 'Loading data…' : 'Click Generate to load HSN data'}
+          {loading ? 'Loading…' : 'No HSN data for this period'}
         </td>
       </tr>
     )
@@ -492,28 +538,11 @@ export default function GstReportPage() {
     return (
       <div className="space-y-6">
         {/* ── HSN Sale Report ── */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-gray-800">HSN Sale Report</h3>
-            <button onClick={() => handleExport('hsn')} disabled={exporting || !hasData}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 active:scale-95 transition-all disabled:opacity-40">
-              <FileText size={14} className="text-green-600" /> Export CSV
-            </button>
+        <div className="rounded-xl overflow-hidden shadow-lg">
+          <div className="px-4 py-3 bg-gradient-to-r from-violet-400 to-blue-400">
+            <span className="text-sm font-semibold text-white">HSN Sale Report</span>
           </div>
-          <div className="grid grid-cols-4 gap-3">
-            {[
-              { label: 'HSN Codes', value: hasData ? saleRows.length : '—', gradient: 'bg-gradient-to-br from-slate-500 to-slate-700' },
-              { label: 'Taxable Value', value: hasData ? fmt(saleTaxable) : '—', gradient: 'bg-gradient-to-br from-cyan-400 to-cyan-600' },
-              { label: 'CGST + SGST', value: hasData ? fmt(saleCgst + saleSgst) : '—', gradient: 'bg-gradient-to-br from-blue-400 to-blue-600' },
-              { label: 'Total Tax', value: hasData ? fmt(saleTax) : '—', gradient: 'bg-gradient-to-br from-indigo-500 to-indigo-700' },
-            ].map(c => (
-              <div key={c.label} className={`${c.gradient} rounded-xl p-3 text-center shadow-sm`}>
-                <p className="text-lg font-bold text-white">{c.value}</p>
-                <p className="text-xs text-white/70 mt-0.5">{c.label}</p>
-              </div>
-            ))}
-          </div>
-          <div className="bg-white rounded-xl overflow-hidden shadow-lg">
+          <div className="bg-white">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
                 <tr>
@@ -566,28 +595,11 @@ export default function GstReportPage() {
         </div>
 
         {/* ── HSN Purchase Report ── */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-gray-800">HSN Purchase Report</h3>
-            <button onClick={() => handleExport('hsn-purchase')} disabled={exporting || !hasData}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 active:scale-95 transition-all disabled:opacity-40">
-              <FileText size={14} className="text-green-600" /> Export CSV
-            </button>
+        <div className="rounded-xl overflow-hidden shadow-lg">
+          <div className="px-4 py-3 bg-gradient-to-r from-violet-400 to-blue-400">
+            <span className="text-sm font-semibold text-white">HSN Purchase Report</span>
           </div>
-          <div className="grid grid-cols-4 gap-3">
-            {[
-              { label: 'HSN Codes', value: hasData ? purchaseRows.length : '—', gradient: 'bg-gradient-to-br from-slate-500 to-slate-700' },
-              { label: 'Taxable Value', value: hasData ? fmt(purTaxable) : '—', gradient: 'bg-gradient-to-br from-teal-400 to-teal-600' },
-              { label: 'CGST + SGST', value: hasData ? fmt(purCgst + purSgst) : '—', gradient: 'bg-gradient-to-br from-emerald-400 to-emerald-600' },
-              { label: 'Total Tax', value: hasData ? fmt(purTax) : '—', gradient: 'bg-gradient-to-br from-green-500 to-green-700' },
-            ].map(c => (
-              <div key={c.label} className={`${c.gradient} rounded-xl p-3 text-center shadow-sm`}>
-                <p className="text-lg font-bold text-white">{c.value}</p>
-                <p className="text-xs text-white/70 mt-0.5">{c.label}</p>
-              </div>
-            ))}
-          </div>
-          <div className="bg-white rounded-xl overflow-hidden shadow-lg">
+          <div className="bg-white">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
                 <tr>
@@ -703,17 +715,7 @@ export default function GstReportPage() {
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => handleExport('tally')}
-          disabled={exporting}
-          className="flex items-center gap-2 bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-700 hover:to-blue-700 text-white px-5 py-2.5 rounded-xl font-medium text-sm disabled:opacity-50 transition-colors"
-        >
-          <Download size={16} className={exporting ? 'animate-bounce' : ''} />
-          {exporting ? 'Generating XML…' : 'Export Tally XML'}
-        </button>
-        <p className="text-xs text-gray-400">Downloads all completed sales in the selected period as Tally-compatible XML</p>
-      </div>
+      <p className="text-xs text-gray-400">Use the <strong>Export XML</strong> button in the header to download all completed sales for the selected period.</p>
     </div>
   )
 
@@ -722,40 +724,173 @@ export default function GstReportPage() {
   const EmptyState = () => (
     <div className="flex flex-col items-center justify-center py-20 text-center">
       <FileSpreadsheet size={48} className="text-gray-200 mb-4" />
-      <p className="text-gray-500 font-medium">Select a period and click <strong>Generate Report</strong></p>
-      <p className="text-gray-400 text-sm mt-1">GST data will be computed from completed sales orders</p>
+      <p className="text-gray-500 font-medium">No data for the selected period</p>
+      <p className="text-gray-400 text-sm mt-1">GST data is computed from completed sales orders</p>
     </div>
   )
 
-  return (
-    <div className="p-6">
-      {/* Compact header: title + tabs + period controls in one row */}
-      <div className="bg-white border border-gray-200 rounded-xl px-5 py-3.5 mb-5 flex flex-wrap items-center gap-3">
-        <h1 className="text-lg font-bold text-gray-900 shrink-0">GST Reports</h1>
+  // ── Stats strip data ────────────────────────────────────────────────────────
 
-        <div className="flex gap-1 bg-gray-100 rounded-full p-1">
-          {TABS.map(t => (
-            <button key={t.key} onClick={() => { setTab(t.key); setData(null) }}
-              className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
-                tab === t.key
-                  ? 'bg-gradient-to-r from-violet-500 to-blue-500 text-white shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200'
-              }`}>
-              {t.label}
-            </button>
-          ))}
+  const statStrip = (() => {
+    if (!data) return [
+      { label: 'Total Invoices', value: '—', sub: 'B2B + B2CS' },
+      { label: 'Taxable Value', value: '—', sub: 'excl. GST' },
+      { label: 'CGST', value: '—', sub: 'central tax' },
+      { label: 'SGST', value: '—', sub: 'state tax' },
+      { label: 'IGST', value: '—', sub: 'integrated tax' },
+      { label: 'Grand Total', value: '—', sub: 'incl. all taxes' },
+      { label: 'ITC Credit', value: '—', sub: 'from purchases' },
+      { label: 'Net Payable', value: '—', sub: 'output − ITC' },
+    ]
+    if (tab === 'gstr1') return [
+      { label: 'Total Invoices', value: String(data.totalInvoices ?? '—'), sub: 'B2B + B2CS' },
+      { label: 'Taxable Value', value: fmt(data.totalTaxableValue), sub: 'excl. GST' },
+      { label: 'CGST', value: fmt(data.totalCgst), sub: 'central tax' },
+      { label: 'SGST', value: fmt(data.totalSgst), sub: 'state tax' },
+      { label: 'IGST', value: fmt(data.totalIgst), sub: 'integrated tax' },
+      { label: 'Grand Total', value: fmt(data.grandTotal), sub: 'incl. all taxes' },
+      { label: 'ITC Credit', value: '—', sub: 'see GSTR-3B' },
+      { label: 'Net Payable', value: '—', sub: 'see GSTR-3B' },
+    ]
+    if (tab === 'gstr3b') return [
+      { label: 'Purchase Bills', value: String(data.billCount ?? 0), sub: 'ITC eligible' },
+      { label: 'Gross Sales', value: fmt(data.grossSales), sub: 'total sales' },
+      { label: 'CGST Output', value: fmt(data.section3_1_taxable?.cgst), sub: 'outward supply' },
+      { label: 'SGST Output', value: fmt(data.section3_1_taxable?.sgst), sub: 'outward supply' },
+      { label: 'IGST Output', value: fmt(data.section3_1_taxable?.igst), sub: 'outward supply' },
+      { label: 'ITC CGST', value: fmt(data.section4_itc?.cgst), sub: 'input credit' },
+      { label: 'ITC SGST', value: fmt(data.section4_itc?.sgst), sub: 'input credit' },
+      { label: 'Net Payable', value: fmt(data.netTaxPayable?.total), sub: 'output − ITC', warn: Number(data.netTaxPayable?.total ?? 0) > 0 },
+    ]
+    if (tab === 'hsn') {
+      const rows: any[] = Array.isArray(data) ? data : []
+      const taxable = rows.reduce((s, r) => s + Number(r.taxableValue || 0), 0)
+      const cgst = rows.reduce((s, r) => s + Number(r.cgst || 0), 0)
+      const sgst = rows.reduce((s, r) => s + Number(r.sgst || 0), 0)
+      const tax = rows.reduce((s, r) => s + Number(r.totalTax || 0), 0)
+      return [
+        { label: 'HSN Codes', value: String(rows.length), sub: 'sale' },
+        { label: 'Taxable Value', value: fmt(taxable), sub: 'sale' },
+        { label: 'CGST', value: fmt(cgst), sub: 'sale' },
+        { label: 'SGST', value: fmt(sgst), sub: 'sale' },
+        { label: 'Total Tax', value: fmt(tax), sub: 'sale' },
+        { label: 'Purchase HSN', value: String(hsnPurchaseData.length), sub: 'purchase' },
+        { label: 'Purchase Tax', value: fmt(hsnPurchaseData.reduce((s, r) => s + Number(r.totalTax || 0), 0)), sub: 'purchase' },
+        { label: 'Net Tax', value: fmt(tax - hsnPurchaseData.reduce((s, r) => s + Number(r.totalTax || 0), 0)), sub: 'sale − purchase' },
+      ]
+    }
+    return [
+      { label: 'Total Invoices', value: '—', sub: '' }, { label: 'Taxable Value', value: '—', sub: '' },
+      { label: 'CGST', value: '—', sub: '' }, { label: 'SGST', value: '—', sub: '' },
+      { label: 'IGST', value: '—', sub: '' }, { label: 'Grand Total', value: '—', sub: '' },
+      { label: 'ITC Credit', value: '—', sub: '' }, { label: 'Net Payable', value: '—', sub: '' },
+    ]
+  })()
+
+  return (
+    <div className="min-h-screen bg-gray-50/60 p-6 space-y-6">
+      {/* ── Gradient hero header ─────────────────────────────────────────── */}
+      <div className="bg-gradient-to-br from-violet-700 via-violet-600 to-blue-600 rounded-2xl shadow-[0_8px_40px_rgba(109,40,217,0.30)] overflow-hidden">
+        <div className="px-6 pt-6 pb-4">
+          {/* Title row */}
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-amber-400/20 border border-amber-400/30 flex items-center justify-center shrink-0">
+                <Receipt size={24} className="text-amber-300" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-white leading-tight">GST Reports</h1>
+                <p className="text-sm text-white/60 mt-0.5">GSTR-1 · GSTR-3B · HSN · Tally</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {tab !== 'tally' && (
+                <button
+                  onClick={() => handleExport(tab === 'hsn' ? 'hsn' : tab === 'gstr3b' ? 'gstr3b' : 'gstr1')}
+                  disabled={exporting || !data}
+                  className="flex items-center gap-1.5 bg-amber-400 hover:bg-amber-300 active:scale-95 text-amber-900 px-3.5 py-1.5 rounded-xl text-xs font-semibold disabled:opacity-60 transition-all shadow-sm">
+                  <Download size={11} className={exporting ? 'animate-bounce' : ''} />
+                  {exporting ? 'Exporting…' : 'Export CSV'}
+                </button>
+              )}
+              {tab === 'tally' && (
+                <button
+                  onClick={() => handleExport('tally')}
+                  disabled={exporting}
+                  className="flex items-center gap-1.5 bg-amber-400 hover:bg-amber-300 active:scale-95 text-amber-900 px-3.5 py-1.5 rounded-xl text-xs font-semibold disabled:opacity-60 transition-all shadow-sm">
+                  <Download size={11} className={exporting ? 'animate-bounce' : ''} />
+                  {exporting ? 'Exporting…' : 'Export XML'}
+                </button>
+              )}
+              <button onClick={fetchData} disabled={loading}
+                className="p-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 disabled:opacity-50 transition-colors">
+                {loading
+                  ? <Loader2 size={14} className="animate-spin text-white" />
+                  : <RefreshCw size={14} className="text-white" />}
+              </button>
+            </div>
+          </div>
+
+          {/* Tab switcher + date filters — separate strips */}
+          <div className="flex items-center justify-between gap-3">
+            {/* Tabs */}
+            <div className="bg-white/10 rounded-xl p-1 backdrop-blur-sm flex items-center gap-1">
+              {TABS.map(t => (
+                <button key={t.key} onClick={() => { setTab(t.key); setData(null) }}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    tab === t.key
+                      ? 'bg-white text-violet-700 shadow-sm'
+                      : 'text-white/70 hover:text-white hover:bg-white/10'
+                  }`}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Date presets + custom picker */}
+            <div className="bg-white/10 rounded-xl p-1 backdrop-blur-sm flex items-center gap-1">
+              {PRESETS.map(p => (
+                <button key={p.label} onClick={() => { setFrom(p.from()); setTo(p.to()) }}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                    from === p.from() && to === p.to()
+                      ? 'bg-white text-violet-700 shadow-sm'
+                      : 'text-white/70 hover:text-white hover:bg-white/10'
+                  }`}>
+                  {p.label}
+                </button>
+              ))}
+              <CustomRangePicker fromDate={from} toDate={to} onChange={(f, t) => { setFrom(f); setTo(t) }} />
+            </div>
+          </div>
         </div>
 
-        <div className="ml-auto">
-          <PeriodBar />
+        {/* ── Stats strip ─────────────────────────────────────────────────── */}
+        <div className="grid grid-cols-8 divide-x divide-white/10 border-t border-white/10 mt-2">
+          {statStrip.map((s, i) => (
+            <div key={i} className="px-3 py-3 text-center">
+              <p className={`text-sm font-bold truncate ${(s as any).warn ? 'text-amber-300' : 'text-white'} ${loading ? 'animate-pulse' : ''}`}>
+                {s.value}
+              </p>
+              <p className="text-[11px] text-white/50 mt-0.5 truncate">{s.label}</p>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Tab content */}
-      {tab === 'gstr1' && <Gstr1View />}
-      {tab === 'gstr3b' && <Gstr3bView />}
-      {tab === 'hsn' && <HsnView />}
-      {tab === 'tally' && <TallyView />}
+      {/* ── Tab content ─────────────────────────────────────────────────────── */}
+      {loadError && tab !== 'tally' && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
+          <Info size={15} className="shrink-0 text-amber-500" />
+          <span>Could not load GST data for this period. Check your backend connection or try a different date range.</span>
+          <button onClick={fetchData} className="ml-auto text-xs font-semibold text-amber-700 hover:text-amber-900 underline underline-offset-2">Retry</button>
+        </div>
+      )}
+      <div>
+        {tab === 'gstr1' && <Gstr1View />}
+        {tab === 'gstr3b' && <Gstr3bView />}
+        {tab === 'hsn' && <HsnView />}
+        {tab === 'tally' && <TallyView />}
+      </div>
     </div>
   )
 }

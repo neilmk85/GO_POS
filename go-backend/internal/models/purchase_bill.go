@@ -8,7 +8,7 @@ import (
 
 type PurchaseBill struct {
 	ID               int             `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
-	BillNumber       string          `gorm:"uniqueIndex;column:bill_number" json:"billNumber"`
+	BillNumber       string          `gorm:"uniqueIndex;size:191;column:bill_number" json:"billNumber"`
 	SupplierID       int             `gorm:"column:supplier_id" json:"supplierId"`
 	OutletID         int             `gorm:"column:outlet_id" json:"outletId"`
 	SourcePoID       *int            `gorm:"column:source_po_id" json:"sourcePoId"`

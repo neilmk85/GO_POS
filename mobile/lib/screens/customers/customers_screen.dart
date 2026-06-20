@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:pos_mobile/main.dart';
 import '../../models/models.dart';
 import '../../services/api_service.dart';
+import 'customer_profile_screen.dart';
 
 class CustomersScreen extends StatefulWidget {
   const CustomersScreen({super.key});
@@ -41,12 +43,18 @@ class _CustomersScreenState extends State<CustomersScreen> {
     );
     if (result == null) return;
     try {
-      await ApiService().createCustomer(result);
+      final created = await ApiService().createCustomer(result);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
               content: Text('Customer added'), backgroundColor: Colors.green),
         );
+        // Re-run the last search to show the new customer
+        if (_searchCtrl.text.isNotEmpty) {
+          await _search(_searchCtrl.text);
+        } else {
+          setState(() => _results = [created]);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -56,15 +64,31 @@ class _CustomersScreenState extends State<CustomersScreen> {
     }
   }
 
+  Future<void> _openProfile(Customer c) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+          builder: (_) => CustomerProfileScreen(customer: c)),
+    );
+    // Re-fetch to pick up any edits
+    if (_searchCtrl.text.isNotEmpty) {
+      await _search(_searchCtrl.text);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.menu_outlined),
+          onPressed: openAppDrawer,
+          tooltip: 'Open menu',
+        ),
         title: const Text('Customers'),
         actions: [
           IconButton(
-              icon: const Icon(Icons.person_add),
-              onPressed: _addCustomer),
+              icon: const Icon(Icons.person_add), onPressed: _addCustomer),
         ],
       ),
       body: Column(
@@ -119,6 +143,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                               ),
                           ],
                         ),
+                        onTap: () => _openProfile(c),
                       );
                     },
                   ),

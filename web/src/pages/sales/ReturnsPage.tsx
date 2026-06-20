@@ -1,147 +1,180 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Search, RotateCcw, X, Loader2, Plus } from 'lucide-react'
+import { Search, RotateCcw, X, Loader2, Plus, Trash2 } from 'lucide-react'
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subWeeks, subMonths, startOfQuarter, endOfQuarter, subQuarters } from 'date-fns'
 import toast from 'react-hot-toast'
-import { orderApi } from '@/services/api'
+import { saleReturnApi } from '@/services/api'
 import { useAuthStore } from '@/store/authStore'
+
+const REFUND_METHODS = ['CASH', 'CARD', 'UPI', 'CREDIT_NOTE']
+
+interface ReturnItem { productName: string; quantity: string; unitPrice: string }
 
 // ─── Return Modal ──────────────────────────────────────────────────────────────
 
 function ProcessReturnModal({ onClose, outletId }: { onClose: () => void; outletId: number }) {
   const qc = useQueryClient()
-  const [orderNumber, setOrderNumber] = useState('')
-  const [order, setOrder] = useState<any>(null)
-  const [loading, setLoading] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-  const [returnItems, setReturnItems] = useState<Record<number, number>>({})
+  const [customerName, setCustomerName] = useState('')
+  const [refNo, setRefNo] = useState('')
+  const [returnDate, setReturnDate] = useState(new Date().toISOString().split('T')[0])
   const [reason, setReason] = useState('')
   const [refundMethod, setRefundMethod] = useState('CASH')
+  const [items, setItems] = useState<ReturnItem[]>([{ productName: '', quantity: '', unitPrice: '' }])
+  const [submitting, setSubmitting] = useState(false)
 
-  async function lookupOrder() {
-    if (!orderNumber.trim()) return
-    setLoading(true)
-    try {
-      const res = await orderApi.getByOrderNumber(orderNumber.trim())
-      const o = res.data.data
-      if (!o) { toast.error('Order not found'); return }
-      if (o.status === 'REFUNDED') { toast.error('Order already fully refunded'); return }
-      if (o.status !== 'COMPLETED') { toast.error('Only completed orders can be returned'); return }
-      setOrder(o)
-      const init: Record<number, number> = {}
-      o.items?.forEach((item: any) => { init[item.id] = 0 })
-      setReturnItems(init)
-    } catch {
-      toast.error('Order not found')
-    } finally {
-      setLoading(false)
-    }
+  const total = items.reduce((s, i) => s + (parseFloat(i.quantity) || 0) * (parseFloat(i.unitPrice) || 0), 0)
+
+  function addItem() { setItems(p => [...p, { productName: '', quantity: '', unitPrice: '' }]) }
+  function removeItem(i: number) { setItems(p => p.filter((_, idx) => idx !== i)) }
+  function updateItem(i: number, f: keyof ReturnItem, v: string) {
+    setItems(p => p.map((item, idx) => idx === i ? { ...item, [f]: v } : item))
   }
 
   async function handleSubmit() {
-    const items = Object.entries(returnItems)
-      .filter(([, qty]) => qty > 0)
-      .map(([id, qty]) => ({ orderItemId: parseInt(id), returnQuantity: qty }))
-    if (items.length === 0) { toast.error('Select at least one item to return'); return }
-    if (!reason.trim()) { toast.error('Please provide a reason'); return }
+    const validItems = items.filter(i => i.productName.trim() && parseFloat(i.quantity) > 0)
+    if (validItems.length === 0) { toast.error('Add at least one item with name and quantity'); return }
+    if (!reason.trim()) { toast.error('Reason is required'); return }
     setSubmitting(true)
     try {
-      await orderApi.processReturn({ originalOrderId: order.id, items, reason, returnMethod: refundMethod })
-      toast.success('Return processed successfully')
-      qc.invalidateQueries({ queryKey: ['orders-returns'] })
+      await saleReturnApi.create({
+        outletId,
+        customerName: customerName || undefined,
+        refNo: refNo || undefined,
+        returnDate,
+        reason,
+        returnMethod: refundMethod,
+        items: validItems.map(i => ({
+          productName: i.productName.trim(),
+          quantity: parseFloat(i.quantity) || 0,
+          unitPrice: parseFloat(i.unitPrice) || 0,
+        })),
+      })
+      toast.success('Sale return recorded')
+      qc.invalidateQueries({ queryKey: ['sale-returns'] })
       onClose()
     } catch (err: any) {
-      toast.error(err.response?.data?.message ?? 'Failed to process return')
+      toast.error(err.response?.data?.message ?? 'Failed to record return')
     } finally {
       setSubmitting(false)
     }
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
-        <div className="flex items-center justify-between p-5 border-b">
-          <h2 className="text-lg font-bold text-gray-900">Process Return</h2>
-          <button onClick={onClose}><X size={20} className="text-gray-400" /></button>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
+          <h2 className="text-lg font-bold text-gray-900">New Sale Return</h2>
+          <button onClick={onClose}><X size={20} className="text-gray-400 hover:text-gray-600" /></button>
         </div>
 
-        <div className="p-5 space-y-4">
-          {/* Order lookup */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Order Number</label>
-            <div className="flex gap-2">
-              <input value={orderNumber} onChange={e => setOrderNumber(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && lookupOrder()}
-                placeholder="e.g. ORD-20240001"
-                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500 focus:outline-none" />
-              <button onClick={lookupOrder} disabled={loading}
-                className="px-4 py-2 bg-gradient-to-r from-violet-600 to-blue-600 text-white rounded-lg text-sm font-medium hover:from-violet-700 hover:to-blue-700 disabled:opacity-50 flex items-center gap-1.5">
-                {loading ? <Loader2 size={14} className="animate-spin" /> : null}
-                Look Up
-              </button>
+        <div className="overflow-y-auto p-6 space-y-4">
+          {/* Row 1: Customer + Ref No */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">Customer Name</label>
+              <input value={customerName} onChange={e => setCustomerName(e.target.value)}
+                placeholder="Customer name (optional)"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-200 focus:border-violet-400 focus:outline-none" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">Original Bill / Invoice No.</label>
+              <input value={refNo} onChange={e => setRefNo(e.target.value)}
+                placeholder="e.g. INV-2024-001"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-200 focus:border-violet-400 focus:outline-none" />
             </div>
           </div>
 
-          {order && (
-            <>
-              {/* Customer */}
-              <div className="bg-gray-50 rounded-lg p-3 text-sm">
-                <p className="font-medium text-gray-900">{order.customer?.name ?? 'Walk-in'}</p>
-                <p className="text-gray-500">Order Total: ₹{parseFloat(String(order.totalAmount)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
-              </div>
+          {/* Row 2: Date + Refund Method */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">Return Date</label>
+              <input type="date" value={returnDate} onChange={e => setReturnDate(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-200 focus:border-violet-400 focus:outline-none" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">Refund Method</label>
+              <select value={refundMethod} onChange={e => setRefundMethod(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-200 focus:border-violet-400 focus:outline-none">
+                {REFUND_METHODS.map(m => <option key={m} value={m}>{m.replace('_', ' ')}</option>)}
+              </select>
+            </div>
+          </div>
 
-              {/* Items */}
-              <div>
-                <p className="text-sm font-medium text-gray-700 mb-2">Select items to return</p>
-                <div className="space-y-2 max-h-48 overflow-auto">
-                  {order.items?.map((item: any) => {
-                    const alreadyReturned = parseFloat(String(item.returnedQuantity ?? 0))
-                    const available = item.quantity - alreadyReturned
-                    return (
-                      <div key={item.id} className="flex items-center justify-between p-2.5 border border-gray-200 rounded-lg">
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">{item.productName}</p>
-                          <p className="text-xs text-gray-500">
-                            Ordered: {item.quantity} · Available: {available} · ₹{parseFloat(String(item.unitPrice)).toFixed(2)} each
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button onClick={() => setReturnItems(prev => ({ ...prev, [item.id]: Math.max(0, (prev[item.id] ?? 0) - 1) }))}
-                            className="w-6 h-6 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-sm">−</button>
-                          <span className="w-6 text-center text-sm font-medium">{returnItems[item.id] ?? 0}</span>
-                          <button onClick={() => setReturnItems(prev => ({ ...prev, [item.id]: Math.min(available, (prev[item.id] ?? 0) + 1) }))}
-                            className="w-6 h-6 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-sm">+</button>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-
-              {/* Reason */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Reason *</label>
-                <textarea value={reason} onChange={e => setReason(e.target.value)}
-                  rows={2} placeholder="Reason for return…"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500 focus:outline-none resize-none" />
-              </div>
-
-              {/* Refund method */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Refund Method</label>
-                <select value={refundMethod} onChange={e => setRefundMethod(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500 focus:outline-none">
-                  {['CASH', 'CARD', 'UPI', 'CREDIT_NOTE'].map(m => <option key={m} value={m}>{m.replace('_', ' ')}</option>)}
-                </select>
-              </div>
-
-              <button onClick={handleSubmit} disabled={submitting}
-                className="w-full py-2.5 bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-700 hover:to-blue-700 disabled:opacity-50 text-white font-medium rounded-lg text-sm flex items-center justify-center gap-2">
-                {submitting && <Loader2 size={15} className="animate-spin" />}
-                Confirm Return
+          {/* Items */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-semibold text-gray-500">Items Returned</label>
+              <button onClick={addItem} className="flex items-center gap-1 text-xs text-violet-600 hover:text-violet-800 font-medium">
+                <Plus size={13} /> Add Item
               </button>
-            </>
-          )}
+            </div>
+            <div className="border border-gray-200 rounded-xl overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 font-semibold">
+                    <th className="px-3 py-2 text-left">Product / Description</th>
+                    <th className="px-3 py-2 text-center w-24">Qty</th>
+                    <th className="px-3 py-2 text-right w-32">Unit Price (₹)</th>
+                    <th className="px-3 py-2 text-right w-28">Amount</th>
+                    <th className="w-8"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {items.map((item, i) => (
+                    <tr key={i}>
+                      <td className="px-3 py-2">
+                        <input value={item.productName} onChange={e => updateItem(i, 'productName', e.target.value)}
+                          placeholder="Product name"
+                          className="w-full border-0 outline-none text-sm text-gray-800 placeholder-gray-300" />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input type="number" min={0} value={item.quantity}
+                          onChange={e => updateItem(i, 'quantity', e.target.value)}
+                          placeholder="0"
+                          className="w-full text-center border-0 outline-none text-sm text-gray-800 placeholder-gray-300" />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input type="number" min={0} value={item.unitPrice}
+                          onChange={e => updateItem(i, 'unitPrice', e.target.value)}
+                          placeholder="0.00"
+                          className="w-full text-right border-0 outline-none text-sm text-gray-800 placeholder-gray-300" />
+                      </td>
+                      <td className="px-3 py-2 text-right text-sm font-medium text-gray-700">
+                        ₹{((parseFloat(item.quantity) || 0) * (parseFloat(item.unitPrice) || 0)).toFixed(2)}
+                      </td>
+                      <td className="px-2 py-2">
+                        {items.length > 1 && (
+                          <button onClick={() => removeItem(i)} className="text-gray-300 hover:text-red-500">
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex justify-end mt-2 pr-10">
+              <span className="text-sm font-bold text-gray-800">Total: ₹{total.toFixed(2)}</span>
+            </div>
+          </div>
+
+          {/* Reason */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Reason <span className="text-red-400">*</span></label>
+            <textarea value={reason} onChange={e => setReason(e.target.value)} rows={2}
+              placeholder="Reason for return…"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-200 focus:border-violet-400 focus:outline-none resize-none" />
+          </div>
+        </div>
+
+        <div className="px-6 py-4 border-t shrink-0 flex gap-3">
+          <button onClick={onClose} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 font-medium">Cancel</button>
+          <button onClick={handleSubmit} disabled={submitting}
+            className="flex-1 py-2.5 bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-700 hover:to-blue-700 disabled:opacity-50 text-white font-semibold rounded-xl text-sm flex items-center justify-center gap-2">
+            {submitting && <Loader2 size={14} className="animate-spin" />}
+            Save Return · ₹{total.toFixed(2)}
+          </button>
         </div>
       </div>
     </div>
@@ -207,9 +240,8 @@ export default function ReturnsPage() {
   }
 
   const { data, isLoading } = useQuery({
-    queryKey: ['orders-returns', outletId, from, to],
-    queryFn: () => orderApi.getReturns(outletId!, { from, to }).then(r => r.data.data),
-    enabled: !!outletId,
+    queryKey: ['sale-returns', outletId, from, to],
+    queryFn: () => saleReturnApi.getAll(outletId ?? 1, { from, to }).then(r => r.data.data),
   })
 
   const returns: any[] = data?.content ?? []
@@ -220,40 +252,66 @@ export default function ReturnsPage() {
     o.customer?.name?.toLowerCase().includes(search.toLowerCase())
   )
 
+  const total = filtered.reduce((s: number, o: any) => s + Math.abs(parseFloat(String(o.totalAmount ?? 0))), 0)
+
   return (
     <div className="min-h-full bg-gray-50">
-      <div className="bg-white border-b border-gray-100 px-6 py-5">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Returns</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Process and track order returns & refunds</p>
+      <div className="p-6">
+      {/* Hero Header */}
+      <div className="relative rounded-2xl shadow-[0_8px_40px_rgba(109,40,217,0.30)] mb-6">
+        <div className="absolute inset-0 overflow-hidden rounded-2xl">
+          <div className="absolute inset-0 bg-gradient-to-br from-violet-700 via-violet-600 to-blue-600" />
+          <div className="absolute inset-0 opacity-[0.15]"
+            style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+          <div className="absolute -top-10 -right-10 w-72 h-72 rounded-full bg-blue-400/20 blur-3xl" />
+          <div className="absolute -bottom-8 -left-8 w-56 h-56 rounded-full bg-violet-300/20 blur-2xl" />
+        </div>
+        {/* Top row */}
+        <div className="relative flex items-center justify-between px-8 py-6">
+          <div className="flex items-center gap-4">
+            <RotateCcw size={26} className="text-amber-300" />
+            <div>
+              <p className="text-violet-200 text-xs font-semibold tracking-widest uppercase">Sales</p>
+              <h1 className="text-white text-2xl font-bold tracking-tight">Returns</h1>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <input type="date" value={from} onChange={e => setFrom(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500 focus:outline-none" />
-            <span className="text-gray-400 text-sm">to</span>
+              className="bg-white/10 border border-white/20 text-white rounded-lg px-3 py-2 text-sm" />
+            <span className="text-white/60 text-sm">to</span>
             <input type="date" value={to} onChange={e => setTo(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500 focus:outline-none" />
+              className="bg-white/10 border border-white/20 text-white rounded-lg px-3 py-2 text-sm" />
             <button onClick={() => setShowModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-700 hover:to-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
+              className="flex items-center gap-2 bg-white text-violet-700 hover:bg-violet-50 px-4 py-2 rounded-lg font-semibold text-sm shadow-sm transition-colors">
               <Plus size={15} /> Process Return
             </button>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        {/* Stat strip */}
+        <div className="relative border-t border-white/10 grid grid-cols-2 divide-x divide-white/10">
+          <div className="px-6 py-3 text-center">
+            <p className="text-white text-xl font-bold">{filtered.length}</p>
+            <p className="text-violet-200 text-xs mt-0.5">Total Returns</p>
+          </div>
+          <div className="px-6 py-3 text-center">
+            <p className="text-white text-xl font-bold">₹{total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
+            <p className="text-violet-200 text-xs mt-0.5">Total Refund Amount</p>
+          </div>
+        </div>
+        {/* Date presets */}
+        <div className="relative border-t border-white/10 px-8 py-3 flex flex-wrap gap-1.5">
           {DATE_PRESETS.map(p => (
             <button key={p.label} onClick={() => applyPreset(p)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                 activePreset === p.label
-                  ? 'bg-gradient-to-r from-violet-500 to-blue-500 text-white shadow-sm'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  ? 'bg-white text-violet-700 shadow-sm'
+                  : 'bg-white/10 border border-white/20 text-white hover:bg-white/20'
               }`}>
               {p.label}
             </button>
           ))}
         </div>
       </div>
-    <div className="p-6">
       <div className="relative mb-4 max-w-sm">
         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
         <input value={search} onChange={e => setSearch(e.target.value)}
@@ -264,14 +322,14 @@ export default function ReturnsPage() {
       <div className="bg-white rounded-xl shadow-lg overflow-hidden">
         <table className="w-full">
           <thead>
-            <tr className="bg-gray-100 border-b border-gray-200">
-              <th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider">Return #</th>
-              <th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider">Customer</th>
-              <th className="px-4 py-3 text-center text-[11px] font-semibold text-gray-600 uppercase tracking-wider">Items Returned</th>
-              <th className="px-4 py-3 text-right text-[11px] font-semibold text-gray-600 uppercase tracking-wider">Refund Amount</th>
-              <th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider">Refund Method</th>
-              <th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider">Reason</th>
-              <th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider">Date</th>
+            <tr className="bg-gradient-to-r from-violet-50 to-blue-50 border-y border-violet-100">
+              <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Return #</th>
+              <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Customer</th>
+              <th className="px-4 py-3 text-center text-[11px] font-bold text-violet-500 uppercase tracking-widest">Items Returned</th>
+              <th className="px-4 py-3 text-right text-[11px] font-bold text-violet-500 uppercase tracking-widest">Refund Amount</th>
+              <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Refund Method</th>
+              <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Reason</th>
+              <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Date</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -311,8 +369,8 @@ export default function ReturnsPage() {
         </table>
       </div>
 
-      {showModal && outletId && (
-        <ProcessReturnModal onClose={() => setShowModal(false)} outletId={outletId} />
+      {showModal && (
+        <ProcessReturnModal onClose={() => setShowModal(false)} outletId={outletId ?? 1} />
       )}
     </div>
     </div>

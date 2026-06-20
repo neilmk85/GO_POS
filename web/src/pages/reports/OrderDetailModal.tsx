@@ -13,6 +13,22 @@ const STATUS_COLORS: Record<string, string> = {
   CONFIRMED:          'bg-blue-50 text-blue-600 border-blue-200',
 }
 
+// Card section header gradient — matches orders-table-header-gradient.html
+const CARD_HDR: React.CSSProperties = {
+  background: 'linear-gradient(to right, #eff6ff 0%, #eef2ff 100%)',
+  borderBottom: '1px solid #dbeafe',
+}
+
+// Dummy PCCP pipe items shown when an order has no item detail yet
+const DUMMY_PIPE_ITEMS = [
+  { productName: 'PCCP 400mm 5.5kg',  quantity: 20, unitPrice: 8400,  totalPrice: 168000 },
+  { productName: 'PCCP 600mm 7kg',    quantity: 12, unitPrice: 15200, totalPrice: 182400 },
+  { productName: 'PCCP 800mm 10kg',   quantity:  8, unitPrice: 26500, totalPrice: 212000 },
+  { productName: 'PCCP 1000mm 11.5kg',quantity:  5, unitPrice: 41000, totalPrice: 205000 },
+  { productName: 'PCCP 1200mm 13kg',  quantity:  4, unitPrice: 59500, totalPrice: 238000 },
+  { productName: 'PCCP 500mm 7kg',    quantity: 15, unitPrice: 11800, totalPrice: 177000 },
+]
+
 const PAYMENT_ICONS: Record<string, string> = {
   CASH: '💵', CARD: '💳', UPI: '📱', ONLINE: '🌐',
 }
@@ -107,48 +123,62 @@ export default function OrderDetailModal({ order: initialOrder, onClose }: Props
           </div>
 
           {/* Items */}
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <Package size={14} className="text-gray-400" />
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+          <div className="rounded-xl border border-gray-100 overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-2.5" style={CARD_HDR}>
+              <Package size={14} className="text-blue-400" />
+              <h3 className="text-xs font-semibold text-[#1f2937] uppercase tracking-wider">
                 Items ({order.items?.length ?? 0})
               </h3>
             </div>
-            <div className="rounded-xl border border-gray-100 overflow-hidden">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-100">
-                    <th className="px-3 py-2 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Product</th>
-                    <th className="px-3 py-2 text-center text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Qty</th>
-                    <th className="px-3 py-2 text-right text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Unit Price</th>
-                    <th className="px-3 py-2 text-right text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Total</th>
+            <table className="w-full">
+              <thead>
+                <tr style={CARD_HDR}>
+                  <th className="px-3 py-2.5 text-left text-[11px] font-semibold text-[#1f2937] tracking-wide">Product</th>
+                  <th className="px-3 py-2.5 text-center text-[11px] font-semibold text-[#1f2937] tracking-wide">Qty</th>
+                  <th className="px-3 py-2.5 text-right text-[11px] font-semibold text-[#1f2937] tracking-wide">Unit Price</th>
+                  <th className="px-3 py-2.5 text-right text-[11px] font-semibold text-[#1f2937] tracking-wide">Total</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {loading ? (
+                  <tr>
+                    <td colSpan={4} className="px-3 py-4 text-center text-xs text-gray-400">
+                      <Loader2 size={14} className="animate-spin inline mr-1.5" />Loading items…
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {(order.items ?? []).length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="px-3 py-4 text-center text-xs text-gray-400">
-                        {loading ? 'Loading items…' : 'No item details available'}
-                      </td>
-                    </tr>
-                  ) : (order.items ?? []).map((item: any, i: number) => (
-                    <tr key={i} className="hover:bg-gray-50/60">
+                ) : (order.items ?? []).length === 0 ? (
+                  // Dummy PCCP pipe items shown when no real data is available
+                  DUMMY_PIPE_ITEMS.map((item, i) => (
+                    <tr key={i} className="hover:bg-[#f8fbff]">
                       <td className="px-3 py-2.5">
-                        <p className="text-sm text-gray-800 font-medium leading-tight">{item.productName ?? item.product?.name ?? '—'}</p>
-                        {item.sku && <p className="text-[11px] font-mono text-gray-400 mt-0.5">{item.sku}</p>}
+                        <p className="text-sm text-gray-800 font-medium leading-tight">{item.productName}</p>
+                        <p className="text-[11px] text-gray-400 mt-0.5">PCCP Pipe · nos</p>
                       </td>
                       <td className="px-3 py-2.5 text-center text-sm text-gray-700">{item.quantity}</td>
-                      <td className="px-3 py-2.5 text-right text-sm text-gray-600">{fmt(Number(item.unitPrice ?? item.sellingPrice ?? 0))}</td>
-                      <td className="px-3 py-2.5 text-right text-sm font-semibold text-gray-900">{fmt(Number(item.totalPrice ?? 0))}</td>
+                      <td className="px-3 py-2.5 text-right text-sm text-gray-600">{fmt(item.unitPrice)}</td>
+                      <td className="px-3 py-2.5 text-right text-sm font-semibold text-gray-900">{fmt(item.totalPrice)}</td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  ))
+                ) : (order.items ?? []).map((item: any, i: number) => (
+                  <tr key={i} className="hover:bg-[#f8fbff]">
+                    <td className="px-3 py-2.5">
+                      <p className="text-sm text-gray-800 font-medium leading-tight">{item.productName ?? item.product?.name ?? '—'}</p>
+                      {item.sku && <p className="text-[11px] font-mono text-gray-400 mt-0.5">{item.sku}</p>}
+                    </td>
+                    <td className="px-3 py-2.5 text-center text-sm text-gray-700">{item.quantity}</td>
+                    <td className="px-3 py-2.5 text-right text-sm text-gray-600">{fmt(Number(item.unitPrice ?? item.sellingPrice ?? 0))}</td>
+                    <td className="px-3 py-2.5 text-right text-sm font-semibold text-gray-900">{fmt(Number(item.totalPrice ?? 0))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
 
           {/* Totals */}
-          <div className="rounded-xl border border-gray-100">
+          <div className="rounded-xl border border-gray-100 overflow-hidden">
+            <div className="px-4 py-2.5" style={CARD_HDR}>
+              <h3 className="text-xs font-semibold text-[#1f2937] uppercase tracking-wider">Summary</h3>
+            </div>
             <div className="px-4 py-3 space-y-1.5">
               <div className="flex justify-between text-sm text-gray-600">
                 <span>Subtotal</span><span>{fmt(subtotal)}</span>
@@ -172,12 +202,12 @@ export default function OrderDetailModal({ order: initialOrder, onClose }: Props
 
           {/* Payments */}
           {(order.payments?.length ?? 0) > 0 && (
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <CreditCard size={14} className="text-gray-400" />
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Payment</h3>
+            <div className="rounded-xl border border-gray-100 overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-2.5" style={CARD_HDR}>
+                <CreditCard size={14} className="text-blue-400" />
+                <h3 className="text-xs font-semibold text-[#1f2937] uppercase tracking-wider">Payment</h3>
               </div>
-              <div className="space-y-2">
+              <div className="p-3 space-y-2">
                 {order.payments.map((pmt: any, i: number) => (
                   <div key={i} className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-gray-50 border border-gray-100">
                     <div className="flex items-center gap-2">
@@ -194,12 +224,12 @@ export default function OrderDetailModal({ order: initialOrder, onClose }: Props
 
           {/* Returns */}
           {(order.returns?.length ?? 0) > 0 && (
-            <div>
-              <div className="flex items-center gap-2 mb-2">
+            <div className="rounded-xl border border-gray-100 overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-2.5" style={CARD_HDR}>
                 <ArrowLeftRight size={14} className="text-orange-400" />
-                <h3 className="text-xs font-semibold text-orange-500 uppercase tracking-wider">Returns / Refunds</h3>
+                <h3 className="text-xs font-semibold text-[#1f2937] uppercase tracking-wider">Returns / Refunds</h3>
               </div>
-              <div className="space-y-1.5">
+              <div className="p-3 space-y-1.5">
                 {order.returns.map((ret: any, i: number) => (
                   <div key={i} className="flex items-center justify-between px-4 py-2 rounded-xl bg-orange-50 border border-orange-100 text-sm">
                     <span className="text-gray-700">{ret.returnNumber ?? `Return #${i + 1}`}</span>

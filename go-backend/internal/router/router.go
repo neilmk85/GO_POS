@@ -41,8 +41,25 @@ func Setup(db *gorm.DB, cfg *config.Config, wsHub *websocket.Hub) http.Handler {
 	purchaseBillService := service.NewPurchaseBillService(db)
 	purchaseBillHandler := handler.NewPurchaseBillHandler(purchaseBillService)
 
+	userPreferenceService := service.NewUserPreferenceService(db)
+	userPreferenceHandler := handler.NewUserPreferenceHandler(userPreferenceService)
+
+	vendorPaymentService := service.NewVendorPaymentService(db)
+	tdsService := service.NewTDSService(db)
+	tdsHandler := handler.NewTDSHandler(tdsService)
+	vendorPaymentHandler := handler.NewVendorPaymentHandler(vendorPaymentService, purchaseBillService, tdsService)
+
+	vendorCreditService := service.NewVendorCreditService(db)
+	vendorCreditHandler := handler.NewVendorCreditHandler(vendorCreditService)
+
+	cartHoldService := service.NewCartHoldService(db)
+	cartHoldHandler := handler.NewCartHoldHandler(cartHoldService)
+
 	purchaseReturnService := service.NewPurchaseReturnService(db)
 	purchaseReturnHandler := handler.NewPurchaseReturnHandler(purchaseReturnService)
+
+	saleReturnService := service.NewSaleReturnService(db)
+	saleReturnHandler := handler.NewSaleReturnHandler(saleReturnService)
 
 	bulkPurchaseService := service.NewBulkPurchaseService(db)
 	bulkPurchaseHandler := handler.NewBulkPurchaseHandler(bulkPurchaseService)
@@ -99,6 +116,42 @@ func Setup(db *gorm.DB, cfg *config.Config, wsHub *websocket.Hub) http.Handler {
 
 	customRoleHandler := handler.NewCustomRoleHandler(db)
 	activityLogHandler := handler.NewActivityLogHandler(db)
+
+	workOrderService := service.NewWorkOrderService(db)
+	workOrderHandler := handler.NewWorkOrderHandler(workOrderService)
+
+	workBillService := service.NewWorkBillService(db)
+	workBillHandler := handler.NewWorkBillHandler(workBillService)
+
+	contractorService := service.NewContractorService(db)
+	contractorHandler := handler.NewContractorHandler(contractorService)
+
+	siteProjectService := service.NewSiteProjectService(db)
+	siteProjectHandler := handler.NewSiteProjectHandler(siteProjectService)
+
+	workPackageService := service.NewWorkPackageService(db)
+	workPackageHandler := handler.NewWorkPackageHandler(workPackageService)
+
+	materialIssueService := service.NewMaterialIssueService(db)
+	materialIssueHandler := handler.NewMaterialIssueHandler(materialIssueService)
+
+	progressClaimService := service.NewProgressClaimService(db)
+	progressClaimHandler := handler.NewProgressClaimHandler(progressClaimService)
+
+	dailyProgressService := service.NewDailyProgressService(db)
+	dailyProgressHandler := handler.NewDailyProgressHandler(dailyProgressService)
+
+	labourAttendanceService := service.NewLabourAttendanceService(db)
+	labourAttendanceHandler := handler.NewLabourAttendanceHandler(labourAttendanceService)
+
+	equipmentLogService := service.NewEquipmentLogService(db)
+	equipmentLogHandler := handler.NewEquipmentLogHandler(equipmentLogService)
+
+	materialReceiptService := service.NewMaterialReceiptService(db)
+	materialReceiptHandler := handler.NewMaterialReceiptHandler(materialReceiptService)
+
+	siteReportService := service.NewSiteReportService(db)
+	siteReportHandler := handler.NewSiteReportHandler(siteReportService)
 
 	// ==================== WEBSOCKET ====================
 	mux.HandleFunc("GET /ws", wsHub.HandleWS)
@@ -419,9 +472,22 @@ func Setup(db *gorm.DB, cfg *config.Config, wsHub *websocket.Hub) http.Handler {
 		inventoryHandler.GetByOutlet,
 		middleware.Authenticate(db),
 	))
-	mux.HandleFunc("GET /api/inventory/{id}", middleware.Chain(
+	mux.HandleFunc("GET /api/inventory/outlet/{outletId}", middleware.Chain(
+		inventoryHandler.GetByOutlet,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/inventory/product/{productId}/outlet/{outletId}", middleware.Chain(
 		inventoryHandler.GetByProductAndOutlet,
 		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/inventory/product/{productId}/all-outlets", middleware.Chain(
+		inventoryHandler.GetByProductAllOutlets,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("PATCH /api/inventory/reorder-level", middleware.Chain(
+		inventoryHandler.UpdateReorderLevel,
+		middleware.Authenticate(db),
+		middleware.RequireRole("SUPER_ADMIN", "ADMIN", "INVENTORY_MANAGER"),
 	))
 	mux.HandleFunc("POST /api/inventory/adjustments", middleware.Chain(
 		inventoryHandler.AdjustStock,
@@ -471,6 +537,10 @@ func Setup(db *gorm.DB, cfg *config.Config, wsHub *websocket.Hub) http.Handler {
 		customerHandler.Update,
 		middleware.Authenticate(db),
 	))
+	mux.HandleFunc("PATCH /api/customers/{id}/toggle-active", middleware.Chain(
+		customerHandler.ToggleActive,
+		middleware.Authenticate(db),
+	))
 	mux.HandleFunc("POST /api/customers/import", middleware.Chain(
 		customerHandler.ImportCSV,
 		middleware.Authenticate(db),
@@ -510,6 +580,11 @@ func Setup(db *gorm.DB, cfg *config.Config, wsHub *websocket.Hub) http.Handler {
 	))
 	mux.HandleFunc("POST /api/orders/{id}/hold", middleware.Chain(
 		orderHandler.HoldOrder,
+		middleware.Authenticate(db),
+		middleware.RequireRole("SUPER_ADMIN", "ADMIN", "CASHIER", "MANAGER"),
+	))
+	mux.HandleFunc("POST /api/orders/{id}/cancel", middleware.Chain(
+		orderHandler.CancelOrder,
 		middleware.Authenticate(db),
 		middleware.RequireRole("SUPER_ADMIN", "ADMIN", "CASHIER", "MANAGER"),
 	))
@@ -749,6 +824,294 @@ func Setup(db *gorm.DB, cfg *config.Config, wsHub *websocket.Hub) http.Handler {
 		middleware.Authenticate(db),
 	))
 
+	// ==================== SITE: CONTRACTORS ====================
+	mux.HandleFunc("GET /api/contractors", middleware.Chain(
+		contractorHandler.GetAll,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/contractors/{id}", middleware.Chain(
+		contractorHandler.GetByID,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("POST /api/contractors", middleware.Chain(
+		contractorHandler.Create,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("PUT /api/contractors/{id}", middleware.Chain(
+		contractorHandler.Update,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("DELETE /api/contractors/{id}", middleware.Chain(
+		contractorHandler.Delete,
+		middleware.Authenticate(db),
+	))
+
+	// ==================== SITE: PROJECTS ====================
+	mux.HandleFunc("GET /api/site-projects", middleware.Chain(
+		siteProjectHandler.GetAll,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/site-projects/{id}", middleware.Chain(
+		siteProjectHandler.GetByID,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("POST /api/site-projects", middleware.Chain(
+		siteProjectHandler.Create,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("PUT /api/site-projects/{id}", middleware.Chain(
+		siteProjectHandler.Update,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("PATCH /api/site-projects/{id}/status", middleware.Chain(
+		siteProjectHandler.UpdateStatus,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("DELETE /api/site-projects/{id}", middleware.Chain(
+		siteProjectHandler.Delete,
+		middleware.Authenticate(db),
+	))
+
+	// ==================== SITE: WORK PACKAGES ====================
+	mux.HandleFunc("GET /api/site-projects/{projectId}/work-packages", middleware.Chain(
+		workPackageHandler.GetByProject,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("POST /api/work-packages", middleware.Chain(
+		workPackageHandler.Create,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/work-packages/{id}", middleware.Chain(
+		workPackageHandler.GetByID,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("PUT /api/work-packages/{id}", middleware.Chain(
+		workPackageHandler.Update,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("PATCH /api/work-packages/{id}/status", middleware.Chain(
+		workPackageHandler.UpdateStatus,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("DELETE /api/work-packages/{id}", middleware.Chain(
+		workPackageHandler.Delete,
+		middleware.Authenticate(db),
+	))
+
+	// ==================== SITE: MATERIAL ISSUES ====================
+	mux.HandleFunc("GET /api/material-issues", middleware.Chain(
+		materialIssueHandler.GetAll,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("POST /api/material-issues", middleware.Chain(
+		materialIssueHandler.Create,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/material-issues/{id}", middleware.Chain(
+		materialIssueHandler.GetByID,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("PUT /api/material-issues/{id}", middleware.Chain(
+		materialIssueHandler.Update,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("DELETE /api/material-issues/{id}", middleware.Chain(
+		materialIssueHandler.Delete,
+		middleware.Authenticate(db),
+	))
+
+	// ==================== SITE: PROGRESS CLAIMS ====================
+	mux.HandleFunc("GET /api/progress-claims", middleware.Chain(
+		progressClaimHandler.GetAll,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/work-orders/{workOrderId}/progress-claims", middleware.Chain(
+		progressClaimHandler.GetByWorkOrder,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("POST /api/progress-claims", middleware.Chain(
+		progressClaimHandler.Create,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/progress-claims/{id}", middleware.Chain(
+		progressClaimHandler.GetByID,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("PUT /api/progress-claims/{id}", middleware.Chain(
+		progressClaimHandler.Update,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("PATCH /api/progress-claims/{id}/verify", middleware.Chain(
+		progressClaimHandler.Verify,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("DELETE /api/progress-claims/{id}", middleware.Chain(
+		progressClaimHandler.Delete,
+		middleware.Authenticate(db),
+	))
+
+	// ==================== SITE: DAILY PROGRESS ====================
+	mux.HandleFunc("GET /api/site-projects/{projectId}/daily-progress", middleware.Chain(
+		dailyProgressHandler.GetByProject,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("POST /api/daily-progress", middleware.Chain(
+		dailyProgressHandler.Create,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/daily-progress/{id}", middleware.Chain(
+		dailyProgressHandler.GetByID,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("PUT /api/daily-progress/{id}", middleware.Chain(
+		dailyProgressHandler.Update,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("DELETE /api/daily-progress/{id}", middleware.Chain(
+		dailyProgressHandler.Delete,
+		middleware.Authenticate(db),
+	))
+
+	// ==================== SITE: LABOUR ATTENDANCE ====================
+	mux.HandleFunc("GET /api/site-projects/{projectId}/labour-attendance", middleware.Chain(
+		labourAttendanceHandler.GetByProject,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("POST /api/labour-attendance", middleware.Chain(
+		labourAttendanceHandler.Create,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/labour-attendance/{id}", middleware.Chain(
+		labourAttendanceHandler.GetByID,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("PUT /api/labour-attendance/{id}", middleware.Chain(
+		labourAttendanceHandler.Update,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("DELETE /api/labour-attendance/{id}", middleware.Chain(
+		labourAttendanceHandler.Delete,
+		middleware.Authenticate(db),
+	))
+
+	// ==================== SITE: EQUIPMENT LOGS ====================
+	mux.HandleFunc("GET /api/site-projects/{projectId}/equipment-logs", middleware.Chain(
+		equipmentLogHandler.GetByProject,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("POST /api/equipment-logs", middleware.Chain(
+		equipmentLogHandler.Create,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/equipment-logs/{id}", middleware.Chain(
+		equipmentLogHandler.GetByID,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("PUT /api/equipment-logs/{id}", middleware.Chain(
+		equipmentLogHandler.Update,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("DELETE /api/equipment-logs/{id}", middleware.Chain(
+		equipmentLogHandler.Delete,
+		middleware.Authenticate(db),
+	))
+
+	// ==================== SITE: REPORTS ====================
+	mux.HandleFunc("GET /api/site-projects/{projectId}/dashboard", middleware.Chain(
+		siteReportHandler.GetDashboard,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/site-projects/{projectId}/financial-summary", middleware.Chain(
+		siteReportHandler.GetFinancialSummary,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/site-projects/{projectId}/progress-report", middleware.Chain(
+		siteReportHandler.GetProgressReport,
+		middleware.Authenticate(db),
+	))
+
+	// ==================== SITE: MATERIAL RECEIPTS & STOCK REGISTER ====================
+	mux.HandleFunc("GET /api/site-projects/{projectId}/material-receipts", middleware.Chain(
+		materialReceiptHandler.GetByProject,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/site-projects/{projectId}/stock-register", middleware.Chain(
+		materialReceiptHandler.GetStockRegister,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("POST /api/material-receipts", middleware.Chain(
+		materialReceiptHandler.Create,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/material-receipts/{id}", middleware.Chain(
+		materialReceiptHandler.GetByID,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("PUT /api/material-receipts/{id}", middleware.Chain(
+		materialReceiptHandler.Update,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("DELETE /api/material-receipts/{id}", middleware.Chain(
+		materialReceiptHandler.Delete,
+		middleware.Authenticate(db),
+	))
+
+	// ==================== SITE: WORK ORDERS ====================
+	mux.HandleFunc("GET /api/work-orders", middleware.Chain(
+		workOrderHandler.GetAll,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/work-orders/{id}", middleware.Chain(
+		workOrderHandler.GetByID,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("POST /api/work-orders", middleware.Chain(
+		workOrderHandler.Create,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("PUT /api/work-orders/{id}", middleware.Chain(
+		workOrderHandler.Update,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("PATCH /api/work-orders/{id}/status", middleware.Chain(
+		workOrderHandler.UpdateStatus,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("DELETE /api/work-orders/{id}", middleware.Chain(
+		workOrderHandler.Delete,
+		middleware.Authenticate(db),
+	))
+
+	// ==================== SITE: WORK BILLS ====================
+	mux.HandleFunc("GET /api/work-bills", middleware.Chain(
+		workBillHandler.GetAll,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/work-bills/{id}", middleware.Chain(
+		workBillHandler.GetByID,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("POST /api/work-bills", middleware.Chain(
+		workBillHandler.Create,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("PUT /api/work-bills/{id}", middleware.Chain(
+		workBillHandler.Update,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("PATCH /api/work-bills/{id}/status", middleware.Chain(
+		workBillHandler.UpdateStatus,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("POST /api/work-bills/{id}/payments", middleware.Chain(
+		workBillHandler.AddPayment,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("DELETE /api/work-bills/{id}", middleware.Chain(
+		workBillHandler.Delete,
+		middleware.Authenticate(db),
+	))
+
 	// ==================== PURCHASE ORDERS ====================
 	mux.HandleFunc("GET /api/purchase-orders", middleware.Chain(
 		purchaseOrderHandler.GetAll,
@@ -819,6 +1182,15 @@ func Setup(db *gorm.DB, cfg *config.Config, wsHub *websocket.Hub) http.Handler {
 	))
 
 	// ==================== PURCHASE RETURNS ====================
+	mux.HandleFunc("GET /api/sale-returns", middleware.Chain(
+		saleReturnHandler.GetAll,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("POST /api/sale-returns", middleware.Chain(
+		saleReturnHandler.Create,
+		middleware.Authenticate(db),
+	))
+
 	mux.HandleFunc("GET /api/purchase-returns", middleware.Chain(
 		purchaseReturnHandler.GetAll,
 		middleware.Authenticate(db),
@@ -974,6 +1346,16 @@ func Setup(db *gorm.DB, cfg *config.Config, wsHub *websocket.Hub) http.Handler {
 	))
 	mux.HandleFunc("PUT /api/sales-orders/{id}", middleware.Chain(
 		salesOrderHandler.Update,
+		middleware.Authenticate(db),
+		middleware.RequireRole("SUPER_ADMIN", "ADMIN", "MANAGER"),
+	))
+	mux.HandleFunc("POST /api/sales-orders/{id}/convert-all", middleware.Chain(
+		salesOrderHandler.ConvertAllToPOs,
+		middleware.Authenticate(db),
+		middleware.RequireRole("SUPER_ADMIN", "ADMIN", "MANAGER"),
+	))
+	mux.HandleFunc("POST /api/sales-orders/items/{itemId}/convert", middleware.Chain(
+		salesOrderHandler.ConvertItemToPO,
 		middleware.Authenticate(db),
 		middleware.RequireRole("SUPER_ADMIN", "ADMIN", "MANAGER"),
 	))
@@ -1156,6 +1538,19 @@ func Setup(db *gorm.DB, cfg *config.Config, wsHub *websocket.Hub) http.Handler {
 		reportHandler.ExportCreditorsCSV,
 		middleware.Authenticate(db),
 	))
+	mux.HandleFunc("GET /api/reports/ledger", middleware.Chain(
+		reportHandler.GetLedger,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/reports/ledger-detail", middleware.Chain(
+		reportHandler.GetLedgerDetail,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/reports/tds", middleware.Chain(
+		tdsHandler.GetReport,
+		middleware.Authenticate(db),
+	))
+
 	// Legacy / alternate route names (kept for compatibility)
 	mux.HandleFunc("GET /api/reports/sales-by-payment", middleware.Chain(
 		reportHandler.PaymentMethods,
@@ -1163,6 +1558,396 @@ func Setup(db *gorm.DB, cfg *config.Config, wsHub *websocket.Hub) http.Handler {
 	))
 	mux.HandleFunc("GET /api/reports/daily-sales", middleware.Chain(
 		reportHandler.DailyTrend,
+		middleware.Authenticate(db),
+	))
+
+	// ==================== PRODUCTION MODULE ====================
+	pipeConfigService := service.NewPipeConfigService(db)
+	pipeConfigHandler := handler.NewPipeConfigHandler(pipeConfigService)
+
+	costSheetService := service.NewCostSheetService(db)
+	productionOrderService := service.NewProductionOrderService(db)
+	productionOrderHandler := handler.NewProductionOrderHandler(productionOrderService, costSheetService)
+
+	productionEntryService := service.NewProductionEntryService(db, costSheetService)
+	productionEntryHandler := handler.NewProductionEntryHandler(productionEntryService)
+
+	// ==================== PRODUCTION — PIPE CONFIGURATION ====================
+
+	// NOTE: /lookup must be registered before /{id} to avoid route conflict
+	mux.HandleFunc("GET /api/production/pipe-configs/lookup", middleware.Chain(
+		pipeConfigHandler.Lookup,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/production/pipe-configs", middleware.Chain(
+		pipeConfigHandler.GetAll,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("POST /api/production/pipe-configs", middleware.Chain(
+		pipeConfigHandler.Create,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/production/pipe-configs/{id}", middleware.Chain(
+		pipeConfigHandler.GetByID,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("PUT /api/production/pipe-configs/{id}", middleware.Chain(
+		pipeConfigHandler.Update,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("PATCH /api/production/pipe-configs/{id}/toggle-active", middleware.Chain(
+		pipeConfigHandler.ToggleActive,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("PUT /api/production/pipe-configs/{id}/materials", middleware.Chain(
+		pipeConfigHandler.UpsertMaterials,
+		middleware.Authenticate(db),
+	))
+
+	// ==================== PRODUCTION — INTERMEDIATE STOCK ====================
+	mux.HandleFunc("GET /api/production/intermediate-stock", middleware.Chain(
+		productionOrderHandler.GetIntermediateStock,
+		middleware.Authenticate(db),
+	))
+
+	// ==================== PRODUCTION — ALL STAGES STOCK ====================
+	mux.HandleFunc("GET /api/production/all-stages-stock", middleware.Chain(
+		productionOrderHandler.GetAllStagesStock,
+		middleware.Authenticate(db),
+	))
+
+	// ==================== PRODUCTION — PIPE SUMMARY ====================
+	mux.HandleFunc("GET /api/production/pipe-summary", middleware.Chain(
+		productionOrderHandler.GetPipeSummary,
+		middleware.Authenticate(db),
+	))
+
+	mux.HandleFunc("GET /api/production/stage-overview", middleware.Chain(
+		productionOrderHandler.GetStageOverview,
+		middleware.Authenticate(db),
+	))
+
+	// ==================== PRODUCTION — ORDERS ====================
+	mux.HandleFunc("GET /api/production/orders", middleware.Chain(
+		productionOrderHandler.GetAll,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("POST /api/production/orders", middleware.Chain(
+		productionOrderHandler.Create,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/production/orders/summaries", middleware.Chain(
+		productionOrderHandler.GetSummaries,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/production/orders/{id}", middleware.Chain(
+		productionOrderHandler.GetByID,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("PATCH /api/production/orders/{id}/status", middleware.Chain(
+		productionOrderHandler.UpdateStatus,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/production/orders/{id}/progress", middleware.Chain(
+		productionOrderHandler.GetProgress,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/production/orders/{id}/cost-sheet", middleware.Chain(
+		productionOrderHandler.GetCostSheet,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("POST /api/production/orders/{id}/cost-sheet/compute", middleware.Chain(
+		productionOrderHandler.RecomputeCostSheet,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/production/orders/{id}/stage-costs", middleware.Chain(
+		productionOrderHandler.GetStageCosts,
+		middleware.Authenticate(db),
+	))
+
+	// ==================== PRODUCTION — MACHINES ====================
+	machineService := service.NewMachineService(db)
+	machineHandler := handler.NewMachineHandler(machineService)
+
+	mux.HandleFunc("GET /api/production/machines", middleware.Chain(
+		machineHandler.GetAll,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("POST /api/production/machines", middleware.Chain(
+		machineHandler.Create,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/production/machines/{id}", middleware.Chain(
+		machineHandler.GetByID,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("PUT /api/production/machines/{id}", middleware.Chain(
+		machineHandler.Update,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("PATCH /api/production/machines/{id}/toggle-active", middleware.Chain(
+		machineHandler.ToggleActive,
+		middleware.Authenticate(db),
+	))
+
+	// ==================== PRODUCTION — SHIFT TEMPLATES ====================
+	shiftTemplateService := service.NewShiftTemplateService(db)
+	shiftTemplateHandler := handler.NewShiftTemplateHandler(shiftTemplateService)
+
+	mux.HandleFunc("GET /api/production/shift-templates", middleware.Chain(
+		shiftTemplateHandler.GetAll,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("POST /api/production/shift-templates", middleware.Chain(
+		shiftTemplateHandler.Upsert,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/production/shift-templates/{id}", middleware.Chain(
+		shiftTemplateHandler.GetByID,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("DELETE /api/production/shift-templates/{id}", middleware.Chain(
+		shiftTemplateHandler.Delete,
+		middleware.Authenticate(db),
+	))
+
+	// ==================== PRODUCTION — OVERHEAD CONFIGS ====================
+	overheadConfigService := service.NewOverheadConfigService(db)
+	overheadConfigHandler := handler.NewOverheadConfigHandler(overheadConfigService)
+
+	mux.HandleFunc("GET /api/production/overhead-configs", middleware.Chain(
+		overheadConfigHandler.GetAll,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("POST /api/production/overhead-configs", middleware.Chain(
+		overheadConfigHandler.Create,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/production/overhead-configs/{id}", middleware.Chain(
+		overheadConfigHandler.GetByID,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("PUT /api/production/overhead-configs/{id}", middleware.Chain(
+		overheadConfigHandler.Update,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("PATCH /api/production/overhead-configs/{id}/toggle-active", middleware.Chain(
+		overheadConfigHandler.ToggleActive,
+		middleware.Authenticate(db),
+	))
+
+	// ==================== PRODUCTION — REPORTS ====================
+	productionReportService := service.NewProductionReportService(db)
+	productionReportHandler := handler.NewProductionReportHandler(productionReportService)
+
+	mux.HandleFunc("GET /api/production/reports/stage-summary", middleware.Chain(
+		productionReportHandler.StageSummary,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/production/reports/cost-summary", middleware.Chain(
+		productionReportHandler.CostSummary,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/production/reports/material-consumption", middleware.Chain(
+		productionReportHandler.MaterialConsumption,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/production/reports/machine-utilization", middleware.Chain(
+		productionReportHandler.MachineUtilization,
+		middleware.Authenticate(db),
+	))
+
+	// ==================== PRODUCTION — ENTRIES ====================
+	// NOTE: static sub-paths must be registered before /{id}
+	mux.HandleFunc("GET /api/production/entries/by-order/{orderId}", middleware.Chain(
+		productionEntryHandler.GetByOrder,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/production/entries/prior-stage", middleware.Chain(
+		productionEntryHandler.GetPriorStageCompleted,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/production/entries", middleware.Chain(
+		productionEntryHandler.GetAll,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("POST /api/production/entries", middleware.Chain(
+		productionEntryHandler.Create,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/production/entries/{id}", middleware.Chain(
+		productionEntryHandler.GetByID,
+		middleware.Authenticate(db),
+	))
+
+	// ==================== BUSINESS PAGES ====================
+	businessHandler := handler.NewBusinessHandler(db, cfg.UploadDir, int64(cfg.MaxFileSize))
+
+	// Cement Bags
+	mux.HandleFunc("GET /api/business/cement-bags", middleware.Chain(businessHandler.ListCementBags, middleware.Authenticate(db)))
+	mux.HandleFunc("POST /api/business/cement-bags", middleware.Chain(businessHandler.CreateCementBag, middleware.Authenticate(db)))
+	mux.HandleFunc("PUT /api/business/cement-bags/{id}", middleware.Chain(businessHandler.UpdateCementBag, middleware.Authenticate(db)))
+	mux.HandleFunc("DELETE /api/business/cement-bags/{id}", middleware.Chain(businessHandler.DeleteCementBag, middleware.Authenticate(db)))
+
+	// Vehicles
+	mux.HandleFunc("GET /api/business/vehicles", middleware.Chain(businessHandler.ListVehicles, middleware.Authenticate(db)))
+	mux.HandleFunc("POST /api/business/vehicles", middleware.Chain(businessHandler.CreateVehicle, middleware.Authenticate(db)))
+	mux.HandleFunc("PUT /api/business/vehicles/{id}", middleware.Chain(businessHandler.UpdateVehicle, middleware.Authenticate(db)))
+	mux.HandleFunc("DELETE /api/business/vehicles/{id}", middleware.Chain(businessHandler.DeleteVehicle, middleware.Authenticate(db)))
+
+	// Maintenance
+	mux.HandleFunc("GET /api/business/maintenance", middleware.Chain(businessHandler.ListMaintenance, middleware.Authenticate(db)))
+	mux.HandleFunc("POST /api/business/maintenance", middleware.Chain(businessHandler.CreateMaintenance, middleware.Authenticate(db)))
+	mux.HandleFunc("PUT /api/business/maintenance/{id}", middleware.Chain(businessHandler.UpdateMaintenance, middleware.Authenticate(db)))
+	mux.HandleFunc("DELETE /api/business/maintenance/{id}", middleware.Chain(businessHandler.DeleteMaintenance, middleware.Authenticate(db)))
+
+	// Silo Fills (cement refill events) + summary
+	mux.HandleFunc("GET /api/business/silo-fills", middleware.Chain(businessHandler.ListSiloFills, middleware.Authenticate(db)))
+	mux.HandleFunc("POST /api/business/silo-fills", middleware.Chain(businessHandler.CreateSiloFill, middleware.Authenticate(db)))
+	mux.HandleFunc("DELETE /api/business/silo-fills/{id}", middleware.Chain(businessHandler.DeleteSiloFill, middleware.Authenticate(db)))
+	mux.HandleFunc("GET /api/business/silo-summary", middleware.Chain(businessHandler.GetSiloSummary, middleware.Authenticate(db)))
+
+	// Silos (legacy)
+	mux.HandleFunc("GET /api/business/silos", middleware.Chain(businessHandler.ListSilos, middleware.Authenticate(db)))
+	mux.HandleFunc("POST /api/business/silos", middleware.Chain(businessHandler.CreateSilo, middleware.Authenticate(db)))
+	mux.HandleFunc("PUT /api/business/silos/{id}", middleware.Chain(businessHandler.UpdateSilo, middleware.Authenticate(db)))
+	mux.HandleFunc("DELETE /api/business/silos/{id}", middleware.Chain(businessHandler.DeleteSilo, middleware.Authenticate(db)))
+
+	// Silo Extractions
+	mux.HandleFunc("GET /api/business/silo-extractions", middleware.Chain(businessHandler.ListSiloExtractions, middleware.Authenticate(db)))
+	mux.HandleFunc("POST /api/business/silo-extractions", middleware.Chain(businessHandler.CreateSiloExtraction, middleware.Authenticate(db)))
+	mux.HandleFunc("PUT /api/business/silo-extractions/{id}", middleware.Chain(businessHandler.UpdateSiloExtraction, middleware.Authenticate(db)))
+	mux.HandleFunc("DELETE /api/business/silo-extractions/{id}", middleware.Chain(businessHandler.DeleteSiloExtraction, middleware.Authenticate(db)))
+
+	// Diesel Maintenance
+	mux.HandleFunc("GET /api/business/diesel-maintenance", middleware.Chain(businessHandler.ListDieselMaintenance, middleware.Authenticate(db)))
+	mux.HandleFunc("POST /api/business/diesel-maintenance", middleware.Chain(businessHandler.CreateDieselMaintenance, middleware.Authenticate(db)))
+	mux.HandleFunc("PUT /api/business/diesel-maintenance/{id}", middleware.Chain(businessHandler.UpdateDieselMaintenance, middleware.Authenticate(db)))
+	mux.HandleFunc("DELETE /api/business/diesel-maintenance/{id}", middleware.Chain(businessHandler.DeleteDieselMaintenance, middleware.Authenticate(db)))
+
+	// Store Room Materials
+	mux.HandleFunc("GET /api/business/store-room-materials", middleware.Chain(businessHandler.ListStoreRoomMaterials, middleware.Authenticate(db)))
+	mux.HandleFunc("POST /api/business/store-room-materials", middleware.Chain(businessHandler.CreateStoreRoomMaterial, middleware.Authenticate(db)))
+	mux.HandleFunc("PUT /api/business/store-room-materials/{id}", middleware.Chain(businessHandler.UpdateStoreRoomMaterial, middleware.Authenticate(db)))
+	mux.HandleFunc("DELETE /api/business/store-room-materials/{id}", middleware.Chain(businessHandler.DeleteStoreRoomMaterial, middleware.Authenticate(db)))
+
+	// Extra Vehicles
+	mux.HandleFunc("GET /api/business/extra-vehicles", middleware.Chain(businessHandler.ListExtraVehicles, middleware.Authenticate(db)))
+	mux.HandleFunc("POST /api/business/extra-vehicles", middleware.Chain(businessHandler.CreateExtraVehicle, middleware.Authenticate(db)))
+	mux.HandleFunc("PUT /api/business/extra-vehicles/{id}", middleware.Chain(businessHandler.UpdateExtraVehicle, middleware.Authenticate(db)))
+	mux.HandleFunc("DELETE /api/business/extra-vehicles/{id}", middleware.Chain(businessHandler.DeleteExtraVehicle, middleware.Authenticate(db)))
+
+	// Testing Lab
+	mux.HandleFunc("GET /api/business/testing-labs", middleware.Chain(businessHandler.ListTestingLabs, middleware.Authenticate(db)))
+	mux.HandleFunc("POST /api/business/testing-labs", middleware.Chain(businessHandler.CreateTestingLab, middleware.Authenticate(db)))
+	mux.HandleFunc("PUT /api/business/testing-labs/{id}", middleware.Chain(businessHandler.UpdateTestingLab, middleware.Authenticate(db)))
+	mux.HandleFunc("DELETE /api/business/testing-labs/{id}", middleware.Chain(businessHandler.DeleteTestingLab, middleware.Authenticate(db)))
+
+	// Conversions
+	mux.HandleFunc("GET /api/business/conversions", middleware.Chain(businessHandler.ListConversions, middleware.Authenticate(db)))
+	mux.HandleFunc("POST /api/business/conversions", middleware.Chain(businessHandler.CreateConversion, middleware.Authenticate(db)))
+	mux.HandleFunc("PUT /api/business/conversions/{id}", middleware.Chain(businessHandler.UpdateConversion, middleware.Authenticate(db)))
+	mux.HandleFunc("DELETE /api/business/conversions/{id}", middleware.Chain(businessHandler.DeleteConversion, middleware.Authenticate(db)))
+
+	// Discards
+	mux.HandleFunc("GET /api/business/discards", middleware.Chain(businessHandler.ListDiscards, middleware.Authenticate(db)))
+	mux.HandleFunc("POST /api/business/discards", middleware.Chain(businessHandler.CreateDiscard, middleware.Authenticate(db)))
+	mux.HandleFunc("PUT /api/business/discards/{id}", middleware.Chain(businessHandler.UpdateDiscard, middleware.Authenticate(db)))
+	mux.HandleFunc("DELETE /api/business/discards/{id}", middleware.Chain(businessHandler.DeleteDiscard, middleware.Authenticate(db)))
+
+	// PDI
+	mux.HandleFunc("GET /api/business/pdis", middleware.Chain(businessHandler.ListPDIs, middleware.Authenticate(db)))
+	mux.HandleFunc("POST /api/business/pdis", middleware.Chain(businessHandler.CreatePDI, middleware.Authenticate(db)))
+	mux.HandleFunc("PUT /api/business/pdis/{id}", middleware.Chain(businessHandler.UpdatePDI, middleware.Authenticate(db)))
+	mux.HandleFunc("DELETE /api/business/pdis/{id}", middleware.Chain(businessHandler.DeletePDI, middleware.Authenticate(db)))
+
+	// Loading Records
+	mux.HandleFunc("GET /api/business/loading-records", middleware.Chain(businessHandler.ListLoadingRecords, middleware.Authenticate(db)))
+	mux.HandleFunc("POST /api/business/loading-records", middleware.Chain(businessHandler.CreateLoadingRecord, middleware.Authenticate(db)))
+	mux.HandleFunc("GET /api/business/loading-records/{id}", middleware.Chain(businessHandler.GetLoadingRecord, middleware.Authenticate(db)))
+	mux.HandleFunc("PUT /api/business/loading-records/{id}", middleware.Chain(businessHandler.UpdateLoadingRecord, middleware.Authenticate(db)))
+	mux.HandleFunc("DELETE /api/business/loading-records/{id}", middleware.Chain(businessHandler.DeleteLoadingRecord, middleware.Authenticate(db)))
+	mux.HandleFunc("POST /api/business/loading-records/{id}/challan-photo", middleware.Chain(businessHandler.UploadChallanPhoto, middleware.Authenticate(db)))
+	mux.HandleFunc("DELETE /api/business/loading-records/{id}/challan-photo", middleware.Chain(businessHandler.DeleteChallanPhoto, middleware.Authenticate(db)))
+	mux.HandleFunc("POST /api/business/loading-records/{id}/convert-to-invoice", middleware.Chain(businessHandler.ConvertToInvoice, middleware.Authenticate(db)))
+	mux.HandleFunc("POST /api/business/loading-records/{id}/link-invoice", middleware.Chain(businessHandler.LinkInvoice, middleware.Authenticate(db)))
+
+	// Labour
+	mux.HandleFunc("GET /api/business/labour", middleware.Chain(businessHandler.ListLabour, middleware.Authenticate(db)))
+	mux.HandleFunc("POST /api/business/labour", middleware.Chain(businessHandler.CreateLabour, middleware.Authenticate(db)))
+	mux.HandleFunc("PUT /api/business/labour/{id}", middleware.Chain(businessHandler.UpdateLabour, middleware.Authenticate(db)))
+	mux.HandleFunc("DELETE /api/business/labour/{id}", middleware.Chain(businessHandler.DeleteLabour, middleware.Authenticate(db)))
+
+	// Business rate config (singleton)
+	mux.HandleFunc("GET /api/business/rate-config", middleware.Chain(businessHandler.GetBusinessRateConfig, middleware.Authenticate(db)))
+	mux.HandleFunc("PUT /api/business/rate-config", middleware.Chain(businessHandler.UpdateBusinessRateConfig, middleware.Authenticate(db)))
+
+	// ==================== USER PREFERENCES ====================
+	mux.HandleFunc("GET /api/users/preferences", middleware.Chain(
+		userPreferenceHandler.GetAll,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("PUT /api/users/preferences/{key}", middleware.Chain(
+		userPreferenceHandler.Set,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("DELETE /api/users/preferences/{key}", middleware.Chain(
+		userPreferenceHandler.Delete,
+		middleware.Authenticate(db),
+	))
+
+	// ==================== VENDOR PAYMENTS ====================
+	mux.HandleFunc("GET /api/tds/sections", middleware.Chain(
+		tdsHandler.GetSections,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("POST /api/tds/sections", middleware.Chain(
+		tdsHandler.CreateSection,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("PUT /api/tds/sections/{id}", middleware.Chain(
+		tdsHandler.UpdateSection,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("DELETE /api/tds/sections/{id}", middleware.Chain(
+		tdsHandler.DeleteSection,
+		middleware.Authenticate(db),
+	))
+
+	mux.HandleFunc("GET /api/vendor-payments", middleware.Chain(
+		vendorPaymentHandler.GetAll,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("POST /api/vendor-payments", middleware.Chain(
+		vendorPaymentHandler.Create,
+		middleware.Authenticate(db),
+	))
+
+	// ==================== VENDOR CREDITS ====================
+	mux.HandleFunc("GET /api/vendor-credits", middleware.Chain(
+		vendorCreditHandler.GetAll,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("POST /api/vendor-credits", middleware.Chain(
+		vendorCreditHandler.Create,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("POST /api/vendor-credits/{id}/apply", middleware.Chain(
+		vendorCreditHandler.Apply,
+		middleware.Authenticate(db),
+	))
+
+	// ==================== CART HOLDS ====================
+	mux.HandleFunc("GET /api/cart-holds", middleware.Chain(
+		cartHoldHandler.GetAll,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("POST /api/cart-holds", middleware.Chain(
+		cartHoldHandler.Create,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("DELETE /api/cart-holds/{id}", middleware.Chain(
+		cartHoldHandler.Delete,
 		middleware.Authenticate(db),
 	))
 

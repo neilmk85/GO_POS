@@ -203,11 +203,13 @@ export const inventoryApi = {
     api.get<ApiResponse<any>>(`/inventory/product/${productId}/outlet/${outletId}`),
   getStockAllOutlets: (productId: number) =>
     api.get<ApiResponse<any>>(`/inventory/product/${productId}/all-outlets`),
-  getAllByOutlet: (outletId: number) =>
-    api.get<ApiResponse<any>>(`/inventory/outlet/${outletId}`),
+  getAllByOutlet: (outletId: number, itemType?: string, page = 0, size = 200) =>
+    api.get<ApiResponse<any>>(`/inventory/outlet/${outletId}`, { params: { ...(itemType ? { itemType } : {}), page, size } }),
   getLowStock: (outletId: number) =>
     api.get<ApiResponse<any>>('/inventory/low-stock', { params: { outletId } }),
-  adjust: (data: any) => api.post<ApiResponse<any>>('/inventory/adjust', data),
+  adjust: (data: any) => api.post<ApiResponse<any>>('/inventory/adjustments', data),
+  updateReorderLevel: (productId: number, outletId: number, reorderLevel: number) =>
+    api.patch<ApiResponse<any>>('/inventory/reorder-level', { productId, outletId, reorderLevel }),
   getAdjustments: (outletId: number, params?: any) =>
     api.get<ApiResponse<any>>('/inventory/adjustments', { params: { outletId, ...params } }),
   createTransfer: (data: any) => api.post<ApiResponse<any>>('/inventory/transfers', data),
@@ -223,16 +225,22 @@ export const inventoryApi = {
 // Orders
 export const orderApi = {
   checkout: (data: any) => api.post<ApiResponse<any>>('/orders/checkout', data),
-  processReturn: (data: any) => api.post<ApiResponse<any>>('/orders/return', data),
+  processReturn: (orderId: number, data: any) => api.post<ApiResponse<any>>(`/orders/${orderId}/return`, data),
   getReturns: (outletId: number, params?: { from?: string; to?: string }) =>
-    api.get<ApiResponse<any>>(`/orders/returns/${outletId}`, { params }),
+    api.get<ApiResponse<any>>(`/orders`, { params: { outletId, orderType: 'RETURN', size: 200, ...params } }),
   getByOrderNumber: (orderNumber: string) =>
-    api.get<ApiResponse<any>>(`/orders/${orderNumber}`),
+    api.get<ApiResponse<any>>(`/orders/number/${orderNumber}`),
   getByOutlet: (outletId: number, params?: any) =>
-    api.get<ApiResponse<any>>(`/orders/outlet/${outletId}`, { params }),
+    api.get<ApiResponse<any>>(`/orders`, { params: { outletId, ...params } }),
   getByCustomer: (customerId: number, params?: any) =>
     api.get<ApiResponse<any>>(`/orders/customer/${customerId}`, { params }),
   holdOrder: (orderId: number) => api.put<ApiResponse<any>>(`/orders/${orderId}/hold`),
+}
+
+export const saleReturnApi = {
+  getAll: (outletId: number, params?: { from?: string; to?: string }) =>
+    api.get<ApiResponse<any>>('/sale-returns', { params: { outletId, size: 200, ...params } }),
+  create: (data: any) => api.post<ApiResponse<any>>('/sale-returns', data),
 }
 
 // Customers
@@ -255,13 +263,117 @@ export const customerApi = {
     })
   },
   downloadTemplate: () => api.get('/customers/import/template', { responseType: 'blob' }),
+  toggleActive: (id: number) => api.patch<ApiResponse<any>>(`/customers/${id}/toggle-active`),
   exportCsv: () => api.get('/customers/export/csv', { responseType: 'blob' }),
   exportExcel: () => api.get('/customers/export/excel', { responseType: 'blob' }),
 }
 
+// ── Site: Contractors (independent from vendorApi / suppliers) ─────────────
+export const contractorApi = {
+  getAll: (params?: { search?: string; active?: boolean }) =>
+    api.get<ApiResponse<any>>('/contractors', { params }),
+  getById: (id: number) => api.get<ApiResponse<any>>(`/contractors/${id}`),
+  create: (data: any) => api.post<ApiResponse<any>>('/contractors', data),
+  update: (id: number, data: any) => api.put<ApiResponse<any>>(`/contractors/${id}`, data),
+  delete: (id: number) => api.delete<ApiResponse<any>>(`/contractors/${id}`),
+}
+
+export const siteProjectApi = {
+  getAll: (params?: { search?: string; status?: string }) =>
+    api.get<ApiResponse<any>>('/site-projects', { params }),
+  getById: (id: number) => api.get<ApiResponse<any>>(`/site-projects/${id}`),
+  create: (data: any) => api.post<ApiResponse<any>>('/site-projects', data),
+  update: (id: number, data: any) => api.put<ApiResponse<any>>(`/site-projects/${id}`, data),
+  updateStatus: (id: number, status: string) =>
+    api.patch<ApiResponse<any>>(`/site-projects/${id}/status`, { status }),
+  delete: (id: number) => api.delete<ApiResponse<any>>(`/site-projects/${id}`),
+}
+
+export const workPackageApi = {
+  getByProject: (projectId: number, params?: { executionType?: string; phase?: string }) =>
+    api.get<ApiResponse<any>>(`/site-projects/${projectId}/work-packages`, { params }),
+  getById: (id: number) => api.get<ApiResponse<any>>(`/work-packages/${id}`),
+  create: (data: any) => api.post<ApiResponse<any>>('/work-packages', data),
+  update: (id: number, data: any) => api.put<ApiResponse<any>>(`/work-packages/${id}`, data),
+  updateStatus: (id: number, status: string) =>
+    api.patch<ApiResponse<any>>(`/work-packages/${id}/status`, { status }),
+  delete: (id: number) => api.delete<ApiResponse<any>>(`/work-packages/${id}`),
+}
+
+export const materialIssueApi = {
+  getAll: (params?: {
+    siteProjectId?: number
+    workOrderId?: number
+    contractorId?: number
+    issuedTo?: string
+  }) => api.get<ApiResponse<any>>('/material-issues', { params }),
+  getById: (id: number) => api.get<ApiResponse<any>>(`/material-issues/${id}`),
+  create: (data: any) => api.post<ApiResponse<any>>('/material-issues', data),
+  update: (id: number, data: any) => api.put<ApiResponse<any>>(`/material-issues/${id}`, data),
+  delete: (id: number) => api.delete<ApiResponse<any>>(`/material-issues/${id}`),
+}
+
+export const progressClaimApi = {
+  getAll: (params?: { workOrderId?: number; status?: string }) =>
+    api.get<ApiResponse<any>>('/progress-claims', { params }),
+  getByWorkOrder: (workOrderId: number) =>
+    api.get<ApiResponse<any>>(`/work-orders/${workOrderId}/progress-claims`),
+  getById: (id: number) => api.get<ApiResponse<any>>(`/progress-claims/${id}`),
+  create: (data: any) => api.post<ApiResponse<any>>('/progress-claims', data),
+  update: (id: number, data: any) => api.put<ApiResponse<any>>(`/progress-claims/${id}`, data),
+  verify: (id: number, data: { status: string; verifiedBy: string; items: any[] }) =>
+    api.patch<ApiResponse<any>>(`/progress-claims/${id}/verify`, data),
+  delete: (id: number) => api.delete<ApiResponse<any>>(`/progress-claims/${id}`),
+}
+
+export const dailyProgressApi = {
+  getByProject: (projectId: number, params?: { date?: string }) =>
+    api.get<ApiResponse<any>>(`/site-projects/${projectId}/daily-progress`, { params }),
+  create: (data: any) => api.post<ApiResponse<any>>('/daily-progress', data),
+  update: (id: number, data: any) => api.put<ApiResponse<any>>(`/daily-progress/${id}`, data),
+  delete: (id: number) => api.delete<ApiResponse<any>>(`/daily-progress/${id}`),
+}
+
+export const labourAttendanceApi = {
+  getByProject: (projectId: number, params?: { date?: string }) =>
+    api.get<ApiResponse<any>>(`/site-projects/${projectId}/labour-attendance`, { params }),
+  create: (data: any) => api.post<ApiResponse<any>>('/labour-attendance', data),
+  update: (id: number, data: any) => api.put<ApiResponse<any>>(`/labour-attendance/${id}`, data),
+  delete: (id: number) => api.delete<ApiResponse<any>>(`/labour-attendance/${id}`),
+}
+
+export const equipmentLogApi = {
+  getByProject: (projectId: number, params?: { date?: string }) =>
+    api.get<ApiResponse<any>>(`/site-projects/${projectId}/equipment-logs`, { params }),
+  create: (data: any) => api.post<ApiResponse<any>>('/equipment-logs', data),
+  update: (id: number, data: any) => api.put<ApiResponse<any>>(`/equipment-logs/${id}`, data),
+  delete: (id: number) => api.delete<ApiResponse<any>>(`/equipment-logs/${id}`),
+}
+
+export const materialReceiptApi = {
+  getByProject: (projectId: number) =>
+    api.get<ApiResponse<any>>(`/site-projects/${projectId}/material-receipts`),
+  getStockRegister: (projectId: number) =>
+    api.get<ApiResponse<any>>(`/site-projects/${projectId}/stock-register`),
+  getById: (id: number) => api.get<ApiResponse<any>>(`/material-receipts/${id}`),
+  create: (data: any) => api.post<ApiResponse<any>>('/material-receipts', data),
+  update: (id: number, data: any) => api.put<ApiResponse<any>>(`/material-receipts/${id}`, data),
+  delete: (id: number) => api.delete<ApiResponse<any>>(`/material-receipts/${id}`),
+}
+
+export const siteReportsApi = {
+  getDashboard: (projectId: number) =>
+    api.get<ApiResponse<any>>(`/site-projects/${projectId}/dashboard`),
+  getFinancialSummary: (projectId: number) =>
+    api.get<ApiResponse<any>>(`/site-projects/${projectId}/financial-summary`),
+  getProgressReport: (projectId: number) =>
+    api.get<ApiResponse<any>>(`/site-projects/${projectId}/progress-report`),
+}
+
 // Vendors
 export const vendorApi = {
-  getAll: () => api.get<ApiResponse<any>>('/vendors'),
+  getAll: (params?: { page?: number; size?: number; search?: string; active?: boolean }) =>
+    api.get<ApiResponse<any>>('/vendors', { params }),
   getById: (id: number) => api.get<ApiResponse<any>>(`/vendors/${id}`),
   create: (data: any) => api.post<ApiResponse<any>>('/vendors', data),
   update: (id: number, data: any) => api.put<ApiResponse<any>>(`/vendors/${id}`, data),
@@ -356,14 +468,27 @@ export const reportApi = {
     api.get<ApiResponse<any>>('/reports/payment-method-report', { params: { outletId, from, to } }),
   exportPaymentCsv: (outletId: number, from: string, to: string) =>
     api.get('/reports/export/payment-csv', { params: { outletId, from, to }, responseType: 'blob' }),
-  getDebtorsLedger:      (outletId: number) =>
-    api.get<ApiResponse<any>>('/reports/debtors-ledger', { params: { outletId } }),
-  getCreditorsLedger:    (outletId: number) =>
-    api.get<ApiResponse<any>>('/reports/creditors-ledger', { params: { outletId } }),
-  exportDebtorsCsv:      (outletId: number) =>
-    api.get('/reports/export/debtors-csv', { params: { outletId }, responseType: 'blob' }),
-  exportCreditorsCsv:    (outletId: number) =>
-    api.get('/reports/export/creditors-csv', { params: { outletId }, responseType: 'blob' }),
+  getDebtorsLedger:      (outletId: number, from?: string, to?: string) =>
+    api.get<ApiResponse<any>>('/reports/debtors-ledger', { params: { outletId, from, to } }),
+  getCreditorsLedger:    (outletId: number, from?: string, to?: string) =>
+    api.get<ApiResponse<any>>('/reports/creditors-ledger', { params: { outletId, from, to } }),
+  exportDebtorsCsv:      (outletId: number, from?: string, to?: string) =>
+    api.get('/reports/export/debtors-csv', { params: { outletId, from, to }, responseType: 'blob' }),
+  exportCreditorsCsv:    (outletId: number, from?: string, to?: string) =>
+    api.get('/reports/export/creditors-csv', { params: { outletId, from, to }, responseType: 'blob' }),
+  getLedger: (outletId: number, from: string, to: string) =>
+    api.get<ApiResponse<any>>('/reports/ledger', { params: { outletId, from, to } }),
+  getLedgerDetail: (outletId: number, from: string, to: string, partyType: string, partyId: number) =>
+    api.get<ApiResponse<any>>('/reports/ledger-detail', { params: { outletId, from, to, partyType, partyId } }),
+  getTDSReport: (outletId: number, from: string, to: string) =>
+    api.get<ApiResponse<any>>('/reports/tds', { params: { outletId, from, to } }),
+}
+
+export const tdsApi = {
+  getSections: () => api.get<ApiResponse<any>>('/tds/sections'),
+  createSection: (data: any) => api.post<ApiResponse<any>>('/tds/sections', data),
+  updateSection: (id: number, data: any) => api.put<ApiResponse<any>>(`/tds/sections/${id}`, data),
+  deleteSection: (id: number) => api.delete<ApiResponse<any>>(`/tds/sections/${id}`),
 }
 
 // Product Images
@@ -610,6 +735,218 @@ export const salesOrderApi = {
   generateInvoice: (id: number, data?: any) => api.post<ApiResponse<any>>(`/sales-orders/${id}/invoice`, data ?? {}),
   cancel: (id: number) => api.patch<ApiResponse<any>>(`/sales-orders/${id}/cancel`),
   delete: (id: number) => api.delete<ApiResponse<any>>(`/sales-orders/${id}`),
+  convertItemToPO: (itemId: number, outletId?: number) =>
+    api.post<ApiResponse<any>>(`/sales-orders/items/${itemId}/convert`, {}, { params: outletId ? { outletId } : {} }),
+  convertAllToPOs: (soId: number, outletId?: number) =>
+    api.post<ApiResponse<any>>(`/sales-orders/${soId}/convert-all`, {}, { params: outletId ? { outletId } : {} }),
+}
+
+// ── PCCP Production APIs ────────────────────────────────────────────────────
+
+export const pipeConfigApi = {
+  getAll: (params?: { diameterMm?: number; pressureClass?: string; active?: boolean; page?: number; size?: number }) =>
+    api.get<ApiResponse<any>>('/production/pipe-configs', { params }),
+  getById: (id: number) =>
+    api.get<ApiResponse<any>>(`/production/pipe-configs/${id}`),
+  lookup: (diameterMm: number, pressureClass: string) =>
+    api.get<ApiResponse<any>>('/production/pipe-configs/lookup', { params: { diameterMm, pressureClass } }),
+  create: (data: any) =>
+    api.post<ApiResponse<any>>('/production/pipe-configs', data),
+  update: (id: number, data: any) =>
+    api.put<ApiResponse<any>>(`/production/pipe-configs/${id}`, data),
+  toggleActive: (id: number) =>
+    api.patch<ApiResponse<any>>(`/production/pipe-configs/${id}/toggle-active`),
+  upsertMaterials: (id: number, materials: any[]) =>
+    api.put<ApiResponse<any>>(`/production/pipe-configs/${id}/materials`, { materials }),
+}
+
+export const productionOrderApi = {
+  getAll: (params?: any) =>
+    api.get<ApiResponse<any>>('/production/orders', { params }),
+  getById: (id: number) =>
+    api.get<ApiResponse<any>>(`/production/orders/${id}`),
+  create: (data: any) =>
+    api.post<ApiResponse<any>>('/production/orders', data),
+  updateStatus: (id: number, status: string, holdReason?: string, holdQtyProduced?: number) =>
+    api.patch<ApiResponse<any>>(`/production/orders/${id}/status`, { status, holdReason, holdQtyProduced }),
+  getProgress: (id: number) =>
+    api.get<ApiResponse<any>>(`/production/orders/${id}/progress`),
+  getCostSheet: (id: number) =>
+    api.get<ApiResponse<any>>(`/production/orders/${id}/cost-sheet`),
+  recomputeCostSheet: (id: number) =>
+    api.post<ApiResponse<any>>(`/production/orders/${id}/cost-sheet/compute`),
+  getStageCosts: (id: number) =>
+    api.get<ApiResponse<any>>(`/production/orders/${id}/stage-costs`),
+  getSummaries: (stage?: string) =>
+    api.get<ApiResponse<any>>('/production/orders/summaries', { params: stage ? { stage } : undefined }),
+  getPipeSummary: (params?: { pipeName?: string; fromDate?: string; toDate?: string }) =>
+    api.get<ApiResponse<any>>('/production/pipe-summary', { params }),
+  getIntermediateStock: (params?: { fromDate?: string; toDate?: string }) =>
+    api.get<ApiResponse<any>>('/production/intermediate-stock', { params }),
+  getAllStagesStock: (params?: { fromDate?: string; toDate?: string }) =>
+    api.get<ApiResponse<any>>('/production/all-stages-stock', { params }),
+  getStageOverview: () =>
+    api.get<ApiResponse<any>>('/production/stage-overview'),
+}
+
+export const productionEntryApi = {
+  getAll: (params?: any) =>
+    api.get<ApiResponse<any>>('/production/entries', { params }),
+  getById: (id: number) =>
+    api.get<ApiResponse<any>>(`/production/entries/${id}`),
+  create: (data: any) =>
+    api.post<ApiResponse<any>>('/production/entries', data),
+  getByOrder: (orderId: number) =>
+    api.get<ApiResponse<any>>(`/production/entries/by-order/${orderId}`),
+  getPriorStageCompleted: (orderId: number, stage: string) =>
+    api.get<ApiResponse<any>>('/production/entries/prior-stage', { params: { orderId, stage } }),
+}
+
+export const machineApi = {
+  getAll: (params?: { outletId?: number; machineType?: string; active?: boolean; page?: number; size?: number }) =>
+    api.get<ApiResponse<any>>('/production/machines', { params }),
+  getById: (id: number) =>
+    api.get<ApiResponse<any>>(`/production/machines/${id}`),
+  create: (data: any) =>
+    api.post<ApiResponse<any>>('/production/machines', data),
+  update: (id: number, data: any) =>
+    api.put<ApiResponse<any>>(`/production/machines/${id}`, data),
+  toggleActive: (id: number) =>
+    api.patch<ApiResponse<any>>(`/production/machines/${id}/toggle-active`),
+}
+
+export const shiftTemplateApi = {
+  getAll: (params?: { outletId?: number; page?: number; size?: number }) =>
+    api.get<ApiResponse<any>>('/production/shift-templates', { params }),
+  getById: (id: number) =>
+    api.get<ApiResponse<any>>(`/production/shift-templates/${id}`),
+  upsert: (data: any) =>
+    api.post<ApiResponse<any>>('/production/shift-templates', data),
+  delete: (id: number) =>
+    api.delete<ApiResponse<any>>(`/production/shift-templates/${id}`),
+}
+
+export const overheadConfigApi = {
+  getAll: (params?: { outletId?: number; active?: boolean; page?: number; size?: number }) =>
+    api.get<ApiResponse<any>>('/production/overhead-configs', { params }),
+  getById: (id: number) =>
+    api.get<ApiResponse<any>>(`/production/overhead-configs/${id}`),
+  create: (data: any) =>
+    api.post<ApiResponse<any>>('/production/overhead-configs', data),
+  update: (id: number, data: any) =>
+    api.put<ApiResponse<any>>(`/production/overhead-configs/${id}`, data),
+  toggleActive: (id: number) =>
+    api.patch<ApiResponse<any>>(`/production/overhead-configs/${id}/toggle-active`),
+}
+
+export const productionReportApi = {
+  stageSummary: (params?: { fromDate?: string; toDate?: string; outletId?: number }) =>
+    api.get<ApiResponse<any>>('/production/reports/stage-summary', { params }),
+  costSummary: (params?: { fromDate?: string; toDate?: string; outletId?: number }) =>
+    api.get<ApiResponse<any>>('/production/reports/cost-summary', { params }),
+  materialConsumption: (params?: { fromDate?: string; toDate?: string; outletId?: number }) =>
+    api.get<ApiResponse<any>>('/production/reports/material-consumption', { params }),
+  machineUtilization: (params?: { fromDate?: string; toDate?: string; outletId?: number }) =>
+    api.get<ApiResponse<any>>('/production/reports/machine-utilization', { params }),
+}
+
+export const pdiApi = {
+  getAll: (params?: { from?: string; to?: string; pipeName?: string }) =>
+    api.get<ApiResponse<any>>('/business/pdis', { params }),
+  create: (data: any) =>
+    api.post<ApiResponse<any>>('/business/pdis', data),
+  update: (id: number, data: any) =>
+    api.put<ApiResponse<any>>(`/business/pdis/${id}`, data),
+  remove: (id: number) =>
+    api.delete<ApiResponse<any>>(`/business/pdis/${id}`),
+}
+
+export const loadingRecordApi = {
+  getAll: (params?: { from?: string; to?: string; pipeName?: string }) =>
+    api.get<ApiResponse<any>>('/business/loading-records', { params }),
+  getById: (id: number) =>
+    api.get<ApiResponse<any>>(`/business/loading-records/${id}`),
+  create: (data: any) =>
+    api.post<ApiResponse<any>>('/business/loading-records', data),
+  update: (id: number, data: any) =>
+    api.put<ApiResponse<any>>(`/business/loading-records/${id}`, data),
+  remove: (id: number) =>
+    api.delete<ApiResponse<any>>(`/business/loading-records/${id}`),
+  uploadChallanPhoto: (id: number, file: File) => {
+    const form = new FormData()
+    form.append('photo', file)
+    return api.post<ApiResponse<any>>(`/business/loading-records/${id}/challan-photo`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+  deleteChallanPhoto: (id: number) =>
+    api.delete<ApiResponse<any>>(`/business/loading-records/${id}/challan-photo`),
+  convertToInvoice: (id: number, data: { outletId: number; unitPrice: number; taxRate: number }) =>
+    api.post<ApiResponse<any>>(`/business/loading-records/${id}/convert-to-invoice`, data),
+  linkInvoice: (id: number, data: { invoiceId: number; invoiceNumber: string }) =>
+    api.post<ApiResponse<any>>(`/business/loading-records/${id}/link-invoice`, data),
+}
+
+export const userPreferenceApi = {
+  getAll: () =>
+    api.get<ApiResponse<Record<string, string>>>('/users/preferences'),
+  set: (key: string, value: string) =>
+    api.put<ApiResponse<null>>(`/users/preferences/${encodeURIComponent(key)}`, { value }),
+  remove: (key: string) =>
+    api.delete<ApiResponse<null>>(`/users/preferences/${encodeURIComponent(key)}`),
+}
+
+export const vendorPaymentApi = {
+  getAll: (params?: { outletId?: number; supplierId?: number; page?: number; size?: number }) =>
+    api.get<ApiResponse<any>>('/vendor-payments', { params }),
+  create: (data: {
+    billId: number; amount: number; paymentMethod: string
+    referenceNumber: string; paymentDate: string; notes?: string
+  }) => api.post<ApiResponse<any>>('/vendor-payments', data),
+}
+
+export const vendorCreditApi = {
+  getAll: (params?: { outletId?: number; supplierId?: number; page?: number; size?: number }) =>
+    api.get<ApiResponse<any>>('/vendor-credits', { params }),
+  create: (data: {
+    supplierId: number; outletId: number; amount: number
+    reason: string; creditDate: string; notes?: string
+  }) => api.post<ApiResponse<any>>('/vendor-credits', data),
+  apply: (id: number, amount: number) =>
+    api.post<ApiResponse<any>>(`/vendor-credits/${id}/apply`, { amount }),
+}
+
+export const cartHoldApi = {
+  getAll: () =>
+    api.get<ApiResponse<any[]>>('/cart-holds'),
+  create: (cartData: string, note: string) =>
+    api.post<ApiResponse<any>>('/cart-holds', { cartData, note }),
+  remove: (id: number) =>
+    api.delete<ApiResponse<null>>(`/cart-holds/${id}`),
+}
+
+export const workOrderApi = {
+  getAll: (params?: { search?: string; status?: string }) =>
+    api.get<ApiResponse<any[]>>('/work-orders', { params }),
+  getById: (id: number) => api.get<ApiResponse<any>>(`/work-orders/${id}`),
+  create: (data: any) => api.post<ApiResponse<any>>('/work-orders', data),
+  update: (id: number, data: any) => api.put<ApiResponse<any>>(`/work-orders/${id}`, data),
+  updateStatus: (id: number, status: string) =>
+    api.patch<ApiResponse<any>>(`/work-orders/${id}/status`, { status }),
+  delete: (id: number) => api.delete<ApiResponse<any>>(`/work-orders/${id}`),
+}
+
+export const workBillApi = {
+  getAll: (params?: { search?: string; status?: string }) =>
+    api.get<ApiResponse<any[]>>('/work-bills', { params }),
+  getById: (id: number) => api.get<ApiResponse<any>>(`/work-bills/${id}`),
+  create: (data: any) => api.post<ApiResponse<any>>('/work-bills', data),
+  update: (id: number, data: any) => api.put<ApiResponse<any>>(`/work-bills/${id}`, data),
+  updateStatus: (id: number, status: string) =>
+    api.patch<ApiResponse<any>>(`/work-bills/${id}/status`, { status }),
+  addPayment: (id: number, data: any) =>
+    api.post<ApiResponse<any>>(`/work-bills/${id}/payments`, data),
+  delete: (id: number) => api.delete<ApiResponse<any>>(`/work-bills/${id}`),
 }
 
 export default api

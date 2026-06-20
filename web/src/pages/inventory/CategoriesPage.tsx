@@ -330,40 +330,52 @@ export default function CategoriesPage() {
   }
 
   return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Categories</h1>
-          <p className="text-xs text-gray-500 mt-0.5">Organise products into categories</p>
+    <div className="min-h-full bg-gray-50/60 p-6 space-y-6">
+      {/* ── Hero Header ── */}
+      <div className="relative rounded-2xl shadow-[0_8px_40px_rgba(109,40,217,0.30)]">
+        <div className="absolute inset-0 overflow-hidden rounded-2xl bg-gradient-to-br from-violet-700 via-violet-600 to-blue-600 pointer-events-none">
+          <div className="absolute -top-8 -right-8 w-52 h-52 rounded-full bg-white/5 blur-2xl" />
+          <div className="absolute bottom-0 left-1/4 w-64 h-28 rounded-full bg-blue-400/10 blur-3xl" />
+          <div className="absolute inset-0 opacity-[0.07]"
+            style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
         </div>
-        <button onClick={() => { setEditing(null); setShowForm(true) }}
-          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-700 hover:to-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
-          <Plus size={15} /> New Category
-        </button>
-      </div>
 
-      {/* KPI cards */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
-        {[
-          { label: 'Total Categories', value: categories.length, icon: <Layers size={18} />,       gradient: 'from-blue-500 to-indigo-600'   },
-          { label: 'Active',           value: activeCount,       icon: <CheckCircle2 size={18} />,  gradient: 'from-emerald-500 to-teal-600'  },
-          { label: 'Root Categories',  value: rootCount,         icon: <GitBranch size={18} />,     gradient: 'from-violet-500 to-purple-600' },
-        ].map((card, i) => (
-          <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-shadow">
-            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${card.gradient} flex items-center justify-center text-white shrink-0 shadow-sm`}>
-              {card.icon}
+        <div className="relative flex items-center justify-between px-8 py-6">
+          <div className="flex items-center gap-5">
+            <div className="w-14 h-14 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center shadow-inner flex-shrink-0">
+              <Layers size={26} className="text-amber-300" />
             </div>
             <div>
-              <p className="text-xs text-gray-500 font-medium">{card.label}</p>
-              <p className="text-xl font-bold text-gray-900">{card.value}</p>
+              <p className="text-xs font-semibold text-blue-200 uppercase tracking-widest mb-0.5">Inventory</p>
+              <h1 className="text-2xl font-extrabold text-white tracking-tight leading-tight">Categories</h1>
+              <p className="text-sm text-blue-200 mt-0.5">Organise products into categories and sub-categories</p>
             </div>
           </div>
-        ))}
+          <div className="flex items-center gap-3">
+            <button onClick={() => { setEditing(null); setShowForm(true) }}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-white/15 border border-white/25 text-white text-sm font-semibold rounded-xl backdrop-blur-sm hover:bg-white/25 transition-all">
+              <Plus size={16} /> New Category
+            </button>
+          </div>
+        </div>
+
+        <div className="relative border-t border-white/10 grid grid-cols-3 divide-x divide-white/10">
+          {[
+            { label: 'Total Categories', value: categories.length, sub: 'all categories'  },
+            { label: 'Active',           value: activeCount,       sub: 'currently active' },
+            { label: 'Root Categories',  value: rootCount,         sub: 'top-level'         },
+          ].map(s => (
+            <div key={s.label} className="px-5 py-3.5">
+              <p className="text-xl font-extrabold tabular-nums leading-none text-white">{s.value}</p>
+              <p className="text-xs text-blue-200 mt-0.5">{s.label}</p>
+              <p className="text-[10px] text-white/40 mt-0.5">{s.sub}</p>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Search + filter */}
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex items-center gap-3">
         <div className="relative flex-1 max-w-sm">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input

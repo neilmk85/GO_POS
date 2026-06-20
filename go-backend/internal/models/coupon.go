@@ -8,7 +8,7 @@ import (
 
 type Coupon struct {
 	ID                int             `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
-	Code              string          `gorm:"uniqueIndex;column:code" json:"code"`
+	Code              string          `gorm:"uniqueIndex;size:191;column:code" json:"code"`
 	Description       *string         `gorm:"column:description" json:"description"`
 	ValueType         ValueType       `gorm:"column:value_type" json:"valueType"`
 	Value             decimal.Decimal `gorm:"column:value;type:decimal(10,2)" json:"value"`

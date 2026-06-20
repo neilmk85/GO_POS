@@ -8,7 +8,7 @@ import (
 
 type Order struct {
 	ID                  int              `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
-	OrderNumber         string           `gorm:"uniqueIndex;column:order_number" json:"orderNumber"`
+	OrderNumber         string           `gorm:"uniqueIndex;size:191;column:order_number" json:"orderNumber"`
 	OutletID            int              `gorm:"column:outlet_id" json:"outletId"`
 	CashierID           int              `gorm:"column:cashier_id" json:"cashierId"`
 	ShiftID             *int             `gorm:"column:shift_id" json:"shiftId"`

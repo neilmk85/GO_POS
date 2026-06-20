@@ -87,12 +87,6 @@ export default function BillsTab() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">Bills</h2>
-          <p className="text-sm text-gray-500 mt-0.5">Vendor invoices and bills payable</p>
-        </div>
-      </div>
 
       {/* Summary cards */}
       <div className="grid grid-cols-3 gap-3 mb-5">
@@ -130,16 +124,16 @@ export default function BillsTab() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b text-left text-gray-500 text-xs uppercase tracking-wide">
-                <th className="pb-3 font-semibold">Bill #</th>
-                <th className="pb-3 font-semibold">Vendor Bill #</th>
-                <th className="pb-3 font-semibold">Vendor</th>
-                <th className="pb-3 font-semibold">Date</th>
-                <th className="pb-3 font-semibold">Due Date</th>
-                <th className="pb-3 font-semibold text-right">Amount</th>
-                <th className="pb-3 font-semibold text-right">Balance Due</th>
-                <th className="pb-3 font-semibold">Status</th>
-                <th className="pb-3 font-semibold"></th>
+              <tr className="bg-gradient-to-r from-violet-50 to-blue-50 border-y border-violet-100">
+                <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Bill #</th>
+                <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Vendor Bill #</th>
+                <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Vendor</th>
+                <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Date</th>
+                <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Due Date</th>
+                <th className="px-4 py-3 text-right text-[11px] font-bold text-violet-500 uppercase tracking-widest">Amount</th>
+                <th className="px-4 py-3 text-right text-[11px] font-bold text-violet-500 uppercase tracking-widest">Balance Due</th>
+                <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Status</th>
+                <th className="px-4 py-3 text-[11px] font-bold text-violet-500 uppercase tracking-widest"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">

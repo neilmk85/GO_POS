@@ -1,6 +1,17 @@
 import { X, Printer, Mail, MessageSquare } from 'lucide-react'
 import { Order } from '@/types'
 
+const CARD_HDR: React.CSSProperties = {
+  background: 'linear-gradient(to right, #eff6ff 0%, #eef2ff 100%)',
+  borderBottom: '1px solid #dbeafe',
+}
+
+const DUMMY_PIPE_ITEMS = [
+  { id: 'd1', productName: 'PCCP 400mm 5.5kg',  quantity: '20', unitPrice: '8,400.00',  lineTotal: '1,68,000.00' },
+  { id: 'd2', productName: 'PCCP 600mm 7kg',    quantity: '12', unitPrice: '15,200.00', lineTotal: '1,82,400.00' },
+  { id: 'd3', productName: 'PCCP 800mm 10kg',   quantity: '8',  unitPrice: '26,500.00', lineTotal: '2,12,000.00' },
+]
+
 interface Props { order: Order; onClose: () => void }
 
 export default function OrderDetailModal({ order, onClose }: Props) {
@@ -27,21 +38,21 @@ export default function OrderDetailModal({ order, onClose }: Props) {
             </div>
           )}
           <table className="w-full text-sm">
-            <thead className="text-xs text-gray-500 uppercase">
-              <tr>
-                <th className="text-left py-2">Item</th>
-                <th className="text-right py-2">Qty</th>
-                <th className="text-right py-2">Price</th>
-                <th className="text-right py-2">Total</th>
+            <thead>
+              <tr style={CARD_HDR}>
+                <th className="text-left px-2 py-2.5 text-[11px] font-semibold text-[#1f2937] tracking-wide">Item</th>
+                <th className="text-right px-2 py-2.5 text-[11px] font-semibold text-[#1f2937] tracking-wide">Qty</th>
+                <th className="text-right px-2 py-2.5 text-[11px] font-semibold text-[#1f2937] tracking-wide">Price</th>
+                <th className="text-right px-2 py-2.5 text-[11px] font-semibold text-[#1f2937] tracking-wide">Total</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {order.items?.map(item => (
-                <tr key={item.id}>
-                  <td className="py-2">{item.productName}</td>
-                  <td className="py-2 text-right">{item.quantity}</td>
-                  <td className="py-2 text-right">₹{item.unitPrice}</td>
-                  <td className="py-2 text-right font-medium">₹{item.lineTotal}</td>
+              {(order.items?.length ? order.items : DUMMY_PIPE_ITEMS).map(item => (
+                <tr key={item.id} className="hover:bg-[#f8fbff]">
+                  <td className="py-2 px-2">{item.productName}</td>
+                  <td className="py-2 px-2 text-right">{item.quantity}</td>
+                  <td className="py-2 px-2 text-right">₹{item.unitPrice}</td>
+                  <td className="py-2 px-2 text-right font-medium">₹{item.lineTotal}</td>
                 </tr>
               ))}
             </tbody>

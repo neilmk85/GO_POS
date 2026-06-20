@@ -59,11 +59,19 @@ function ProductPicker({ onSelect }: { onSelect: (p: any) => void }) {
 
   useEffect(() => { const t = setTimeout(() => setDq(q), 200); return () => clearTimeout(t) }, [q])
 
-  const { data: results = [], isFetching } = useQuery({
+  // Names that are internal inventory states — never purchased from vendors
+  const NON_PURCHASABLE_NAMES = ['silo cement', 'loose cement']
+
+  const { data: rawResults = [], isFetching } = useQuery({
     queryKey: ['product-search-po', dq],
     queryFn: () => dq.trim() ? productApi.search(dq.trim()).then(r => r.data.data ?? []) : Promise.resolve([]),
     enabled: dq.trim().length > 0,
   })
+
+  const results = (rawResults as any[]).filter((p: any) =>
+    p.purchasable !== false &&
+    !NON_PURCHASABLE_NAMES.includes(p.name?.toLowerCase())
+  )
 
   useEffect(() => {
     const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
@@ -392,7 +400,6 @@ function POFormDrawer({ onClose, outletId: defaultOutletId, editPo }: {
                 <select value={selectedOutletId ?? ''}
                   onChange={e => setSelectedOutletId(e.target.value ? Number(e.target.value) : null)}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
-                  <option value="">— Select Outlet —</option>
                   {(outlets as any[]).map((o: any) => (
                     <option key={o.id} value={o.id}>{o.name}{o.code ? ` (${o.code})` : ''}</option>
                   ))}
@@ -455,12 +462,12 @@ function POFormDrawer({ onClose, outletId: defaultOutletId, editPo }: {
                 <col style={{ width: '28px' }} />
               </colgroup>
               <thead>
-                <tr className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-100">
-                  <th className="px-3 py-2 text-left">Product</th>
-                  <th className="px-3 py-2 text-right">Qty</th>
-                  <th className="px-3 py-2 text-right">Unit Cost</th>
-                  <th className="px-3 py-2 text-left">Tax</th>
-                  <th className="px-3 py-2 text-right">Amount</th>
+                <tr className="bg-gradient-to-r from-violet-50 to-blue-50 border-y border-violet-100">
+                  <th className="px-3 py-2 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Product</th>
+                  <th className="px-3 py-2 text-right text-[11px] font-bold text-violet-500 uppercase tracking-widest">Qty</th>
+                  <th className="px-3 py-2 text-right text-[11px] font-bold text-violet-500 uppercase tracking-widest">Unit Cost</th>
+                  <th className="px-3 py-2 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Tax</th>
+                  <th className="px-3 py-2 text-right text-[11px] font-bold text-violet-500 uppercase tracking-widest">Amount</th>
                   <th className="px-2 py-2" />
                 </tr>
               </thead>
@@ -643,12 +650,12 @@ function ViewPODrawer({ po, onClose, onEdit }: { po: any; onClose: () => void; o
               </div>
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider bg-gray-50 border-b border-gray-100">
-                    <th className="px-4 py-2.5 text-left">Product</th>
-                    <th className="px-4 py-2.5 text-right">Qty</th>
-                    <th className="px-4 py-2.5 text-right">Unit Cost</th>
-                    <th className="px-4 py-2.5 text-right">Tax %</th>
-                    <th className="px-4 py-2.5 text-right">Amount</th>
+                  <tr className="bg-gradient-to-r from-violet-50 to-blue-50 border-y border-violet-100">
+                    <th className="px-4 py-2.5 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Product</th>
+                    <th className="px-4 py-2.5 text-right text-[11px] font-bold text-violet-500 uppercase tracking-widest">Qty</th>
+                    <th className="px-4 py-2.5 text-right text-[11px] font-bold text-violet-500 uppercase tracking-widest">Unit Cost</th>
+                    <th className="px-4 py-2.5 text-right text-[11px] font-bold text-violet-500 uppercase tracking-widest">Tax %</th>
+                    <th className="px-4 py-2.5 text-right text-[11px] font-bold text-violet-500 uppercase tracking-widest">Amount</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -981,16 +988,12 @@ export default function PurchaseOrdersTab() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">Purchase Orders</h2>
-          <p className="text-sm text-gray-500 mt-0.5">Create and track orders placed with vendors</p>
-        </div>
+        <div />
         <div className="flex items-center gap-3">
           {(outlets as any[]).length > 1 && (
             <select value={selectedOutletId ?? ''}
               onChange={e => { setSelectedOutletId(e.target.value ? Number(e.target.value) : null); setPage(0); clearChecked() }}
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-              <option value="">— Select Outlet —</option>
               {(outlets as any[]).map((o: any) => (
                 <option key={o.id} value={o.id}>{o.name}</option>
               ))}
@@ -1045,8 +1048,8 @@ export default function PurchaseOrdersTab() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b text-left text-gray-500 text-xs uppercase tracking-wide">
-                  <th className="pb-3 pr-3 w-8">
+                <tr className="bg-gradient-to-r from-violet-50 to-blue-50 border-y border-violet-100">
+                  <th className="px-4 py-3 w-8">
                     <button onClick={toggleAll} className="text-gray-400 hover:text-primary-600 transition-colors">
                       {allChecked
                         ? <CheckSquare size={15} className="text-primary-600" />
@@ -1055,13 +1058,13 @@ export default function PurchaseOrdersTab() {
                           : <Square size={15} />}
                     </button>
                   </th>
-                  <th className="pb-3 font-semibold">PO Number</th>
-                  <th className="pb-3 font-semibold">Vendor</th>
-                  <th className="pb-3 font-semibold">Date</th>
-                  <th className="pb-3 font-semibold">Expected</th>
-                  <th className="pb-3 font-semibold text-right">Amount</th>
-                  <th className="pb-3 font-semibold">Status</th>
-                  <th className="pb-3" />
+                  <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">PO Number</th>
+                  <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Vendor</th>
+                  <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Date</th>
+                  <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Expected</th>
+                  <th className="px-4 py-3 text-right text-[11px] font-bold text-violet-500 uppercase tracking-widest">Amount</th>
+                  <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Status</th>
+                  <th className="px-4 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">

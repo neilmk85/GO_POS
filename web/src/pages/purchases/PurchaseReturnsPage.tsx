@@ -1,11 +1,10 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Plus, Search, RotateCcw, X, Loader2, ChevronLeft, ChevronRight,
-  PackageX, IndianRupee, Building2, FileText,
+  Plus, Search, RotateCcw, X, Loader2, ChevronLeft, ChevronRight, Trash2,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { purchaseReturnApi, purchaseOrderApi } from '@/services/api'
+import { purchaseReturnApi } from '@/services/api'
 import { useAuthStore } from '@/store/authStore'
 import { format } from 'date-fns'
 
@@ -21,79 +20,53 @@ const CREDIT_COLORS: Record<string, string> = {
   VENDOR_CREDIT: 'bg-purple-50 text-purple-700',
 }
 
+interface PRItem { productName: string; quantity: string; unitCost: string }
+
 // ─── New Return Modal ──────────────────────────────────────────────────────────
 
 function NewReturnModal({ outletId, onClose }: { outletId: number; onClose: () => void }) {
   const qc = useQueryClient()
-  const [poNumber, setPoNumber]     = useState('')
-  const [po, setPo]                 = useState<any>(null)
-  const [lookupLoading, setLookupLoading] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-  const [reason, setReason]         = useState('')
-  const [notes, setNotes]           = useState('')
+  const [supplierName, setSupplierName] = useState('')
+  const [refNo, setRefNo]               = useState('')
+  const [returnDate, setReturnDate]     = useState(new Date().toISOString().split('T')[0])
   const [creditMethod, setCreditMethod] = useState('VENDOR_CREDIT')
-  const [returnQtys, setReturnQtys] = useState<Record<number, number>>({})
+  const [reason, setReason]             = useState('')
+  const [items, setItems]               = useState<PRItem[]>([{ productName: '', quantity: '', unitCost: '' }])
+  const [submitting, setSubmitting]     = useState(false)
 
-  const lookupPO = async () => {
-    if (!poNumber.trim()) return
-    setLookupLoading(true)
-    try {
-      const res = await purchaseOrderApi.getByPoNumber(poNumber.trim())
-      const data = res.data.data
-      if (!data) { toast.error('Purchase order not found'); return }
-      if (data.status === 'DRAFT' || data.status === 'SENT') {
-        toast.error('Only received purchase orders can be returned')
-        return
-      }
-      if (data.status === 'CANCELLED') {
-        toast.error('Cannot return a cancelled purchase order')
-        return
-      }
-      setPo(data)
-      const init: Record<number, number> = {}
-      data.items?.forEach((item: any) => { init[item.id] = 0 })
-      setReturnQtys(init)
-    } catch {
-      toast.error('Purchase order not found')
-    } finally {
-      setLookupLoading(false)
-    }
+  const total = items.reduce((s, i) => s + (parseFloat(i.quantity) || 0) * (parseFloat(i.unitCost) || 0), 0)
+
+  function addItem() { setItems(p => [...p, { productName: '', quantity: '', unitCost: '' }]) }
+  function removeItem(i: number) { setItems(p => p.filter((_, idx) => idx !== i)) }
+  function updateItem(i: number, f: keyof PRItem, v: string) {
+    setItems(p => p.map((item, idx) => idx === i ? { ...item, [f]: v } : item))
   }
 
-  const totalReturn = po?.items
-    ?.filter((item: any) => (returnQtys[item.id] ?? 0) > 0)
-    .reduce((sum: number, item: any) => sum + (returnQtys[item.id] ?? 0) * Number(item.unitCost ?? 0), 0) ?? 0
-
   const handleSubmit = async () => {
-    if (!po) return
-    const items = po.items
-      ?.filter((item: any) => (returnQtys[item.id] ?? 0) > 0)
-      .map((item: any) => ({
-        purchaseOrderItemId: item.id,
-        productId:           item.product?.id,
-        productName:         item.product?.name,
-        returnedQuantity:    returnQtys[item.id],
-        unitCost:            Number(item.unitCost ?? 0),
-      }))
-
-    if (!items || items.length === 0) { toast.error('Select at least one item to return'); return }
+    const validItems = items.filter(i => i.productName.trim() && parseFloat(i.quantity) > 0)
+    if (validItems.length === 0) { toast.error('Add at least one item with name and quantity'); return }
     if (!reason.trim()) { toast.error('Reason is required'); return }
 
     setSubmitting(true)
     try {
       await purchaseReturnApi.create({
-        purchaseOrderId: po.id,
         outletId,
-        reason,
-        notes,
+        supplierName: supplierName || undefined,
+        refNo: refNo || undefined,
+        returnDate,
         creditMethod,
-        items,
+        reason,
+        items: validItems.map(i => ({
+          productName:      i.productName.trim(),
+          returnedQuantity: parseFloat(i.quantity) || 0,
+          unitCost:         parseFloat(i.unitCost) || 0,
+        })),
       })
-      toast.success('Purchase return processed successfully')
+      toast.success('Purchase return recorded')
       qc.invalidateQueries({ queryKey: ['purchase-returns'] })
       onClose()
     } catch (err: any) {
-      toast.error(err.response?.data?.message ?? 'Failed to process return')
+      toast.error(err.response?.data?.message ?? 'Failed to record return')
     } finally {
       setSubmitting(false)
     }
@@ -101,179 +74,121 @@ function NewReturnModal({ outletId, onClose }: { outletId: number; onClose: () =
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col">
-        {/* Header */}
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
-          <div>
-            <h2 className="text-lg font-bold text-gray-900">New Purchase Return</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Return items to supplier</p>
-          </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400">
-            <X size={18} />
-          </button>
+          <h2 className="text-lg font-bold text-gray-900">New Purchase Return</h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400"><X size={18} /></button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-5">
-          {/* PO Lookup */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">
-              Purchase Order Number
-            </label>
-            <div className="flex gap-2">
-              <input
-                value={poNumber}
-                onChange={e => setPoNumber(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && lookupPO()}
-                placeholder="e.g. PO-20240001"
-                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none"
-              />
-              <button onClick={lookupPO} disabled={lookupLoading || !poNumber.trim()}
-                className="px-4 py-2 bg-gradient-to-r from-violet-600 to-blue-600 text-white rounded-lg text-sm font-medium hover:from-violet-700 hover:to-blue-700 disabled:opacity-50 flex items-center gap-1.5 whitespace-nowrap">
-                {lookupLoading ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
-                Look Up
-              </button>
+        <div className="overflow-y-auto p-6 space-y-4">
+          {/* Row 1: Supplier + Ref No */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">Supplier Name</label>
+              <input value={supplierName} onChange={e => setSupplierName(e.target.value)}
+                placeholder="Supplier name (optional)"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-200 focus:border-violet-400 focus:outline-none" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">Original Bill / PO No.</label>
+              <input value={refNo} onChange={e => setRefNo(e.target.value)}
+                placeholder="e.g. PO-2024-001"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-200 focus:border-violet-400 focus:outline-none" />
             </div>
           </div>
 
-          {po && (
-            <>
-              {/* PO Info */}
-              <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-bold text-gray-900">{po.poNumber}</p>
-                    <div className="flex items-center gap-1.5 mt-1 text-xs text-gray-500">
-                      <Building2 size={12} />
-                      {po.supplier?.name ?? '—'}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold text-gray-900">
-                      ₹{Number(po.totalAmount ?? 0).toLocaleString('en-IN')}
-                    </p>
-                    <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
-                      po.status === 'RECEIVED' ? 'bg-green-50 text-green-700' : 'bg-yellow-50 text-yellow-700'
-                    }`}>
-                      {po.status}
-                    </span>
-                  </div>
-                </div>
-              </div>
+          {/* Row 2: Date + Credit Method */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">Return Date</label>
+              <input type="date" value={returnDate} onChange={e => setReturnDate(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-200 focus:border-violet-400 focus:outline-none" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">Credit Method</label>
+              <select value={creditMethod} onChange={e => setCreditMethod(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-200 focus:border-violet-400 focus:outline-none">
+                {CREDIT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+              </select>
+            </div>
+          </div>
 
-              {/* Items */}
-              <div>
-                <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
-                  Select Items to Return
-                </p>
-                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                  {po.items?.map((item: any) => {
-                    const received = Number(item.receivedQuantity ?? item.orderedQuantity ?? 0)
-                    const qty = returnQtys[item.id] ?? 0
-                    return (
-                      <div key={item.id} className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">{item.product?.name}</p>
-                          <p className="text-xs text-gray-400 mt-0.5">
-                            Received: {received} &nbsp;·&nbsp; ₹{Number(item.unitCost ?? 0).toLocaleString('en-IN')} each
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <button
-                            onClick={() => setReturnQtys(p => ({ ...p, [item.id]: Math.max(0, (p[item.id] ?? 0) - 1) }))}
-                            className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-base font-medium text-gray-700">
-                            −
+          {/* Items */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-semibold text-gray-500">Items Returned</label>
+              <button onClick={addItem} className="flex items-center gap-1 text-xs text-violet-600 hover:text-violet-800 font-medium">
+                <Plus size={13} /> Add Item
+              </button>
+            </div>
+            <div className="border border-gray-200 rounded-xl overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 font-semibold">
+                    <th className="px-3 py-2 text-left">Product / Description</th>
+                    <th className="px-3 py-2 text-center w-24">Qty</th>
+                    <th className="px-3 py-2 text-right w-32">Unit Cost (₹)</th>
+                    <th className="px-3 py-2 text-right w-28">Amount</th>
+                    <th className="w-8"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {items.map((item, i) => (
+                    <tr key={i}>
+                      <td className="px-3 py-2">
+                        <input value={item.productName} onChange={e => updateItem(i, 'productName', e.target.value)}
+                          placeholder="Product name"
+                          className="w-full border-0 outline-none text-sm text-gray-800 placeholder-gray-300" />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input type="number" min={0} value={item.quantity}
+                          onChange={e => updateItem(i, 'quantity', e.target.value)}
+                          placeholder="0"
+                          className="w-full text-center border-0 outline-none text-sm text-gray-800 placeholder-gray-300" />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input type="number" min={0} value={item.unitCost}
+                          onChange={e => updateItem(i, 'unitCost', e.target.value)}
+                          placeholder="0.00"
+                          className="w-full text-right border-0 outline-none text-sm text-gray-800 placeholder-gray-300" />
+                      </td>
+                      <td className="px-3 py-2 text-right text-sm font-medium text-gray-700">
+                        ₹{((parseFloat(item.quantity) || 0) * (parseFloat(item.unitCost) || 0)).toFixed(2)}
+                      </td>
+                      <td className="px-2 py-2">
+                        {items.length > 1 && (
+                          <button onClick={() => removeItem(i)} className="text-gray-300 hover:text-red-500">
+                            <Trash2 size={13} />
                           </button>
-                          <span className="w-8 text-center text-sm font-semibold text-gray-900">{qty}</span>
-                          <button
-                            onClick={() => setReturnQtys(p => ({ ...p, [item.id]: Math.min(received, (p[item.id] ?? 0) + 1) }))}
-                            disabled={(returnQtys[item.id] ?? 0) >= received}
-                            className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-base font-medium text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed">
-                            +
-                          </button>
-                        </div>
-                        {qty > 0 && (
-                          <span className="text-xs font-semibold text-primary-600 w-20 text-right shrink-0">
-                            ₹{(qty * Number(item.unitCost ?? 0)).toLocaleString('en-IN')}
-                          </span>
                         )}
-                      </div>
-                    )
-                  })}
-                </div>
-                {totalReturn > 0 && (
-                  <div className="mt-2 flex items-center justify-between px-3 py-2 bg-primary-50 rounded-lg border border-primary-100">
-                    <span className="text-xs font-medium text-primary-700">Return Total</span>
-                    <span className="text-sm font-bold text-primary-700">
-                      ₹{totalReturn.toLocaleString('en-IN')}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* Credit Method */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">
-                  Credit Method
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {CREDIT_METHODS.map(m => (
-                    <button key={m.value} onClick={() => setCreditMethod(m.value)}
-                      className={`px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${
-                        creditMethod === m.value
-                          ? 'bg-gradient-to-r from-violet-500 to-blue-500 text-white border-transparent'
-                          : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
-                      }`}>
-                      {m.label}
-                    </button>
+                      </td>
+                    </tr>
                   ))}
-                </div>
-              </div>
+                </tbody>
+              </table>
+            </div>
+            <div className="flex justify-end mt-2 pr-10">
+              <span className="text-sm font-bold text-gray-800">Total: ₹{total.toFixed(2)}</span>
+            </div>
+          </div>
 
-              {/* Reason */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">
-                  Reason <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  value={reason}
-                  onChange={e => setReason(e.target.value)}
-                  rows={2}
-                  placeholder="e.g. Damaged goods, Wrong items received…"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none resize-none"
-                />
-              </div>
-
-              {/* Notes */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">
-                  Additional Notes
-                </label>
-                <textarea
-                  value={notes}
-                  onChange={e => setNotes(e.target.value)}
-                  rows={2}
-                  placeholder="Any additional notes…"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none resize-none"
-                />
-              </div>
-            </>
-          )}
+          {/* Reason */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Reason <span className="text-red-400">*</span></label>
+            <textarea value={reason} onChange={e => setReason(e.target.value)} rows={2}
+              placeholder="e.g. Damaged goods, wrong items received…"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-200 focus:border-violet-400 focus:outline-none resize-none" />
+          </div>
         </div>
 
-        {/* Footer */}
-        {po && (
-          <div className="px-6 py-4 border-t bg-gray-50 flex justify-end gap-2 shrink-0 rounded-b-2xl">
-            <button onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-white">
-              Cancel
-            </button>
-            <button onClick={handleSubmit} disabled={submitting || totalReturn === 0 || !reason.trim()}
-              className="px-5 py-2 text-sm font-medium bg-gradient-to-r from-violet-600 to-blue-600 text-white rounded-lg hover:from-violet-700 hover:to-blue-700 disabled:opacity-50 flex items-center gap-2">
-              {submitting && <Loader2 size={14} className="animate-spin" />}
-              Process Return
-            </button>
-          </div>
-        )}
+        <div className="px-6 py-4 border-t shrink-0 flex gap-3">
+          <button onClick={onClose} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 font-medium">Cancel</button>
+          <button onClick={handleSubmit} disabled={submitting}
+            className="flex-1 py-2.5 bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-700 hover:to-blue-700 disabled:opacity-50 text-white font-semibold rounded-xl text-sm flex items-center justify-center gap-2">
+            {submitting && <Loader2 size={14} className="animate-spin" />}
+            Save Return · ₹{total.toFixed(2)}
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -309,43 +224,42 @@ export default function PurchaseReturnsPage() {
 
   return (
     <div className="p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Purchase Returns</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Return purchased items back to suppliers</p>
+      {/* Hero Header */}
+      <div className="relative rounded-2xl shadow-[0_8px_40px_rgba(109,40,217,0.30)] mb-6">
+        <div className="absolute inset-0 overflow-hidden rounded-2xl">
+          <div className="absolute inset-0 bg-gradient-to-br from-violet-700 via-violet-600 to-blue-600" />
+          <div className="absolute inset-0 opacity-[0.15]"
+            style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+          <div className="absolute -top-10 -right-10 w-72 h-72 rounded-full bg-blue-400/20 blur-3xl" />
+          <div className="absolute -bottom-8 -left-8 w-56 h-56 rounded-full bg-violet-300/20 blur-2xl" />
         </div>
-        <button onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-700 hover:to-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
-          <Plus size={15} /> New Return
-        </button>
-      </div>
-
-      {/* Stats row */}
-      <div className="grid grid-cols-3 gap-4 mb-5">
-        <div className="bg-white rounded-xl border p-4 flex items-center gap-3">
-          <div className="p-2 bg-purple-50 rounded-lg"><PackageX size={18} className="text-purple-600" /></div>
-          <div>
-            <p className="text-xl font-bold text-gray-900">{totalElements}</p>
-            <p className="text-xs text-gray-500">Total Returns</p>
+        {/* Top row */}
+        <div className="relative flex items-center justify-between px-8 py-6">
+          <div className="flex items-center gap-4">
+            <RotateCcw size={26} className="text-amber-300" />
+            <div>
+              <p className="text-violet-200 text-xs font-semibold tracking-widest uppercase">Purchases</p>
+              <h1 className="text-white text-2xl font-bold tracking-tight">Purchase Returns</h1>
+            </div>
           </div>
+          <button onClick={() => setShowModal(true)}
+            className="flex items-center gap-2 bg-white text-violet-700 hover:bg-violet-50 px-4 py-2 rounded-lg font-semibold text-sm shadow-sm transition-colors">
+            <Plus size={15} /> New Return
+          </button>
         </div>
-        <div className="bg-white rounded-xl border p-4 flex items-center gap-3">
-          <div className="p-2 bg-emerald-50 rounded-lg"><IndianRupee size={18} className="text-emerald-600" /></div>
-          <div>
-            <p className="text-xl font-bold text-gray-900">
-              ₹{returns.reduce((s, r) => s + Number(r.totalAmount ?? 0), 0).toLocaleString('en-IN')}
-            </p>
-            <p className="text-xs text-gray-500">Total Value (current page)</p>
+        {/* Stat strip */}
+        <div className="relative border-t border-white/10 grid grid-cols-3 divide-x divide-white/10">
+          <div className="px-6 py-3 text-center">
+            <p className="text-white text-xl font-bold">{totalElements}</p>
+            <p className="text-violet-200 text-xs mt-0.5">Total Returns</p>
           </div>
-        </div>
-        <div className="bg-white rounded-xl border p-4 flex items-center gap-3">
-          <div className="p-2 bg-blue-50 rounded-lg"><FileText size={18} className="text-blue-600" /></div>
-          <div>
-            <p className="text-xl font-bold text-gray-900">
-              {new Set(returns.map(r => r.purchaseOrder?.supplier?.name).filter(Boolean)).size}
-            </p>
-            <p className="text-xs text-gray-500">Suppliers (current page)</p>
+          <div className="px-6 py-3 text-center">
+            <p className="text-white text-xl font-bold">₹{returns.reduce((s, r) => s + Number(r.totalAmount ?? 0), 0).toLocaleString('en-IN')}</p>
+            <p className="text-violet-200 text-xs mt-0.5">Total Value (current page)</p>
+          </div>
+          <div className="px-6 py-3 text-center">
+            <p className="text-white text-xl font-bold">{new Set(returns.map(r => r.purchaseOrder?.supplier?.name).filter(Boolean)).size}</p>
+            <p className="text-violet-200 text-xs mt-0.5">Suppliers (current page)</p>
           </div>
         </div>
       </div>
@@ -361,16 +275,16 @@ export default function PurchaseReturnsPage() {
       {/* Table */}
       <div className="bg-white rounded-xl border overflow-hidden">
         <table className="w-full">
-          <thead className="bg-gray-50 text-[11px] text-gray-500 uppercase tracking-wide">
-            <tr>
-              <th className="px-4 py-3 text-left">Return #</th>
-              <th className="px-4 py-3 text-left">PO Number</th>
-              <th className="px-4 py-3 text-left">Supplier</th>
-              <th className="px-4 py-3 text-center">Items</th>
-              <th className="px-4 py-3 text-left">Credit Method</th>
-              <th className="px-4 py-3 text-right">Return Value</th>
-              <th className="px-4 py-3 text-left">Reason</th>
-              <th className="px-4 py-3 text-left">Date</th>
+          <thead>
+            <tr className="bg-gradient-to-r from-violet-50 to-blue-50 border-y border-violet-100">
+              <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Return #</th>
+              <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">PO Number</th>
+              <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Supplier</th>
+              <th className="px-4 py-3 text-center text-[11px] font-bold text-violet-500 uppercase tracking-widest">Items</th>
+              <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Credit Method</th>
+              <th className="px-4 py-3 text-right text-[11px] font-bold text-violet-500 uppercase tracking-widest">Return Value</th>
+              <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Reason</th>
+              <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Date</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">

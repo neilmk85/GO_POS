@@ -5,7 +5,7 @@ import "time"
 type Outlet struct {
 	ID                     int        `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
 	Name                   string     `gorm:"column:name" json:"name"`
-	Code                   *string    `gorm:"uniqueIndex;column:code" json:"code"`
+	Code                   *string    `gorm:"uniqueIndex;size:191;column:code" json:"code"`
 	Address                *string    `gorm:"column:address" json:"address"`
 	City                   *string    `gorm:"column:city" json:"city"`
 	State                  *string    `gorm:"column:state" json:"state"`

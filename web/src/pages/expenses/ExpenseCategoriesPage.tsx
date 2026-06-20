@@ -214,42 +214,61 @@ export default function ExpenseCategoriesPage() {
   const systemCats  = categories.filter((c: any) => c.system)
   const customCats  = categories.filter((c: any) => !c.system)
 
-  return (
-    <div className="min-h-full bg-gray-50">
+  const activeCount  = (categories as any[]).filter(c => c.active).length
+  const budgetCount  = (categories as any[]).filter(c => c.monthlyBudget).length
 
-      {/* Header */}
-      <div className="bg-white border-b border-gray-100 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center">
-              <Tag size={17} className="text-indigo-600" />
+  return (
+    <div className="min-h-screen bg-gray-50/60 p-6 space-y-6">
+
+      {/* ── Gradient Hero ── */}
+      <div className="bg-gradient-to-br from-violet-700 via-violet-600 to-blue-600 rounded-2xl shadow-[0_8px_40px_rgba(109,40,217,0.30)] overflow-hidden">
+        <div className="px-6 py-5 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-amber-400/20 border border-amber-400/30 flex items-center justify-center shrink-0">
+              <Tag size={24} className="text-amber-300" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Expense Categories</h1>
-              <p className="text-xs text-gray-400 mt-0.5">Manage how your expenses are classified</p>
+              <h1 className="text-xl font-bold text-white leading-tight">Expense Categories</h1>
+              <p className="text-sm text-white/60 mt-0.5">Classify expenses · Set budgets · Track spending</p>
             </div>
           </div>
           <button
             onClick={() => { setEditing(null); setShowForm(true) }}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm"
+            className="flex items-center gap-2 px-4 py-2 bg-amber-400 hover:bg-amber-300 text-amber-900 text-sm font-bold rounded-xl transition-colors shrink-0"
           >
             <Plus size={15} /> New Category
           </button>
         </div>
+
+        {/* Stats strip */}
+        <div className="grid grid-cols-6 divide-x divide-white/10 border-t border-white/10">
+          {[
+            { label: 'Total',          value: (categories as any[]).length },
+            { label: 'System',         value: systemCats.length },
+            { label: 'Custom',         value: customCats.length },
+            { label: 'Active',         value: activeCount, cls: 'text-emerald-300' },
+            { label: 'Inactive',       value: (categories as any[]).length - activeCount, cls: (categories as any[]).length - activeCount > 0 ? 'text-amber-300' : undefined },
+            { label: 'With Budget',    value: budgetCount },
+          ].map(st => (
+            <div key={st.label} className="px-4 py-3 text-center">
+              <p className={`text-xl font-bold ${st.cls ?? 'text-white'}`}>{st.value}</p>
+              <p className="text-xs text-white/50 mt-0.5">{st.label}</p>
+            </div>
+          ))}
+        </div>
       </div>
 
-      <div className="p-6 space-y-6">
-
-        {/* System Categories */}
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <ShieldCheck size={14} className="text-gray-400" />
-            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider">System Categories</h2>
-            <span className="text-xs text-gray-300">— predefined, cannot be deleted</span>
+      {/* ── System Categories ── */}
+      <div>
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="bg-gradient-to-r from-violet-600 to-blue-500 px-5 py-3.5 flex items-center gap-2">
+            <ShieldCheck size={14} className="text-white/70" />
+            <h2 className="text-sm font-semibold text-white">System Categories</h2>
+            <span className="text-xs text-white/50 ml-1">— predefined, cannot be deleted</span>
           </div>
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-50">
+          <div className="divide-y divide-gray-50">
             {isLoading ? (
-              Array.from({ length: 6 }).map((_, i) => (
+              Array.from({ length: 4 }).map((_, i) => (
                 <div key={i} className="flex items-center gap-4 px-5 py-3.5 animate-pulse">
                   <div className="w-8 h-8 rounded-xl bg-gray-100" />
                   <div className="flex-1 space-y-1.5">
@@ -258,6 +277,11 @@ export default function ExpenseCategoriesPage() {
                   </div>
                 </div>
               ))
+            ) : systemCats.length === 0 ? (
+              <div className="px-5 py-8 text-center text-sm text-gray-400">
+                <ShieldCheck size={28} className="text-gray-200 mx-auto mb-2" />
+                No system categories defined
+              </div>
             ) : systemCats.map((cat: any) => (
               <div key={cat.id} className={`flex items-center gap-4 px-5 py-3.5 transition-colors ${!cat.active ? 'opacity-50' : ''}`}>
                 <CategoryIcon icon={cat.icon} color={cat.color} />
@@ -283,24 +307,35 @@ export default function ExpenseCategoriesPage() {
             ))}
           </div>
         </div>
+      </div>
 
-        {/* Custom Categories */}
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <Tag size={14} className="text-gray-400" />
-            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Custom Categories</h2>
-          </div>
-          {customCats.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-dashed border-gray-200 px-6 py-10 text-center">
+      {/* ── Custom Categories ── */}
+      <div>
+        {customCats.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="bg-gradient-to-r from-violet-600 to-blue-500 px-5 py-3.5 flex items-center gap-2">
+              <Tag size={14} className="text-white/70" />
+              <h2 className="text-sm font-semibold text-white">Custom Categories</h2>
+            </div>
+            <div className="px-6 py-10 text-center">
               <Tag size={28} className="text-gray-200 mx-auto mb-2" />
               <p className="text-sm text-gray-400">No custom categories yet</p>
               <button onClick={() => { setEditing(null); setShowForm(true) }}
-                className="mt-3 text-sm font-semibold text-indigo-600 hover:text-indigo-800">
+                className="mt-3 text-sm font-semibold text-violet-600 hover:text-violet-800">
                 + Create your first category
               </button>
             </div>
-          ) : (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-50">
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="bg-gradient-to-r from-violet-600 to-blue-500 px-5 py-3.5 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Tag size={14} className="text-white/70" />
+                <h2 className="text-sm font-semibold text-white">Custom Categories</h2>
+              </div>
+              <span className="text-xs text-white/60">{customCats.length} {customCats.length === 1 ? 'category' : 'categories'}</span>
+            </div>
+            <div className="divide-y divide-gray-50">
               {customCats.map((cat: any) => (
                 <div key={cat.id} className={`flex items-center gap-4 px-5 py-3.5 transition-colors ${!cat.active ? 'opacity-50' : ''}`}>
                   <CategoryIcon icon={cat.icon} color={cat.color} />
@@ -336,8 +371,8 @@ export default function ExpenseCategoriesPage() {
                 </div>
               ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {showForm && (

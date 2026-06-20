@@ -72,11 +72,19 @@ function ProductPicker({ onSelect }: { onSelect: (p: any) => void }) {
 
   useEffect(() => { const t = setTimeout(() => setDq(q), 200); return () => clearTimeout(t) }, [q])
 
-  const { data: results = [], isFetching } = useQuery({
+  // Names that are internal inventory states — never purchased from vendors
+  const NON_PURCHASABLE_NAMES = ['silo cement', 'loose cement']
+
+  const { data: rawResults = [], isFetching } = useQuery({
     queryKey: ['product-search-dp', dq],
     queryFn: () => dq.trim() ? productApi.search(dq.trim()).then(r => r.data.data ?? []) : Promise.resolve([]),
     enabled: dq.trim().length > 0,
   })
+
+  const results = (rawResults as any[]).filter((p: any) =>
+    p.purchasable !== false &&
+    !NON_PURCHASABLE_NAMES.includes(p.name?.toLowerCase())
+  )
 
   useEffect(() => {
     const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
@@ -504,25 +512,33 @@ export default function DirectPurchasePage() {
   return (
     <div className="min-h-full bg-gray-50">
 
-      {/* Header */}
-      <div className="bg-white border-b border-gray-100 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <ShoppingCart size={20} className="text-indigo-600" />
-              Direct Purchase
-            </h1>
-            <p className="text-sm text-gray-500 mt-0.5">
-              Create a purchase order and receive it immediately — stock updates automatically
-            </p>
+      {/* Hero Header */}
+      <div className="p-6 pb-0">
+        <div className="relative rounded-2xl shadow-[0_8px_40px_rgba(109,40,217,0.30)] mb-6">
+          <div className="absolute inset-0 overflow-hidden rounded-2xl">
+            <div className="absolute inset-0 bg-gradient-to-br from-violet-700 via-violet-600 to-blue-600" />
+            <div className="absolute inset-0 opacity-[0.15]"
+              style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+            <div className="absolute -top-10 -right-10 w-72 h-72 rounded-full bg-blue-400/20 blur-3xl" />
+            <div className="absolute -bottom-8 -left-8 w-56 h-56 rounded-full bg-violet-300/20 blur-2xl" />
           </div>
-          <span className="text-xs text-gray-400 bg-gray-100 px-3 py-1.5 rounded-full font-medium">
-            Status: Received on Submit
-          </span>
+          {/* Top row */}
+          <div className="relative flex items-center justify-between px-8 py-6">
+            <div className="flex items-center gap-4">
+              <Package size={26} className="text-amber-300" />
+              <div>
+                <p className="text-violet-200 text-xs font-semibold tracking-widest uppercase">Purchases</p>
+                <h1 className="text-white text-2xl font-bold tracking-tight">Direct Purchase</h1>
+              </div>
+            </div>
+            <span className="text-xs bg-white/10 border border-white/20 text-white px-3 py-1.5 rounded-full font-medium">
+              Status: Received on Submit
+            </span>
+          </div>
         </div>
       </div>
 
-      <div className="p-6 max-w-6xl mx-auto space-y-5">
+      <div className="p-6 space-y-5">
 
         {/* ── PO Header ── */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
@@ -539,7 +555,6 @@ export default function DirectPurchasePage() {
                 onChange={e => setSelectedOutletId(e.target.value ? Number(e.target.value) : null)}
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
               >
-                <option value="">— Select Outlet —</option>
                 {(outlets as any[]).map((o: any) => (
                   <option key={o.id} value={o.id}>{o.name}{o.code ? ` (${o.code})` : ''}</option>
                 ))}
@@ -616,15 +631,15 @@ export default function DirectPurchasePage() {
                 <col style={{ width: '32px' }} />
               </colgroup>
               <thead>
-                <tr className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider bg-gray-50 border-b border-gray-100">
-                  <th className="px-3 py-2.5 text-left">Product</th>
-                  <th className="px-3 py-2.5 text-right">Qty</th>
-                  <th className="px-3 py-2.5 text-right">
+                <tr className="bg-gradient-to-r from-violet-50 to-blue-50 border-y border-violet-100">
+                  <th className="px-3 py-2.5 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Product</th>
+                  <th className="px-3 py-2.5 text-right text-[11px] font-bold text-violet-500 uppercase tracking-widest">Qty</th>
+                  <th className="px-3 py-2.5 text-right text-[11px] font-bold text-violet-500 uppercase tracking-widest">
                     <div>Unit Cost</div>
-                    <div className="text-[10px] font-normal text-gray-400 normal-case">{gstInclusive ? 'incl. GST' : 'excl. GST'}</div>
+                    <div className="text-[10px] font-normal text-violet-400 normal-case">{gstInclusive ? 'incl. GST' : 'excl. GST'}</div>
                   </th>
-                  <th className="px-3 py-2.5 text-left">Tax Group</th>
-                  <th className="px-3 py-2.5 text-right">Amount</th>
+                  <th className="px-3 py-2.5 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Tax Group</th>
+                  <th className="px-3 py-2.5 text-right text-[11px] font-bold text-violet-500 uppercase tracking-widest">Amount</th>
                   <th className="px-2 py-2.5" />
                 </tr>
               </thead>
@@ -748,13 +763,13 @@ export default function DirectPurchasePage() {
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className="bg-gray-50 text-[11px] text-gray-500 uppercase tracking-wider border-b border-gray-100">
-                      <th className="px-4 py-3 text-left font-semibold">PO #</th>
-                      <th className="px-4 py-3 text-left font-semibold">Date</th>
-                      <th className="px-4 py-3 text-left font-semibold">Supplier</th>
-                      <th className="px-4 py-3 text-right font-semibold">Items</th>
-                      <th className="px-4 py-3 text-right font-semibold">Total</th>
-                      <th className="px-4 py-3 text-center font-semibold">Status</th>
+                    <tr className="bg-gradient-to-r from-violet-50 to-blue-50 border-y border-violet-100">
+                      <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">PO #</th>
+                      <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Date</th>
+                      <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Supplier</th>
+                      <th className="px-4 py-3 text-right text-[11px] font-bold text-violet-500 uppercase tracking-widest">Items</th>
+                      <th className="px-4 py-3 text-right text-[11px] font-bold text-violet-500 uppercase tracking-widest">Total</th>
+                      <th className="px-4 py-3 text-center text-[11px] font-bold text-violet-500 uppercase tracking-widest">Status</th>
                     </tr>
                   </thead>
                   <tbody>

@@ -86,13 +86,13 @@ function ReceivedPODrawer({ po, onClose }: { po: any; onClose: () => void }) {
               </div>
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider bg-gray-50 border-b border-gray-100">
-                    <th className="px-4 py-2.5 text-left">Product</th>
-                    <th className="px-4 py-2.5 text-right">Ordered</th>
-                    <th className="px-4 py-2.5 text-right">Received</th>
-                    <th className="px-4 py-2.5 text-right">Unit Cost</th>
-                    <th className="px-4 py-2.5 text-right">Tax %</th>
-                    <th className="px-4 py-2.5 text-right">Amount</th>
+                  <tr className="bg-gradient-to-r from-violet-50 to-blue-50 border-y border-violet-100">
+                    <th className="px-4 py-2.5 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Product</th>
+                    <th className="px-4 py-2.5 text-right text-[11px] font-bold text-violet-500 uppercase tracking-widest">Ordered</th>
+                    <th className="px-4 py-2.5 text-right text-[11px] font-bold text-violet-500 uppercase tracking-widest">Received</th>
+                    <th className="px-4 py-2.5 text-right text-[11px] font-bold text-violet-500 uppercase tracking-widest">Unit Cost</th>
+                    <th className="px-4 py-2.5 text-right text-[11px] font-bold text-violet-500 uppercase tracking-widest">Tax %</th>
+                    <th className="px-4 py-2.5 text-right text-[11px] font-bold text-violet-500 uppercase tracking-widest">Amount</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -183,20 +183,18 @@ export default function PurchaseReceivesTab() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
+        <div />
         <div>
-          <h2 className="text-lg font-semibold text-gray-900">Purchase Received</h2>
-          <p className="text-sm text-gray-500 mt-0.5">Track goods received against purchase orders</p>
+          {(outlets as any[]).length > 1 && (
+            <select value={selectedOutletId ?? ''}
+              onChange={e => { setSelectedOutletId(e.target.value ? Number(e.target.value) : null); setPage(0) }}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
+              {(outlets as any[]).map((o: any) => (
+                <option key={o.id} value={o.id}>{o.name}</option>
+              ))}
+            </select>
+          )}
         </div>
-        {(outlets as any[]).length > 1 && (
-          <select value={selectedOutletId ?? ''}
-            onChange={e => { setSelectedOutletId(e.target.value ? Number(e.target.value) : null); setPage(0) }}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-            <option value="">— Select Outlet —</option>
-            {(outlets as any[]).map((o: any) => (
-              <option key={o.id} value={o.id}>{o.name}</option>
-            ))}
-          </select>
-        )}
       </div>
 
       <div className="relative mb-4">
@@ -223,13 +221,13 @@ export default function PurchaseReceivesTab() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b text-left text-gray-500 text-xs uppercase tracking-wide">
-                  <th className="pb-3 font-semibold">PO Number</th>
-                  <th className="pb-3 font-semibold">Vendor</th>
-                  <th className="pb-3 font-semibold">Received Date</th>
-                  <th className="pb-3 font-semibold">Expected Date</th>
-                  <th className="pb-3 font-semibold text-right">Total Amount</th>
-                  <th className="pb-3 font-semibold">Status</th>
+                <tr className="bg-gradient-to-r from-violet-50 to-blue-50 border-y border-violet-100">
+                  <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">PO Number</th>
+                  <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Vendor</th>
+                  <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Received Date</th>
+                  <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Expected Date</th>
+                  <th className="px-4 py-3 text-right text-[11px] font-bold text-violet-500 uppercase tracking-widest">Total Amount</th>
+                  <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">

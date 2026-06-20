@@ -10,7 +10,7 @@ type Product struct {
 	ID                 int              `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
 	Name               string           `gorm:"column:name" json:"name"`
 	Description        *string          `gorm:"column:description" json:"description"`
-	SKU                *string          `gorm:"uniqueIndex;column:sku" json:"sku"`
+	SKU                *string          `gorm:"uniqueIndex;size:191;column:sku" json:"sku"`
 	Barcode            *string          `gorm:"column:barcode" json:"barcode"`
 	CategoryID         *int             `gorm:"column:category_id" json:"categoryId"`
 	TaxGroupID         *int             `gorm:"column:tax_group_id" json:"taxGroupId"`
@@ -18,12 +18,14 @@ type Product struct {
 	SellingPrice       decimal.Decimal  `gorm:"column:selling_price;type:decimal(10,2)" json:"sellingPrice"`
 	MRP                *decimal.Decimal `gorm:"column:mrp;type:decimal(10,2)" json:"mrp"`
 	MinSellingPrice    *decimal.Decimal `gorm:"column:min_selling_price;type:decimal(10,2)" json:"minSellingPrice"`
+	HSNCode            *string          `gorm:"column:hsn_code" json:"hsnCode"`
 	UnitOfMeasure      string           `gorm:"column:unit_of_measure;default:pcs" json:"unitOfMeasure"`
 	PurchaseUOM        *string          `gorm:"column:purchase_uom" json:"purchaseUom"`
 	SaleUOM            *string          `gorm:"column:sale_uom" json:"saleUom"`
 	PurchaseFactor     decimal.Decimal  `gorm:"column:purchase_factor;type:decimal(10,4);default:1" json:"purchaseFactor"`
 	SaleFactor         decimal.Decimal  `gorm:"column:sale_factor;type:decimal(10,4);default:1" json:"saleFactor"`
 	ProductType        ProductType      `gorm:"column:product_type;default:PHYSICAL" json:"productType"`
+	ItemType           string           `gorm:"column:item_type;default:GENERAL" json:"itemType"`
 	TrackInventory     bool             `gorm:"column:track_inventory;default:true" json:"trackInventory"`
 	AllowNegativeStock bool             `gorm:"column:allow_negative_stock;default:false" json:"allowNegativeStock"`
 	ReorderLevel       int              `gorm:"column:reorder_level;default:10" json:"reorderLevel"`

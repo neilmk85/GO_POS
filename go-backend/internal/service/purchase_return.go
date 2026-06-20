@@ -72,18 +72,21 @@ func (prs *PurchaseReturnService) GetByID(id int) (*models.PurchaseReturn, error
 
 // Create creates a new purchase return
 func (prs *PurchaseReturnService) Create(data map[string]interface{}) (*models.PurchaseReturn, error) {
-	poId := int(data["purchaseOrderId"].(float64))
+	var poId int
+	if v, ok := data["purchaseOrderId"]; ok {
+		poId = int(v.(float64))
+	}
 	outletId := int(data["outletId"].(float64))
 
-	// Verify PO exists
-	po := &models.PurchaseOrder{}
-	if err := prs.db.
-		Preload("Items").
-		First(po, poId).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, &util.ResourceNotFoundException{Message: fmt.Sprintf("Purchase order with ID %d not found", poId)}
+	// Verify PO exists only when a PO ID is provided
+	if poId > 0 {
+		po := &models.PurchaseOrder{}
+		if err := prs.db.Preload("Items").First(po, poId).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return nil, &util.ResourceNotFoundException{Message: fmt.Sprintf("Purchase order with ID %d not found", poId)}
+			}
+			return nil, err
 		}
-		return nil, err
 	}
 
 	returnNumber, err := util.GeneratePurchaseReturnNumber(prs.db)
@@ -91,43 +94,48 @@ func (prs *PurchaseReturnService) Create(data map[string]interface{}) (*models.P
 		return nil, err
 	}
 
-	items := data["items"].([]interface{})
+	rawItems, _ := data["items"].([]interface{})
 	var totalAmount decimal.Decimal
 	var itemsData []models.PurchaseReturnItem
 
-	for _, item := range items {
-		itemMap := item.(map[string]interface{})
-		qty := decimal.NewFromFloat(itemMap["returnedQuantity"].(float64))
-		cost := decimal.NewFromFloat(itemMap["unitCost"].(float64))
+	for _, item := range rawItems {
+		itemMap, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		qty := decimal.NewFromFloat(toFloatVal(itemMap["returnedQuantity"]))
+		cost := decimal.NewFromFloat(toFloatVal(itemMap["unitCost"]))
 		lineTotal := qty.Mul(cost)
-
 		totalAmount = totalAmount.Add(lineTotal)
 
 		itemData := models.PurchaseReturnItem{
-			ProductID:        int(itemMap["productId"].(float64)),
 			ReturnedQuantity: qty,
 			UnitCost:         cost,
 			LineTotal:        lineTotal,
 		}
 
-		if productName, ok := itemMap["productName"].(string); ok {
+		if productName, ok := itemMap["productName"].(string); ok && productName != "" {
 			itemData.ProductName = &productName
 		}
-
-		if poItemId, ok := itemMap["purchaseOrderItemId"].(float64); ok {
-			poItemIdInt := int(poItemId)
-			itemData.PurchaseOrderItemID = &poItemIdInt
+		if productId, ok := itemMap["productId"].(float64); ok && productId > 0 {
+			itemData.ProductID = int(productId)
+		}
+		if poItemId, ok := itemMap["purchaseOrderItemId"].(float64); ok && poItemId > 0 {
+			v := int(poItemId)
+			itemData.PurchaseOrderItemID = &v
 		}
 
 		itemsData = append(itemsData, itemData)
 	}
 
 	ret := models.PurchaseReturn{
-		ReturnNumber:    returnNumber,
-		PurchaseOrderID: poId,
-		OutletID:        outletId,
-		Status:          models.PurchaseReturnStatusCompleted,
-		TotalAmount:     totalAmount,
+		ReturnNumber: returnNumber,
+		OutletID:     outletId,
+		Status:       models.PurchaseReturnStatusCompleted,
+		TotalAmount:  totalAmount,
+	}
+	if poId > 0 {
+		ret.PurchaseOrderID = &poId
 	}
 
 	if reason, ok := data["reason"].(string); ok {
@@ -169,4 +177,11 @@ func (prs *PurchaseReturnService) Create(data map[string]interface{}) (*models.P
 
 		return nil
 	})
+}
+
+func toFloatVal(v interface{}) float64 {
+	if f, ok := v.(float64); ok {
+		return f
+	}
+	return 0
 }

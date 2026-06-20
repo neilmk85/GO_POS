@@ -1,252 +1,151 @@
 import { useState } from 'react'
-import { Search, Plus, Eye, Truck, Package, X, Loader2, ChevronDown } from 'lucide-react'
-import toast from 'react-hot-toast'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { orderApi, customerApi } from '@/services/api'
-import { useAuthStore } from '@/store/authStore'
-import api from '@/services/api'
+import { Search, Truck, Package, FileText } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { loadingRecordApi } from '@/services/api'
+import { format, subDays } from 'date-fns'
 
-const STATUS_COLORS: Record<string, string> = {
-  DRAFT:      'bg-gray-100   text-gray-700',
-  DISPATCHED: 'bg-blue-100   text-blue-700',
-  DELIVERED:  'bg-green-100  text-green-700',
-  CANCELLED:  'bg-red-100    text-red-700',
+function fmtDate(d: Date) { return d.toISOString().split('T')[0] }
+
+function dmy(iso: string) {
+  if (!iso) return ''
+  const [y, m, d] = iso.split('-')
+  return d && m && y ? `${d}/${m}/${y}` : iso
 }
-
-// ─── Create Challan Modal ──────────────────────────────────────────────────────
-
-function CreateChallanModal({ onClose, outletId }: { onClose: () => void; outletId: number }) {
-  const qc = useQueryClient()
-  const [step, setStep] = useState<'order' | 'details'>('order')
-  const [orderNumber, setOrderNumber] = useState('')
-  const [order, setOrder]  = useState<any>(null)
-  const [loading, setLoading] = useState(false)
-  const [saving, setSaving]   = useState(false)
-
-  const [form, setForm] = useState({
-    deliveryAddress: '',
-    contactPerson: '',
-    contactPhone: '',
-    vehicleNo: '',
-    notes: '',
-  })
-
-  async function lookupOrder() {
-    if (!orderNumber.trim()) return
-    setLoading(true)
-    try {
-      const res = await orderApi.getByOrderNumber(orderNumber.trim())
-      if (!res.data.data) { toast.error('Order not found'); return }
-      setOrder(res.data.data)
-      setForm(f => ({ ...f, deliveryAddress: res.data.data.customer?.address ?? '' }))
-      setStep('details')
-    } catch {
-      toast.error('Order not found')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function handleCreate() {
-    if (!form.deliveryAddress.trim()) { toast.error('Delivery address is required'); return }
-    setSaving(true)
-    try {
-      await api.post('/delivery-challans', {
-        orderId: order.id,
-        outletId,
-        ...form,
-      })
-      toast.success('Delivery challan created')
-      qc.invalidateQueries({ queryKey: ['delivery-challans'] })
-      onClose()
-    } catch (err: any) {
-      toast.error(err.response?.data?.message ?? 'Failed to create challan')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
-        <div className="flex items-center justify-between p-5 border-b">
-          <h2 className="text-lg font-bold text-gray-900">New Delivery Challan</h2>
-          <button onClick={onClose}><X size={20} className="text-gray-400" /></button>
-        </div>
-        <div className="p-5 space-y-4">
-          {step === 'order' ? (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Order Number</label>
-                <div className="flex gap-2">
-                  <input value={orderNumber} onChange={e => setOrderNumber(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && lookupOrder()}
-                    placeholder="e.g. ORD-20240001"
-                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none" />
-                  <button onClick={lookupOrder} disabled={loading}
-                    className="px-4 py-2 bg-gradient-to-r from-violet-600 to-blue-600 text-white rounded-lg text-sm font-medium hover:from-violet-700 hover:to-blue-700 disabled:opacity-50 flex items-center gap-1.5">
-                    {loading && <Loader2 size={13} className="animate-spin" />}
-                    Look Up
-                  </button>
-                </div>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="bg-gray-50 rounded-lg p-3 text-sm">
-                <p className="font-medium text-gray-900">{order.orderNumber}</p>
-                <p className="text-gray-500">{order.customer?.name ?? 'Walk-in'} · {order.items?.length} item(s)</p>
-              </div>
-
-              {[
-                { key: 'deliveryAddress', label: 'Delivery Address *', type: 'textarea' },
-                { key: 'contactPerson',   label: 'Contact Person' },
-                { key: 'contactPhone',    label: 'Contact Phone' },
-                { key: 'vehicleNo',       label: 'Vehicle Number' },
-              ].map(({ key, label, type }) => (
-                <div key={key}>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-                  {type === 'textarea' ? (
-                    <textarea value={(form as any)[key]} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
-                      rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none resize-none" />
-                  ) : (
-                    <input value={(form as any)[key]} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none" />
-                  )}
-                </div>
-              ))}
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-                <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-                  rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none resize-none" />
-              </div>
-
-              <div className="flex gap-2">
-                <button onClick={() => setStep('order')} className="flex-1 py-2 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50">Back</button>
-                <button onClick={handleCreate} disabled={saving}
-                  className="flex-1 py-2 bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-700 hover:to-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-1.5">
-                  {saving && <Loader2 size={13} className="animate-spin" />}
-                  Create Challan
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Page ──────────────────────────────────────────────────────────────────────
 
 export default function DeliveryChallansPage() {
-  const { outletId } = useAuthStore()
+  const today = new Date()
+  const [from, setFrom] = useState(fmtDate(subDays(today, 30)))
+  const [to,   setTo]   = useState(fmtDate(today))
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('ALL')
-  const [showCreate, setShowCreate] = useState(false)
 
   const { data, isLoading } = useQuery({
-    queryKey: ['delivery-challans', outletId],
-    queryFn: () => api.get(`/delivery-challans/outlet/${outletId}`).then(r => (r.data as any).data ?? []),
-    enabled: !!outletId,
+    queryKey: ['loading-records', from, to],
+    queryFn: () => loadingRecordApi.getAll({ from: from || undefined, to: to || undefined })
+      .then(r => r.data.data ?? []),
   })
 
-  const challans: any[] = data ?? []
+  const records: any[] = data ?? []
 
-  const filtered = challans.filter((c: any) => {
-    const matchStatus = statusFilter === 'ALL' || c.status === statusFilter
-    const matchSearch = !search ||
-      c.challanNumber?.toLowerCase().includes(search.toLowerCase()) ||
-      c.order?.orderNumber?.toLowerCase().includes(search.toLowerCase()) ||
-      c.order?.customer?.name?.toLowerCase().includes(search.toLowerCase())
-    return matchStatus && matchSearch
+  const filtered = records.filter(r => {
+    if (!search.trim()) return true
+    const q = search.toLowerCase()
+    return (
+      (r.customerPoNo  ?? '').toLowerCase().includes(q) ||
+      (r.pipeName      ?? '').toLowerCase().includes(q) ||
+      (r.customerName  ?? '').toLowerCase().includes(q) ||
+      (r.vehicleNo     ?? '').toLowerCase().includes(q) ||
+      (r.driverName    ?? '').toLowerCase().includes(q) ||
+      (r.siteAddress   ?? '').toLowerCase().includes(q)
+    )
   })
+
+  const totalPipes    = records.reduce((s, r) => s + (Number(r.quantity) || 0), 0)
+  const uniqueCustomers = new Set(records.map(r => r.customerName).filter(Boolean)).size
 
   return (
     <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Delivery Challans</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Track outgoing deliveries</p>
+      {/* Hero Header */}
+      <div className="relative rounded-2xl shadow-[0_8px_40px_rgba(109,40,217,0.30)] mb-6">
+        <div className="absolute inset-0 overflow-hidden rounded-2xl">
+          <div className="absolute inset-0 bg-gradient-to-br from-violet-700 via-violet-600 to-blue-600" />
+          <div className="absolute inset-0 opacity-[0.15]"
+            style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+          <div className="absolute -top-10 -right-10 w-72 h-72 rounded-full bg-blue-400/20 blur-3xl" />
+          <div className="absolute -bottom-8 -left-8 w-56 h-56 rounded-full bg-violet-300/20 blur-2xl" />
         </div>
-        <button onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-700 hover:to-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
-          <Plus size={15} /> New Challan
-        </button>
+        <div className="relative flex items-center justify-between px-8 py-6">
+          <div className="flex items-center gap-4">
+            <Truck size={26} className="text-amber-300" />
+            <div>
+              <p className="text-violet-200 text-xs font-semibold tracking-widest uppercase">Sales</p>
+              <h1 className="text-white text-2xl font-bold tracking-tight">Delivery Challans</h1>
+            </div>
+          </div>
+          {/* Date range */}
+          <div className="flex items-center gap-2">
+            <input type="date" value={from} onChange={e => setFrom(e.target.value)}
+              className="bg-white/10 text-white text-sm px-3 py-1.5 rounded-lg border border-white/20 focus:outline-none focus:ring-2 focus:ring-white/30 [color-scheme:dark]" />
+            <span className="text-violet-300 text-sm">to</span>
+            <input type="date" value={to} onChange={e => setTo(e.target.value)}
+              className="bg-white/10 text-white text-sm px-3 py-1.5 rounded-lg border border-white/20 focus:outline-none focus:ring-2 focus:ring-white/30 [color-scheme:dark]" />
+          </div>
+        </div>
+        {/* Stats strip */}
+        <div className="relative border-t border-white/10 grid grid-cols-3 divide-x divide-white/10">
+          <div className="px-6 py-3 text-center">
+            <p className="text-white text-xl font-bold">{records.length}</p>
+            <p className="text-violet-200 text-xs mt-0.5">Total Dispatches</p>
+          </div>
+          <div className="px-6 py-3 text-center">
+            <p className="text-white text-xl font-bold">{totalPipes}</p>
+            <p className="text-violet-200 text-xs mt-0.5">Pipes Loaded</p>
+          </div>
+          <div className="px-6 py-3 text-center">
+            <p className="text-white text-xl font-bold">{uniqueCustomers}</p>
+            <p className="text-violet-200 text-xs mt-0.5">Unique Customers</p>
+          </div>
+        </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-3 mb-5">
-        <div className="relative flex-1 min-w-48">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Search challan, order or customer…"
-            className="pl-9 pr-4 py-2 border border-gray-300 rounded-lg w-full text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none" />
-        </div>
-        <div className="flex gap-2">
-          {['ALL', 'DRAFT', 'DISPATCHED', 'DELIVERED', 'CANCELLED'].map(s => (
-            <button key={s} onClick={() => setStatusFilter(s)}
-              className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
-                statusFilter === s ? 'bg-gradient-to-r from-violet-500 to-blue-500 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
-              }`}>
-              {s === 'ALL' ? 'All' : s.charAt(0) + s.slice(1).toLowerCase()}
-            </button>
-          ))}
-        </div>
+      {/* Search */}
+      <div className="relative mb-5">
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <input value={search} onChange={e => setSearch(e.target.value)}
+          placeholder="Search by CH.NO, pipe, customer, vehicle or driver…"
+          className="pl-9 pr-4 py-2 border border-gray-300 rounded-lg w-full text-sm focus:ring-2 focus:ring-violet-300 focus:outline-none" />
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <table className="w-full">
-          <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
-            <tr>
-              <th className="px-4 py-3 text-left">Challan #</th>
-              <th className="px-4 py-3 text-left">Order #</th>
-              <th className="px-4 py-3 text-left">Customer</th>
-              <th className="px-4 py-3 text-left">Delivery Address</th>
-              <th className="px-4 py-3 text-left">Vehicle</th>
-              <th className="px-4 py-3 text-center">Status</th>
-              <th className="px-4 py-3 text-left">Date</th>
+          <thead>
+            <tr className="bg-gradient-to-r from-violet-50 to-blue-50 border-y border-violet-100">
+              <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">CH.NO</th>
+              <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Pipe</th>
+              <th className="px-4 py-3 text-center text-[11px] font-bold text-violet-500 uppercase tracking-widest">Qty</th>
+              <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Customer</th>
+              <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Site Address</th>
+              <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Vehicle</th>
+              <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Driver</th>
+              <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Date</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {isLoading ? (
-              <tr><td colSpan={7} className="text-center py-12 text-gray-400">Loading…</td></tr>
+              <tr><td colSpan={8} className="text-center py-12 text-gray-400">Loading…</td></tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={7} className="text-center py-16">
+                <td colSpan={8} className="text-center py-16">
                   <Truck size={40} className="mx-auto text-gray-200 mb-3" />
                   <p className="text-sm text-gray-400">No delivery challans found</p>
-                  <button onClick={() => setShowCreate(true)}
-                    className="mt-3 text-sm text-primary-600 hover:underline font-medium">
-                    Create your first challan
-                  </button>
                 </td>
               </tr>
-            ) : filtered.map((c: any) => (
-              <tr key={c.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 font-mono text-sm text-primary-600">{c.challanNumber}</td>
-                <td className="px-4 py-3 text-sm text-gray-700 font-mono">{c.order?.orderNumber ?? '—'}</td>
-                <td className="px-4 py-3 text-sm text-gray-700">{c.order?.customer?.name ?? 'Walk-in'}</td>
-                <td className="px-4 py-3 text-sm text-gray-600 max-w-xs truncate">{c.deliveryAddress}</td>
-                <td className="px-4 py-3 text-sm text-gray-500">{c.vehicleNo ?? '—'}</td>
-                <td className="px-4 py-3 text-center">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[c.status] ?? 'bg-gray-100 text-gray-700'}`}>
-                    {c.status}
-                  </span>
+            ) : filtered.map((r: any) => (
+              <tr key={r.id} className="hover:bg-gray-50">
+                <td className="px-4 py-3 font-mono text-sm text-violet-600">
+                  {r.customerPoNo ? (
+                    <span className="flex items-center gap-1">
+                      <FileText size={12} className="text-violet-400" />
+                      {r.customerPoNo}
+                    </span>
+                  ) : <span className="text-gray-300">—</span>}
                 </td>
-                <td className="px-4 py-3 text-xs text-gray-500">
-                  {c.createdAt ? new Date(c.createdAt).toLocaleDateString() : '—'}
+                <td className="px-4 py-3 text-sm text-gray-800 font-medium">{r.pipeName ?? '—'}</td>
+                <td className="px-4 py-3 text-sm text-gray-700 text-center">{r.quantity ?? '—'}</td>
+                <td className="px-4 py-3 text-sm text-gray-700">
+                  <p>{r.customerName || '—'}</p>
                 </td>
+                <td className="px-4 py-3 text-sm text-gray-500 max-w-xs truncate">{r.siteAddress || '—'}</td>
+                <td className="px-4 py-3 text-sm text-gray-600 font-mono">{r.vehicleNo || '—'}</td>
+                <td className="px-4 py-3 text-sm text-gray-600">
+                  <p>{r.driverName || '—'}</p>
+                  {r.driverContact && <p className="text-xs text-gray-400">{r.driverContact}</p>}
+                </td>
+                <td className="px-4 py-3 text-xs text-gray-500">{r.date ? dmy(r.date) : '—'}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-
-      {showCreate && outletId && (
-        <CreateChallanModal onClose={() => setShowCreate(false)} outletId={outletId} />
-      )}
     </div>
   )
 }

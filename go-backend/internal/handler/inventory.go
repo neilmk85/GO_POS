@@ -59,15 +59,21 @@ func (ih *InventoryHandler) GetByProductAllOutlets(w http.ResponseWriter, r *htt
 }
 
 func (ih *InventoryHandler) GetByOutlet(w http.ResponseWriter, r *http.Request) {
-	outletId, err := strconv.Atoi(r.PathValue("outletId"))
+	// outletId can come from path (/outlet/{outletId}) or query (?outletId=)
+	rawOutlet := r.PathValue("outletId")
+	if rawOutlet == "" {
+		rawOutlet = r.URL.Query().Get("outletId")
+	}
+	outletId, err := strconv.Atoi(rawOutlet)
 	if err != nil {
 		util.SendError(w, http.StatusBadRequest, "Invalid outlet ID")
 		return
 	}
 
 	page, size := util.ParsePagination(r)
+	itemType := r.URL.Query().Get("itemType")
 
-	inventories, total, err := ih.service.GetByOutlet(outletId, page, size)
+	inventories, total, err := ih.service.GetByOutlet(outletId, itemType, page, size)
 	if err != nil {
 		handleInventoryError(w, err)
 		return
@@ -120,6 +126,20 @@ func (ih *InventoryHandler) AdjustStock(w http.ResponseWriter, r *http.Request) 
 	}
 
 	util.SendSuccess(w, "Stock adjusted", adjustment)
+}
+
+func (ih *InventoryHandler) UpdateReorderLevel(w http.ResponseWriter, r *http.Request) {
+	var dto service.UpdateReorderLevelDTO
+	if err := json.NewDecoder(r.Body).Decode(&dto); err != nil {
+		util.SendError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	inv, err := ih.service.UpdateReorderLevel(dto)
+	if err != nil {
+		handleInventoryError(w, err)
+		return
+	}
+	util.SendSuccess(w, "Reorder level updated", inv)
 }
 
 func (ih *InventoryHandler) GetAdjustments(w http.ResponseWriter, r *http.Request) {

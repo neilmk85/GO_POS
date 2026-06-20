@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:pos_mobile/main.dart';
 import '../../models/models.dart';
 import '../../services/api_service.dart';
 
@@ -15,6 +16,11 @@ class ProductsScreen extends ConsumerWidget {
     final async = ref.watch(_productsProvider);
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.menu_outlined),
+          onPressed: openAppDrawer,
+          tooltip: 'Open menu',
+        ),
         title: const Text('Products'),
         actions: [
           IconButton(

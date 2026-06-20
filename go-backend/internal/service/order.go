@@ -726,11 +726,15 @@ func (os *OrderService) GetByOrderNumber(orderNumber string) (*models.Order, err
 	return order, err
 }
 
-func (os *OrderService) GetByOutlet(outletId int, page, size int, status *string, from, to *time.Time) ([]models.Order, int64, error) {
+func (os *OrderService) GetByOutlet(outletId int, page, size int, status *string, orderType *string, from, to *time.Time) ([]models.Order, int64, error) {
 	query := os.db.Where("outlet_id = ?", outletId)
 
 	if status != nil {
 		query = query.Where("status = ?", *status)
+	}
+
+	if orderType != nil {
+		query = query.Where("order_type = ?", *orderType)
 	}
 
 	if from != nil && to != nil {
@@ -786,6 +790,29 @@ func (os *OrderService) HoldOrder(orderId int) (*models.Order, error) {
 	if err := os.db.Model(order).Update("status", models.OrderStatusHeld).Error; err != nil {
 		return nil, err
 	}
+
+	return order, nil
+}
+
+func (os *OrderService) CancelOrder(orderId int) (*models.Order, error) {
+	order := &models.Order{}
+	if err := os.db.First(order, orderId).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, &util.ResourceNotFoundException{Message: fmt.Sprintf("Order with ID %d not found", orderId)}
+		}
+		return nil, err
+	}
+
+	if order.Status == models.OrderStatusCompleted ||
+		order.Status == models.OrderStatusRefunded ||
+		order.Status == models.OrderStatusCancelled {
+		return nil, fmt.Errorf("order cannot be cancelled in status: %s", order.Status)
+	}
+
+	if err := os.db.Model(order).Update("status", models.OrderStatusCancelled).Error; err != nil {
+		return nil, err
+	}
+	order.Status = models.OrderStatusCancelled
 
 	return order, nil
 }

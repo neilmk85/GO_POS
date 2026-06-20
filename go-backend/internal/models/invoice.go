@@ -8,7 +8,7 @@ import (
 
 type Invoice struct {
 	ID               int            `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
-	InvoiceNumber    string         `gorm:"uniqueIndex;column:invoice_number" json:"invoiceNumber"`
+	InvoiceNumber    string         `gorm:"uniqueIndex;size:191;column:invoice_number" json:"invoiceNumber"`
 	OrderID          *int           `gorm:"column:order_id" json:"orderId"`
 	CustomerID       *int           `gorm:"column:customer_id" json:"customerId"`
 	OutletID         int            `gorm:"column:outlet_id" json:"outletId"`
@@ -26,6 +26,9 @@ type Invoice struct {
 	BillDiscountPct  decimal.Decimal `gorm:"column:bill_discount_pct;type:decimal(5,2);default:0" json:"billDiscountPct"`
 	BillDiscountAmt  decimal.Decimal `gorm:"column:bill_discount_amt;type:decimal(10,2);default:0" json:"billDiscountAmt"`
 	PONumber         *string        `gorm:"column:po_number" json:"poNumber"`
+	DeliveryChallanNo *string       `gorm:"column:delivery_challan_no" json:"deliveryChallanNo"`
+	EWayBillNo       *string        `gorm:"column:e_way_bill_no" json:"eWayBillNo"`
+	EInvoiceNo       *string        `gorm:"column:e_invoice_no" json:"eInvoiceNo"`
 	ShippingAmount   decimal.Decimal `gorm:"column:shipping_amount;type:decimal(10,2);default:0" json:"shippingAmount"`
 	CreatedAt        time.Time      `gorm:"column:created_at;autoCreateTime" json:"createdAt"`
 	UpdatedAt        time.Time      `gorm:"column:updated_at;autoUpdateTime" json:"updatedAt"`

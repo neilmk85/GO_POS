@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Search, CreditCard, DollarSign, Smartphone, Wallet, IndianRupee, Banknote, TrendingUp } from 'lucide-react'
+import { Search, CreditCard, DollarSign, Smartphone, Wallet, IndianRupee, Banknote, TrendingUp, Landmark } from 'lucide-react'
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subWeeks, subMonths, startOfQuarter, endOfQuarter, subQuarters } from 'date-fns'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts'
 import { orderApi } from '@/services/api'
@@ -112,30 +112,67 @@ export default function PaymentsReceivedPage() {
 
   return (
     <div className="min-h-full bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-100 px-6 py-5">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">Payments Received</h1>
-            <p className="text-sm text-gray-500 mt-0.5">All payments collected from customers</p>
+
+      {/* ── Hero Header ── */}
+      <div className="relative rounded-none shadow-[0_8px_40px_rgba(109,40,217,0.30)] mx-0">
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-violet-700 via-violet-600 to-blue-600" />
+          <div className="absolute inset-0 opacity-[0.15]"
+            style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+          <div className="absolute -top-10 -right-10 w-72 h-72 rounded-full bg-blue-400/20 blur-3xl" />
+          <div className="absolute -bottom-8 -left-8 w-56 h-56 rounded-full bg-violet-300/20 blur-2xl" />
+        </div>
+
+        {/* Top row */}
+        <div className="relative flex items-center justify-between px-8 py-6">
+          <div className="flex items-center gap-4">
+            <Landmark size={26} className="text-amber-300" />
+            <div>
+              <p className="text-violet-200 text-xs font-semibold tracking-widest uppercase">Sales</p>
+              <h1 className="text-white text-2xl font-bold tracking-tight">Payments Received</h1>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <input type="date" value={from}
               onChange={e => { setFrom(e.target.value); setActivePreset('') }}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500 focus:outline-none" />
-            <span className="text-gray-400 text-sm">to</span>
+              className="bg-white/10 border border-white/20 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-white/30" />
+            <span className="text-white/50 text-sm">to</span>
             <input type="date" value={to}
               onChange={e => { setTo(e.target.value); setActivePreset('') }}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-500 focus:outline-none" />
+              className="bg-white/10 border border-white/20 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-white/30" />
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+
+        {/* Stat strip */}
+        <div className="relative border-t border-white/10 grid grid-cols-4 divide-x divide-white/10">
+          <div className="px-6 py-3 text-center">
+            <p className="text-white text-xl font-bold">₹{total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+            <p className="text-violet-200 text-xs mt-0.5">Total Received</p>
+          </div>
+          <div className="px-6 py-3 text-center">
+            <p className="text-white text-xl font-bold">{filtered.length}</p>
+            <p className="text-violet-200 text-xs mt-0.5">Transactions</p>
+          </div>
+          <div className="px-6 py-3 text-center">
+            <p className="text-white text-xl font-bold">{Object.keys(byMethod).length}</p>
+            <p className="text-violet-200 text-xs mt-0.5">Payment Methods</p>
+          </div>
+          <div className="px-6 py-3 text-center">
+            <p className="text-white text-xl font-bold">
+              ₹{filtered.length > 0 ? (total / filtered.length).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+            </p>
+            <p className="text-violet-200 text-xs mt-0.5">Avg. Transaction</p>
+          </div>
+        </div>
+
+        {/* Date preset strip */}
+        <div className="relative border-t border-white/10 px-8 py-3 flex flex-wrap gap-1.5">
           {DATE_PRESETS.map(p => (
             <button key={p.label} onClick={() => applyPreset(p)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
                 activePreset === p.label
-                  ? 'bg-gradient-to-r from-violet-500 to-blue-500 text-white shadow-sm'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  ? 'bg-white/20 text-white border border-white/30'
+                  : 'border border-white/20 text-white/60 hover:bg-white/10 hover:text-white/90'
               }`}>
               {p.label}
             </button>
@@ -254,13 +291,13 @@ export default function PaymentsReceivedPage() {
             <div className="bg-white rounded-xl shadow-lg overflow-hidden">
               <table className="w-full">
                 <thead>
-                  <tr className="bg-gray-100 border-b border-gray-200">
-                    <th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider">Order #</th>
-                    <th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider">Customer</th>
-                    <th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider">Method</th>
-                    <th className="px-4 py-3 text-right text-[11px] font-semibold text-gray-600 uppercase tracking-wider">Amount</th>
-                    <th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider">Reference</th>
-                    <th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-600 uppercase tracking-wider">Date</th>
+                  <tr className="bg-gradient-to-r from-violet-50 to-blue-50 border-y border-violet-100">
+                    <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Order #</th>
+                    <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Customer</th>
+                    <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Method</th>
+                    <th className="px-4 py-3 text-right text-[11px] font-bold text-violet-500 uppercase tracking-widest">Amount</th>
+                    <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Reference</th>
+                    <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Date</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">

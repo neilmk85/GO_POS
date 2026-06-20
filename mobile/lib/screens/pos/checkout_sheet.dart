@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import '../../models/models.dart';
 import '../../providers/cart_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/api_service.dart';
@@ -50,7 +54,7 @@ class _CheckoutSheetState extends ConsumerState<CheckoutSheet> {
               })
           .toList();
 
-      await ApiService().checkout({
+      final order = await ApiService().checkout({
         'outletId': auth.outletId,
         'customerId': cart.customer?.id,
         'items': orderItems,
@@ -65,12 +69,16 @@ class _CheckoutSheetState extends ConsumerState<CheckoutSheet> {
       });
 
       ref.read(cartProvider.notifier).clear();
+
       if (mounted) {
         Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Order placed successfully!'),
-            backgroundColor: Colors.green,
+        // Show receipt dialog
+        await showDialog(
+          context: context,
+          builder: (_) => _ReceiptDialog(
+            order: order,
+            cartItems: cart.items,
+            outletName: auth.outletName ?? 'Store',
           ),
         );
       }
@@ -80,7 +88,7 @@ class _CheckoutSheetState extends ConsumerState<CheckoutSheet> {
             .showSnackBar(SnackBar(content: Text(e.toString())));
       }
     } finally {
-      setState(() => _processing = false);
+      if (mounted) setState(() => _processing = false);
     }
   }
 
@@ -112,7 +120,8 @@ class _CheckoutSheetState extends ConsumerState<CheckoutSheet> {
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.person, color: Color(0xFF6C63FF)),
                 title: Text(cart.customer!.name),
-                subtitle: Text('Points: ${cart.customer!.loyaltyPoints.toStringAsFixed(0)}'),
+                subtitle: Text(
+                    'Points: ${cart.customer!.loyaltyPoints.toStringAsFixed(0)}'),
                 trailing: TextButton(
                   onPressed: () =>
                       ref.read(cartProvider.notifier).setCustomer(null),
@@ -237,8 +246,8 @@ class _CheckoutSheetState extends ConsumerState<CheckoutSheet> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text('Total',
-                    style:
-                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    style: TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold)),
                 Text('₹${cart.grandTotal.toStringAsFixed(2)}',
                     style: const TextStyle(
                         fontSize: 18,
@@ -261,8 +270,8 @@ class _CheckoutSheetState extends ConsumerState<CheckoutSheet> {
                     ? const CircularProgressIndicator(color: Colors.white)
                     : Text(
                         'Place Order  •  ₹${cart.grandTotal.toStringAsFixed(2)}',
-                        style:
-                            const TextStyle(fontSize: 16, color: Colors.white),
+                        style: const TextStyle(
+                            fontSize: 16, color: Colors.white),
                       ),
               ),
             ),
@@ -272,6 +281,249 @@ class _CheckoutSheetState extends ConsumerState<CheckoutSheet> {
     );
   }
 }
+
+// ─── Receipt Dialog ──────────────────────────────────────────────────────────
+
+class _ReceiptDialog extends StatelessWidget {
+  final Order order;
+  final List<CartItem> cartItems;
+  final String outletName;
+
+  const _ReceiptDialog({
+    required this.order,
+    required this.cartItems,
+    required this.outletName,
+  });
+
+  Future<void> _printReceipt(BuildContext context) async {
+    final doc = pw.Document();
+    doc.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.roll80,
+        build: (pw.Context ctx) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Center(
+              child: pw.Text(outletName,
+                  style: pw.TextStyle(
+                      fontSize: 16, fontWeight: pw.FontWeight.bold)),
+            ),
+            pw.SizedBox(height: 4),
+            pw.Center(child: pw.Text('ORDER RECEIPT', style: pw.TextStyle(fontSize: 12))),
+            pw.Divider(),
+            pw.Text('Order: ${order.orderNumber}',
+                style: pw.TextStyle(fontSize: 10)),
+            if (order.customer != null)
+              pw.Text('Customer: ${order.customer!.name}',
+                  style: pw.TextStyle(fontSize: 10)),
+            pw.Divider(),
+            ...order.items.map(
+              (item) => pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Expanded(
+                    child: pw.Text(
+                      '${item.productName} x${item.quantity.toStringAsFixed(0)}',
+                      style: pw.TextStyle(fontSize: 10),
+                    ),
+                  ),
+                  pw.Text(
+                    '₹${item.lineTotal.toStringAsFixed(2)}',
+                    style: pw.TextStyle(fontSize: 10),
+                  ),
+                ],
+              ),
+            ),
+            pw.Divider(),
+            if (order.discountAmount > 0)
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('Discount', style: pw.TextStyle(fontSize: 10)),
+                  pw.Text('-₹${order.discountAmount.toStringAsFixed(2)}',
+                      style: pw.TextStyle(fontSize: 10)),
+                ],
+              ),
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text('Tax', style: pw.TextStyle(fontSize: 10)),
+                pw.Text('₹${order.taxAmount.toStringAsFixed(2)}',
+                    style: pw.TextStyle(fontSize: 10)),
+              ],
+            ),
+            pw.Divider(),
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text('TOTAL',
+                    style: pw.TextStyle(
+                        fontSize: 13, fontWeight: pw.FontWeight.bold)),
+                pw.Text('₹${order.totalAmount.toStringAsFixed(2)}',
+                    style: pw.TextStyle(
+                        fontSize: 13, fontWeight: pw.FontWeight.bold)),
+              ],
+            ),
+            pw.SizedBox(height: 4),
+            ...order.payments.map(
+              (p) => pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('Paid (${p.paymentMethod})',
+                      style: pw.TextStyle(fontSize: 10)),
+                  pw.Text('₹${p.amount.toStringAsFixed(2)}',
+                      style: pw.TextStyle(fontSize: 10)),
+                ],
+              ),
+            ),
+            pw.Divider(),
+            pw.Center(
+              child: pw.Text('Thank you for your purchase!',
+                  style: pw.TextStyle(fontSize: 10)),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    await Printing.layoutPdf(
+      onLayout: (_) async => doc.save(),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Success header
+            Container(
+              width: 60,
+              height: 60,
+              decoration: const BoxDecoration(
+                color: Colors.green,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.check, color: Colors.white, size: 32),
+            ),
+            const SizedBox(height: 12),
+            const Text('Order Placed!',
+                style:
+                    TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
+            Text(
+              order.orderNumber,
+              style: const TextStyle(color: Colors.grey, fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            const Divider(),
+            // Items summary
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 200),
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    ...order.items.map(
+                      (item) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 3),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '${item.productName} × ${item.quantity.toStringAsFixed(0)}',
+                                style: const TextStyle(fontSize: 13),
+                              ),
+                            ),
+                            Text(
+                              '₹${item.lineTotal.toStringAsFixed(2)}',
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const Divider(),
+            if (order.discountAmount > 0)
+              _Row('Discount', '-₹${order.discountAmount.toStringAsFixed(2)}',
+                  color: Colors.green),
+            _Row('Tax', '₹${order.taxAmount.toStringAsFixed(2)}'),
+            _Row(
+              'Total',
+              '₹${order.totalAmount.toStringAsFixed(2)}',
+              bold: true,
+              color: const Color(0xFF6C63FF),
+            ),
+            const SizedBox(height: 4),
+            ...order.payments.map(
+              (p) => _Row(
+                'Paid (${p.paymentMethod})',
+                '₹${p.amount.toStringAsFixed(2)}',
+                color: Colors.green,
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Actions
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.print_outlined),
+                    label: const Text('Print'),
+                    onPressed: () => _printReceipt(context),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF6C63FF),
+                    ),
+                    child: const Text('Done',
+                        style: TextStyle(color: Colors.white)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _Row(String label, String value,
+      {bool bold = false, Color? color}) =>
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label,
+                style: TextStyle(
+                    color: color ?? Colors.grey,
+                    fontWeight:
+                        bold ? FontWeight.bold : FontWeight.normal,
+                    fontSize: 13)),
+            Text(value,
+                style: TextStyle(
+                    color: color,
+                    fontWeight:
+                        bold ? FontWeight.bold : FontWeight.normal,
+                    fontSize: 13)),
+          ],
+        ),
+      );
+}
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
 
 Widget _Toggle(
     String label, IconData icon, bool value, ValueChanged<bool> onChanged) {
@@ -287,7 +539,8 @@ Widget _Toggle(
             Checkbox(value: value, onChanged: (v) => onChanged(v ?? false)),
             Icon(icon, size: 16),
             const SizedBox(width: 4),
-            Flexible(child: Text(label, style: const TextStyle(fontSize: 12))),
+            Flexible(
+                child: Text(label, style: const TextStyle(fontSize: 12))),
           ],
         ),
       ),

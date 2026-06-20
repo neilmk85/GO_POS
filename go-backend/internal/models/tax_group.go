@@ -8,7 +8,7 @@ import (
 
 type TaxGroup struct {
 	ID        int              `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
-	Name      string           `gorm:"uniqueIndex;column:name" json:"name"`
+	Name      string           `gorm:"uniqueIndex;size:191;column:name" json:"name"`
 	TotalRate decimal.Decimal  `gorm:"column:total_rate;type:decimal(5,2)" json:"totalRate"`
 	CGSTRate  *decimal.Decimal `gorm:"column:cgst_rate;type:decimal(5,2)" json:"cgstRate"`
 	SGSTRate  *decimal.Decimal `gorm:"column:sgst_rate;type:decimal(5,2)" json:"sgstRate"`

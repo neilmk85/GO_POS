@@ -13,6 +13,46 @@ import (
 	"github.com/nilesh/pos-backend/internal/util"
 )
 
+// vendorRequest is used to decode the vendor form payload.
+// PaymentTerms is json.Number so it accepts both JSON numbers and strings.
+type vendorRequest struct {
+	Name          string          `json:"name"`
+	ContactPerson *string         `json:"contactPerson"`
+	Phone         *string         `json:"phone"`
+	Email         *string         `json:"email"`
+	Address       *string         `json:"address"`
+	City          *string         `json:"city"`
+	State         *string         `json:"state"`
+	Pincode       *string         `json:"pincode"`
+	GSTIN         *string         `json:"gstin"`
+	PAN           *string         `json:"pan"`
+	PaymentTerms  json.Number `json:"paymentTerms"`
+	Notes         *string     `json:"notes"`
+}
+
+func (vr vendorRequest) toSupplier() models.Supplier {
+	s := models.Supplier{
+		Name:          vr.Name,
+		ContactPerson: vr.ContactPerson,
+		Phone:         vr.Phone,
+		Email:         vr.Email,
+		Address:       vr.Address,
+		City:          vr.City,
+		State:         vr.State,
+		Pincode:       vr.Pincode,
+		GSTIN:         vr.GSTIN,
+		PAN:           vr.PAN,
+		Notes:         vr.Notes,
+	}
+	if vr.PaymentTerms != "" {
+		if n, err := vr.PaymentTerms.Int64(); err == nil {
+			v := int(n)
+			s.PaymentTerms = &v
+		}
+	}
+	return s
+}
+
 type VendorHandler struct {
 	service *service.VendorService
 }
@@ -67,12 +107,13 @@ func (vh *VendorHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 
 // Create POST /api/vendors
 func (vh *VendorHandler) Create(w http.ResponseWriter, r *http.Request) {
-	var req models.Supplier
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	var vr vendorRequest
+	if err := json.NewDecoder(r.Body).Decode(&vr); err != nil {
 		util.SendError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
+	req := vr.toSupplier()
 	req.Active = true
 	user := r.Context().Value(middleware.UserContextKey).(*middleware.AuthUser)
 	req.CreatedBy = &user.Email
@@ -95,12 +136,13 @@ func (vh *VendorHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req models.Supplier
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	var vr vendorRequest
+	if err := json.NewDecoder(r.Body).Decode(&vr); err != nil {
 		util.SendError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
+	req := vr.toSupplier()
 	user := r.Context().Value(middleware.UserContextKey).(*middleware.AuthUser)
 	req.UpdatedBy = &user.Email
 

@@ -8,7 +8,7 @@ import (
 
 type BulkPurchase struct {
 	ID                int               `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
-	ReferenceNumber   string            `gorm:"uniqueIndex;column:reference_number" json:"referenceNumber"`
+	ReferenceNumber   string            `gorm:"uniqueIndex;size:191;column:reference_number" json:"referenceNumber"`
 	ProductID         int               `gorm:"column:product_id" json:"productId"`
 	OutletID          int               `gorm:"column:outlet_id" json:"outletId"`
 	PurchaseUOM       *string           `gorm:"column:purchase_uom" json:"purchaseUom"`

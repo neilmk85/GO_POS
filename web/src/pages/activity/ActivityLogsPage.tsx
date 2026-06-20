@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Activity, Search, Filter, ChevronLeft, ChevronRight,
+  Activity, Search, ChevronLeft, ChevronRight,
   LogIn, LogOut, Plus, Pencil, Trash2, RefreshCw, X, Clock,
+  Hash, User2, Globe, ChevronRight as ChevronRightIcon,
 } from 'lucide-react'
 import { activityLogApi } from '@/services/api'
 import { useAuthStore } from '@/store/authStore'
@@ -36,7 +37,7 @@ const MODULE_LABELS: Record<string, string> = {
   AUTH: 'Auth', INVOICE: 'Invoice', QUOTATION: 'Quotation', ORDER: 'Order',
   CUSTOMER: 'Customer', PRODUCT: 'Product', INVENTORY: 'Inventory',
   TRANSFER: 'Transfer', PAYMENT_IN: 'Payment In', PAYMENT_OUT: 'Payment Out',
-  VENDOR: 'Vendor', BILL: 'Bill', PURCHASE_ORDER: 'Purchase Order',
+  VENDOR: 'Vendor', VENDORS: 'Vendor', BILL: 'Bill', PURCHASE_ORDER: 'Purchase Order',
   PURCHASE: 'Purchase', CREDIT_NOTE: 'Credit Note', RETURN: 'Return',
   DELIVERY_CHALLAN: 'Delivery Challan', DISCOUNT: 'Discount', STAFF: 'Staff',
   CATEGORY: 'Category', INCENTIVE: 'Incentive', SHIFT: 'Shift', SETTINGS: 'Settings',
@@ -104,6 +105,20 @@ function fmtDateTime(iso: string) {
     timeZone: 'Asia/Kolkata',
     day: '2-digit', month: 'short', year: 'numeric',
     hour: '2-digit', minute: '2-digit', hour12: true,
+  })
+}
+
+function fmtDateOnly(iso: string) {
+  return toUtcDate(iso).toLocaleDateString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  })
+}
+
+function fmtTimeWithSeconds(iso: string) {
+  return toUtcDate(iso).toLocaleTimeString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true,
   })
 }
 
@@ -191,80 +206,157 @@ function DescriptionCell({ desc, onDetail }: { desc: string; onDetail: () => voi
 
 function DetailModal({ log, onClose }: { log: any; onClose: () => void }) {
   const { title, changes } = parseDescription(log.description)
-  const meta = ACTION_META[log.action] ?? ACTION_META['UPDATED']
+  const meta = ACTION_META[log.action] ?? { label: log.action, dot: 'bg-gray-300', iconBg: 'bg-gray-50', iconColor: 'text-gray-500', icon: null }
+
+  const moduleName  = MODULE_LABELS[log.module] ?? log.module
+  const actionLabel = meta.label
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col overflow-hidden">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[88vh] flex flex-col overflow-hidden">
 
-        {/* Header */}
-        <div className="px-6 py-5 border-b border-gray-100 flex items-start gap-4">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${meta.iconBg} ${meta.iconColor}`}>
-            {meta.icon}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${ACTION_BADGE[log.action] ?? 'bg-gray-100 text-gray-600'}`}>
-                {meta.label}
-              </span>
-              <span className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-gray-100 text-gray-500">
-                {MODULE_LABELS[log.module] ?? log.module}
-              </span>
+        {/* ── Gradient header ── */}
+        <div className="relative bg-gradient-to-br from-violet-700 via-violet-600 to-blue-600 px-6 py-5 flex-shrink-0 overflow-hidden">
+          {/* Dot pattern */}
+          <div className="pointer-events-none absolute inset-0 opacity-[0.07]"
+            style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
+
+          <div className="relative flex items-start gap-4">
+            <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 bg-white/15 border border-white/20`}>
+              <span className={meta.iconColor}>{meta.icon}</span>
             </div>
-            <p className="text-sm font-semibold text-gray-900 leading-snug">{title}</p>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full bg-white/20 text-white border border-white/20`}>
+                  {actionLabel}
+                </span>
+                <span className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-white/15 text-white/80 border border-white/15">
+                  {moduleName}
+                </span>
+                {log.entityId && (
+                  <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-white/10 text-white/60 border border-white/10 flex items-center gap-1">
+                    <Hash size={9} />#{log.entityId}
+                  </span>
+                )}
+              </div>
+              <p className="text-base font-bold text-white leading-snug">{title}</p>
+            </div>
+            <button onClick={onClose} className="text-white/60 hover:text-white flex-shrink-0 mt-0.5 transition-colors">
+              <X size={18} />
+            </button>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 flex-shrink-0 mt-0.5">
-            <X size={18} />
-          </button>
         </div>
 
-        {/* Meta row */}
-        <div className="px-6 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-4 text-xs text-gray-500">
+        {/* ── Meta strip ── */}
+        <div className="px-6 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-5 text-xs text-gray-500 flex-wrap flex-shrink-0">
           <span className="flex items-center gap-1.5">
-            <div className="w-5 h-5 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-[9px] font-bold">
+            <div className="w-5 h-5 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-[9px] font-bold flex-shrink-0">
               {(log.userName ?? log.userEmail ?? 'S').split(' ').map((p: string) => p[0]).join('').toUpperCase().slice(0, 2)}
             </div>
-            {log.userName ?? log.userEmail ?? 'System'}
+            <span className="font-medium text-gray-700">{log.userName ?? log.userEmail ?? 'System'}</span>
           </span>
-          <span className="flex items-center gap-1 text-gray-400">
-            <Clock size={11} />
+          <span className="flex items-center gap-1.5 text-gray-400">
+            <Clock size={11} className="flex-shrink-0" />
             {fmtDateTime(log.createdAt)}
           </span>
           {log.ipAddress && (
-            <span className="font-mono text-gray-300">{log.ipAddress}</span>
+            <span className="flex items-center gap-1 font-mono text-gray-300">
+              <Globe size={10} />
+              {log.ipAddress}
+            </span>
           )}
         </div>
 
-        {/* Changes */}
-        <div className="overflow-y-auto p-5 space-y-2">
-          {changes.length === 0 ? (
-            <p className="text-sm text-gray-600">{log.description}</p>
-          ) : (
-            changes.map((c, i) => {
-              const arrowIdx = c.indexOf(' → ')
-              if (arrowIdx !== -1) {
-                const labelEnd = c.indexOf(': ')
-                const field = labelEnd !== -1 && labelEnd < arrowIdx ? c.slice(0, labelEnd) : ''
-                const from  = field ? c.slice(labelEnd + 2, arrowIdx) : c.slice(0, arrowIdx)
-                const to    = c.slice(arrowIdx + 3)
-                return (
-                  <div key={i} className="grid grid-cols-[6rem_1fr_auto_1fr] items-center gap-2 rounded-xl border border-gray-100 bg-white px-4 py-2.5 text-sm">
-                    {field
-                      ? <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide truncate">{field}</span>
-                      : <span />
+        {/* ── Activity summary ── */}
+        <div className="overflow-y-auto flex-1">
+          {/* What happened card */}
+          <div className="px-6 pt-5 pb-3">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">What happened</p>
+            <div className="bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 flex items-start gap-3">
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 ${meta.iconBg} ${meta.iconColor}`}>
+                {meta.icon}
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-800">{title}</p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {actionLabel} on <span className="font-medium text-gray-600">{moduleName}</span>
+                  {log.entityId ? <span className="font-mono text-gray-400"> · Record #{log.entityId}</span> : ''}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Timestamp */}
+          <div className="px-6 pb-3">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">When</p>
+            <div className="bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 flex items-center gap-4">
+              <div className="w-7 h-7 rounded-lg bg-violet-100 flex items-center justify-center flex-shrink-0">
+                <Clock size={13} className="text-violet-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-gray-800">{fmtDateOnly(log.createdAt)}</p>
+                <p className="text-xs text-gray-400 mt-0.5 font-mono">{fmtTimeWithSeconds(log.createdAt)}</p>
+              </div>
+              <span className="text-[10px] font-medium text-gray-400 bg-white border border-gray-100 rounded-lg px-2 py-1 whitespace-nowrap">IST</span>
+            </div>
+          </div>
+
+          {/* Changes section — only rows with structured field data (field: value or before → after) */}
+          {(() => {
+            const structuredChanges = changes.filter(c => c.includes(': ') || c.includes(' → '))
+            if (structuredChanges.length === 0) return null
+            return (
+              <div className="px-6 pb-5">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">
+                  {structuredChanges.length} change{structuredChanges.length !== 1 ? 's' : ''} made
+                </p>
+                <div className="space-y-2">
+                  {structuredChanges.map((c, i) => {
+                    const arrowIdx = c.indexOf(' → ')
+                    const colonIdx = c.indexOf(': ')
+
+                    // ── before → after change ──
+                    if (arrowIdx !== -1) {
+                      const field = colonIdx !== -1 && colonIdx < arrowIdx ? c.slice(0, colonIdx) : ''
+                      const from  = field ? c.slice(colonIdx + 2, arrowIdx) : c.slice(0, arrowIdx)
+                      const to    = c.slice(arrowIdx + 3)
+                      return (
+                        <div key={i} className="rounded-xl border border-gray-100 bg-white overflow-hidden">
+                          {field && (
+                            <div className="px-4 pt-2.5 pb-1">
+                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{field}</span>
+                            </div>
+                          )}
+                          <div className={`grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-4 ${field ? 'pb-3' : 'py-3'}`}>
+                            <div className="min-w-0">
+                              <p className="text-[10px] font-semibold text-red-400 uppercase tracking-wide mb-1">Before</p>
+                              <span className="text-xs font-mono text-red-500 bg-red-50 rounded-lg px-2.5 py-1.5 break-all block line-through">{from || '—'}</span>
+                            </div>
+                            <span className="text-gray-300 text-lg font-light flex-shrink-0">→</span>
+                            <div className="min-w-0">
+                              <p className="text-[10px] font-semibold text-emerald-500 uppercase tracking-wide mb-1">After</p>
+                              <span className="text-xs font-mono text-emerald-700 bg-emerald-50 rounded-lg px-2.5 py-1.5 break-all block font-medium">{to || '—'}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )
                     }
-                    <span className="text-red-500 bg-red-50 rounded px-1.5 py-0.5 text-xs font-mono break-all line-through">{from}</span>
-                    <span className="text-gray-300 text-base">→</span>
-                    <span className="text-emerald-600 bg-emerald-50 rounded px-1.5 py-0.5 text-xs font-mono break-all font-medium">{to}</span>
-                  </div>
-                )
-              }
-              return (
-                <div key={i} className="rounded-xl border border-gray-100 bg-white px-4 py-2.5 text-sm text-gray-700">{c}</div>
-              )
-            })
-          )}
+
+                    // ── field: value ──
+                    const field = c.slice(0, colonIdx)
+                    const value = c.slice(colonIdx + 2)
+                    return (
+                      <div key={i} className="flex items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50/40 px-4 py-2.5">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest w-20 flex-shrink-0">{field}</span>
+                        <span className="text-xs font-mono text-emerald-700 font-medium break-all">{value}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })()}
         </div>
       </div>
     </div>
@@ -298,7 +390,6 @@ export default function ActivityLogsPage() {
   const [fromDate, setFromDate]       = useState('')
   const [toDate, setToDate]           = useState('')
   const [datePreset, setDatePreset]   = useState<DatePreset>('')
-  const [filtersOpen, setFiltersOpen] = useState(false)
   const [detailLog, setDetailLog]     = useState<any>(null)
 
   useEffect(() => {
@@ -317,21 +408,19 @@ export default function ActivityLogsPage() {
   }
 
   const { data, isLoading, isFetching, refetch } = useQuery({
-    queryKey: ['activity-logs', outletId, params],
-    queryFn: () => activityLogApi.search(outletId!, params).then(r => r.data.data),
-    enabled: !!outletId,
+    queryKey: ['activity-logs', params],
+    queryFn: () => activityLogApi.search(outletId ?? 0, params).then(r => r.data.data),
     refetchInterval: 15000,
   })
 
   const handleRefresh = useCallback(() => {
     refetch()
-    queryClient.invalidateQueries({ queryKey: ['activity-logs-filters', outletId] })
-  }, [refetch, queryClient, outletId])
+    queryClient.invalidateQueries({ queryKey: ['activity-logs-filters'] })
+  }, [refetch, queryClient])
 
   const { data: filterOpts } = useQuery({
-    queryKey: ['activity-logs-filters', outletId],
-    queryFn: () => activityLogApi.getFilterOptions(outletId!).then(r => r.data.data),
-    enabled: !!outletId,
+    queryKey: ['activity-logs-filters'],
+    queryFn: () => activityLogApi.getFilterOptions(outletId ?? 0).then(r => r.data.data),
     staleTime: 60_000,
   })
 
@@ -369,125 +458,109 @@ export default function ActivityLogsPage() {
       {detailLog && <DetailModal log={detailLog} onClose={() => setDetailLog(null)} />}
 
       {/* ── Header ── */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center gap-4">
-          {/* Title */}
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <div className="w-9 h-9 rounded-xl bg-violet-100 flex items-center justify-center">
-              <Activity size={18} className="text-violet-600" />
+      <div className="bg-gradient-to-r from-violet-600 to-blue-600 px-6 pt-5 pb-4">
+        {/* Top row: title + actions */}
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+              <Activity size={20} className="text-white" />
             </div>
             <div>
-              <h1 className="text-base font-bold text-gray-900 leading-none">Activity Logs</h1>
-              <p className="text-xs text-gray-400 mt-0.5">Track all system activities and changes</p>
+              <h1 className="text-lg font-bold text-white leading-none">Activity Logs</h1>
+              <p className="text-xs text-white/70 mt-0.5">Track all system activities and changes</p>
             </div>
           </div>
 
-          {/* Search + filters — inline */}
-          <div className="flex items-center gap-2 flex-1">
-            <div className="relative flex-1 max-w-sm">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                value={searchInput}
-                onChange={e => setSearchInput(e.target.value)}
-                placeholder="Search by description or user…"
-                className="w-full pl-9 pr-8 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary-500 focus:outline-none transition-colors"
-              />
-              {searchInput && (
-                <button onClick={() => { setSearchInput(''); setSearch('') }}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                  <X size={13} />
-                </button>
-              )}
-            </div>
-            <button
-              onClick={() => setFiltersOpen(o => !o)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-colors whitespace-nowrap
-                ${hasFilters
-                  ? 'bg-gradient-to-r from-violet-500 to-blue-500 text-white border-transparent'
-                  : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}
-            >
-              <Filter size={13} />
-              Filters
-              {hasFilters && <span className="bg-white/25 text-white text-[10px] px-1.5 py-0.5 rounded-full">ON</span>}
-            </button>
-            {hasFilters && (
-              <button onClick={clearFilters}
-                className="flex items-center gap-1 px-3 py-2 rounded-lg border border-gray-200 bg-white text-xs text-gray-500 hover:bg-gray-50 whitespace-nowrap">
-                <X size={12} /> Clear
-              </button>
-            )}
-          </div>
-
-          {/* Record count + refresh */}
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-2">
             {totalElements > 0 && (
-              <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full whitespace-nowrap">
+              <span className="text-xs text-white/80 bg-white/15 px-2.5 py-1 rounded-full whitespace-nowrap">
                 {totalElements.toLocaleString()} records
               </span>
             )}
-            <span className="text-[11px] text-gray-400 whitespace-nowrap hidden sm:inline">Auto-refreshes every 15s</span>
+            <span className="text-[11px] text-white/60 whitespace-nowrap hidden sm:inline">Auto-refreshes every 15s</span>
             <button
               onClick={handleRefresh}
               disabled={isFetching}
               title="Refresh now"
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:text-primary-600 hover:border-primary-300 disabled:opacity-50 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white text-xs font-medium disabled:opacity-50 transition-colors"
             >
-              <RefreshCw size={13} className={isFetching ? 'animate-spin text-primary-400' : ''} />
-              <span className="text-xs font-medium">Refresh</span>
+              <RefreshCw size={13} className={isFetching ? 'animate-spin' : ''} />
+              Refresh
             </button>
           </div>
         </div>
 
-        {/* Filter panel — single line */}
-        {filtersOpen && (
-          <div className="mt-3 flex items-center gap-2 flex-wrap">
-            {/* Module */}
-            <select value={module} onChange={e => { setModule(e.target.value); setPage(0) }}
-              className="w-40 border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm bg-white text-gray-700 focus:ring-2 focus:ring-primary-500 focus:outline-none">
-              <option value="">All Modules</option>
-              {(filterOpts?.modules ?? Object.keys(MODULE_LABELS)).map((m: string) => (
-                <option key={m} value={m}>{MODULE_LABELS[m] ?? m}</option>
-              ))}
-            </select>
-
-            {/* Action */}
-            <select value={action} onChange={e => { setAction(e.target.value); setPage(0) }}
-              className="w-36 border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm bg-white text-gray-700 focus:ring-2 focus:ring-primary-500 focus:outline-none">
-              <option value="">All Actions</option>
-              {[['CREATED','Created'],['UPDATED','Updated'],['DELETED','Deleted'],['LOGIN','Logged In'],['LOGOUT','Logged Out']].map(([k, v]) => (
-                <option key={k} value={k}>{v}</option>
-              ))}
-            </select>
-
-            {/* Divider */}
-            <div className="w-px h-6 bg-gray-200" />
-
-            {/* Date preset chips */}
-            {DATE_PRESETS.map(p => (
-              <button
-                key={p.key}
-                onClick={() => applyPreset(datePreset === p.key && p.key !== 'custom' ? '' : p.key)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors whitespace-nowrap
-                  ${datePreset === p.key
-                    ? 'bg-gradient-to-r from-violet-500 to-blue-500 text-white border-transparent'
-                    : 'bg-white text-gray-600 border-gray-200 hover:border-primary-300 hover:text-primary-600'}`}
-              >
-                {p.label}
+        {/* Search row */}
+        <div className="flex items-center gap-2 mb-3">
+          <div className="relative flex-1 max-w-sm">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/50" />
+            <input
+              value={searchInput}
+              onChange={e => setSearchInput(e.target.value)}
+              placeholder="Search by description or user…"
+              className="w-full pl-9 pr-8 py-2 rounded-lg text-sm bg-white/20 placeholder-white/50 text-white border border-white/20 focus:bg-white/30 focus:outline-none focus:ring-2 focus:ring-white/40 transition-colors"
+            />
+            {searchInput && (
+              <button onClick={() => { setSearchInput(''); setSearch('') }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/60 hover:text-white">
+                <X size={13} />
               </button>
-            ))}
-
-            {/* Custom date inputs */}
-            {datePreset === 'custom' && (
-              <>
-                <input type="date" value={fromDate} onChange={e => { setFromDate(e.target.value); setPage(0) }}
-                  className="border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm text-gray-700 bg-white focus:ring-2 focus:ring-primary-500 focus:outline-none [color-scheme:light]" />
-                <span className="text-gray-400 text-xs">to</span>
-                <input type="date" value={toDate} onChange={e => { setToDate(e.target.value); setPage(0) }}
-                  className="border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm text-gray-700 bg-white focus:ring-2 focus:ring-primary-500 focus:outline-none [color-scheme:light]" />
-              </>
             )}
           </div>
-        )}
+
+          {/* Module */}
+          <select value={module} onChange={e => { setModule(e.target.value); setPage(0) }}
+            className="border-0 rounded-lg px-2.5 py-2 text-sm bg-white/20 text-white focus:bg-white/30 focus:outline-none focus:ring-2 focus:ring-white/40 [&>option]:text-gray-800 [&>option]:bg-white cursor-pointer">
+            <option value="">All Modules</option>
+            {(filterOpts?.modules ?? Object.keys(MODULE_LABELS)).map((m: string) => (
+              <option key={m} value={m}>{MODULE_LABELS[m] ?? m}</option>
+            ))}
+          </select>
+
+          {/* Action */}
+          <select value={action} onChange={e => { setAction(e.target.value); setPage(0) }}
+            className="border-0 rounded-lg px-2.5 py-2 text-sm bg-white/20 text-white focus:bg-white/30 focus:outline-none focus:ring-2 focus:ring-white/40 [&>option]:text-gray-800 [&>option]:bg-white cursor-pointer">
+            <option value="">All Actions</option>
+            {[['CREATED','Created'],['UPDATED','Updated'],['DELETED','Deleted'],['LOGIN','Logged In'],['LOGOUT','Logged Out']].map(([k, v]) => (
+              <option key={k} value={k}>{v}</option>
+            ))}
+          </select>
+
+          {hasFilters && (
+            <button onClick={clearFilters}
+              className="flex items-center gap-1 px-3 py-2 rounded-lg bg-white/20 hover:bg-white/30 border border-white/20 text-xs text-white whitespace-nowrap">
+              <X size={12} /> Clear
+            </button>
+          )}
+        </div>
+
+        {/* Date preset chips row */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {DATE_PRESETS.map(p => (
+            <button
+              key={p.key}
+              onClick={() => applyPreset(datePreset === p.key && p.key !== 'custom' ? '' : p.key)}
+              className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors whitespace-nowrap
+                ${datePreset === p.key
+                  ? 'bg-white text-violet-700 shadow-sm'
+                  : 'bg-white/15 text-white/80 hover:bg-white/25 hover:text-white'}`}
+            >
+              {p.label}
+            </button>
+          ))}
+
+          {/* Custom date inputs */}
+          {datePreset === 'custom' && (
+            <>
+              <div className="w-px h-5 bg-white/20 mx-1" />
+              <input type="date" value={fromDate} onChange={e => { setFromDate(e.target.value); setPage(0) }}
+                className="border-0 rounded-lg px-2.5 py-1 text-xs text-white bg-white/20 focus:bg-white/30 focus:outline-none focus:ring-2 focus:ring-white/40 [color-scheme:dark]" />
+              <span className="text-white/50 text-xs">to</span>
+              <input type="date" value={toDate} onChange={e => { setToDate(e.target.value); setPage(0) }}
+                className="border-0 rounded-lg px-2.5 py-1 text-xs text-white bg-white/20 focus:bg-white/30 focus:outline-none focus:ring-2 focus:ring-white/40 [color-scheme:dark]" />
+            </>
+          )}
+        </div>
       </div>
 
       {/* ── Log list ── */}
@@ -538,7 +611,8 @@ export default function ActivityLogsPage() {
                     return (
                       <div
                         key={log.id}
-                        className="flex items-center gap-4 px-4 py-3 hover:bg-gray-50/70 transition-colors group"
+                        onClick={() => setDetailLog(log)}
+                        className="flex items-center gap-4 px-4 py-3 hover:bg-violet-50/40 transition-colors group cursor-pointer"
                       >
                         {/* Action icon */}
                         <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${meta.iconBg} ${meta.iconColor}`}>
@@ -554,6 +628,11 @@ export default function ActivityLogsPage() {
                             <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-400">
                               {MODULE_LABELS[log.module] ?? log.module}
                             </span>
+                            {log.entityId && (
+                              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-gray-50 text-gray-300 border border-gray-100">
+                                #{log.entityId}
+                              </span>
+                            )}
                             <DescriptionCell desc={log.description} onDetail={() => setDetailLog(log)} />
                           </div>
                           <div className="flex items-center gap-2 mt-1">
@@ -565,10 +644,13 @@ export default function ActivityLogsPage() {
                           </div>
                         </div>
 
-                        {/* Time */}
-                        <div className="flex-shrink-0 text-right">
-                          <div className="text-xs font-medium text-gray-400">{fmtTime(log.createdAt)}</div>
-                          {ago && <div className="text-[10px] text-gray-300 mt-0.5">{ago}</div>}
+                        {/* Time + chevron */}
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <div className="text-right">
+                            <div className="text-xs font-medium text-gray-400">{fmtTime(log.createdAt)}</div>
+                            {ago && <div className="text-[10px] text-gray-300 mt-0.5">{ago}</div>}
+                          </div>
+                          <ChevronRightIcon size={14} className="text-gray-200 group-hover:text-violet-400 transition-colors flex-shrink-0" />
                         </div>
                       </div>
                     )
@@ -580,23 +662,58 @@ export default function ActivityLogsPage() {
         )}
 
         {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="mt-8 flex items-center justify-center gap-3">
+        {totalPages > 0 && (
+          <div className="mt-8 flex items-center justify-center gap-1.5">
+            {/* Previous */}
             <button
               disabled={page === 0}
               onClick={() => setPage(p => p - 1)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm">
-              <ChevronLeft size={14} /> Previous
+              className="flex items-center gap-1 px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm transition-colors">
+              <ChevronLeft size={14} /> Prev
             </button>
-            <span className="text-sm text-gray-500 px-2">
-              Page <span className="font-semibold text-gray-700">{page + 1}</span> of {totalPages}
-            </span>
+
+            {/* Page number buttons */}
+            {(() => {
+              const pages: (number | '...')[] = []
+              if (totalPages <= 7) {
+                for (let i = 0; i < totalPages; i++) pages.push(i)
+              } else {
+                pages.push(0)
+                if (page > 3) pages.push('...')
+                for (let i = Math.max(1, page - 2); i <= Math.min(totalPages - 2, page + 2); i++) pages.push(i)
+                if (page < totalPages - 4) pages.push('...')
+                pages.push(totalPages - 1)
+              }
+              return pages.map((p, i) =>
+                p === '...' ? (
+                  <span key={`ellipsis-${i}`} className="px-2 py-2 text-sm text-gray-400">…</span>
+                ) : (
+                  <button
+                    key={p}
+                    onClick={() => setPage(p as number)}
+                    className={`w-9 h-9 rounded-lg text-sm font-medium border transition-colors shadow-sm
+                      ${page === p
+                        ? 'bg-gradient-to-r from-violet-500 to-blue-500 text-white border-transparent'
+                        : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300'}`}
+                  >
+                    {(p as number) + 1}
+                  </button>
+                )
+              )
+            })()}
+
+            {/* Next */}
             <button
               disabled={page >= totalPages - 1}
               onClick={() => setPage(p => p + 1)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm">
+              className="flex items-center gap-1 px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm transition-colors">
               Next <ChevronRight size={14} />
             </button>
+
+            {/* Total info */}
+            <span className="ml-3 text-xs text-gray-400">
+              {totalElements.toLocaleString()} total
+            </span>
           </div>
         )}
       </div>

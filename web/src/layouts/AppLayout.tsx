@@ -6,6 +6,8 @@ import {
   Store, FileText, Boxes, ShoppingBag,
   Building2, PackageCheck, Receipt, CreditCard, FileX,
   Wallet, RotateCcw, Truck, Trophy, UserCog, LineChart, ArrowRight, Activity,
+  Factory, ClipboardList, PenLine, Settings2, Layers, Cpu, DollarSign, BarChart2,
+  LayoutDashboard, Briefcase, FileBarChart2, ClipboardCheck,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { useQuery } from '@tanstack/react-query'
@@ -17,6 +19,7 @@ interface NavItem {
   icon: React.ReactNode
   label: string
   roles?: string[]
+  highlight?: boolean
 }
 
 interface NavGroup {
@@ -38,7 +41,25 @@ function isPathActive(current: string, path: string): boolean {
 }
 
 const navEntries: NavEntry[] = [
-  { path: '/pos', icon: <ShoppingCart size={18} />, label: 'POS' },
+  { path: '/pos',       icon: <ShoppingCart size={18} />,    label: 'POS' },
+  { path: '/dashboard', icon: <LayoutDashboard size={18} />, label: 'Dashboard' },
+  { path: '/business',  icon: <Briefcase size={18} />,       label: 'Business' },
+  {
+    key: 'production',
+    icon: <Factory size={18} />,
+    label: 'Production',
+    roles: ['ADMIN', 'SUPER_ADMIN', 'MANAGER'],
+    children: [
+      { path: '/production/orders',       icon: <ClipboardList size={14} />, label: 'Production Orders' },
+      { path: '/production/entry',        icon: <PenLine size={14} />,       label: 'Process Entry' },
+      { path: '/production/entries',      icon: <Layers size={14} />,        label: 'All Entries' },
+      { path: '/business/pdi',            icon: <ClipboardCheck size={14} />, label: 'PDI Records' },
+      { path: '/production/pipe-configs',    icon: <Settings2 size={14} />,    label: 'Pipe Configuration' },
+      { path: '/production/machines',         icon: <Cpu size={14} />,          label: 'Machines' },
+      { path: '/production/overhead-configs', icon: <DollarSign size={14} />,   label: 'Overhead Config' },
+      { path: '/production/reports',          icon: <BarChart2 size={14} />,    label: 'Reports' },
+    ],
+  },
   {
     key: 'inventory',
     icon: <Boxes size={18} />,
@@ -47,8 +68,6 @@ const navEntries: NavEntry[] = [
       { path: '/products',             icon: <Package size={14} />,      label: 'Products' },
       { path: '/inventory',            icon: <Boxes size={14} />,        label: 'Stock' },
       { path: '/inventory/categories', icon: <Tag size={14} />,          label: 'Categories' },
-      { path: '/inventory/uom',          icon: <ArrowRight size={14} />,   label: 'UoM Conversion' },
-      { path: '/inventory/bulk-purchase', icon: <ShoppingBag size={14} />,  label: 'Bulk Purchase' },
     ],
   },
   {
@@ -62,7 +81,7 @@ const navEntries: NavEntry[] = [
       { path: '/sales/invoices',             icon: <Receipt size={14} />,    label: 'Invoices' },
       { path: '/sales/quotations',           icon: <FileText size={14} />,   label: 'Quotations' },
       { path: '/sales/payments-received',   icon: <Wallet size={14} />,     label: 'Payments Received' },
-      { path: '/sales/returns',             icon: <RotateCcw size={14} />,  label: 'Returns' },
+      { path: '/sales/returns',             icon: <RotateCcw size={14} />,  label: 'Sales Return' },
       { path: '/sales/credit-notes',        icon: <FileX size={14} />,      label: 'Credit Notes' },
       { path: '/sales/delivery-challans',   icon: <Truck size={14} />,      label: 'Delivery Challans' },
     ],
@@ -82,9 +101,8 @@ const navEntries: NavEntry[] = [
       { path: '/purchases/returns',         icon: <RotateCcw size={14} />,    label: 'Purchase Returns' },
     ],
   },
-  { path: '/discounts',   icon: <Tag size={18} />,           label: 'Discounts' },
-  { path: '/price-lists', icon: <Tag size={18} />,           label: 'Price Lists', roles: ['ADMIN', 'SUPER_ADMIN', 'MANAGER'] },
-  { path: '/transfers',   icon: <ArrowLeftRight size={18} />, label: 'Stock Transfer' },
+  { path: '/business/loading', icon: <Truck size={18} />, label: 'Loading' },
+  { path: '/transfers',   icon: <ArrowLeftRight size={18} />, label: 'Site Stock Transfers' },
   {
     key: 'hr',
     icon: <UserCog size={18} />,
@@ -109,6 +127,9 @@ const navEntries: NavEntry[] = [
       { path: '/reports/payments',  icon: <CreditCard size={14} />,  label: 'Payments' },
       { path: '/reports/debtors',   icon: <Users size={14} />,       label: 'Debtors' },
       { path: '/reports/creditors', icon: <Building2 size={14} />,   label: 'Creditors' },
+      { path: '/reports/transport', icon: <FileBarChart2 size={14} />, label: 'Transport' },
+      { path: '/reports/ledger',    icon: <FileText size={14} />,      label: 'Ledger' },
+      { path: '/reports/tds',       icon: <Receipt size={14} />,       label: 'TDS' },
     ],
   },
   {
@@ -122,12 +143,15 @@ const navEntries: NavEntry[] = [
   },
   { path: '/activity-logs', icon: <Activity size={18} />, label: 'Activity Logs', roles: ['ADMIN', 'SUPER_ADMIN', 'MANAGER'] },
   { path: '/settings', icon: <Settings size={18} />, label: 'Settings', roles: ['ADMIN', 'SUPER_ADMIN'] },
+  { path: '/site', icon: <Building2 size={18} />, label: 'Site', highlight: true },
 ]
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState(true)
+  const [hovered, setHovered] = useState(false)
+  const isExpanded = !collapsed || hovered
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
-    inventory: false, purchases: false, sales: false, hr: false, reports: false, expenses: false,
+    inventory: false, purchases: false, sales: false, hr: false, reports: false, expenses: false, production: false,
   })
   const location = useLocation()
   const navigate = useNavigate()
@@ -143,7 +167,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     staleTime: 5 * 60 * 1000,
   })
 
-  const businessName = outletData?.name || user?.outletName || 'RetailPOS'
+  const businessName = outletData?.name || user?.outletName || 'P&P Pipe Products'
 
   useEffect(() => {
     setOpenGroups(prev => {
@@ -174,27 +198,54 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       ? location.pathname === item.path
       : isPathActive(location.pathname, item.path)
 
+    if (item.highlight) {
+      return (
+        <Link
+          key={item.path}
+          to={item.path}
+          title={!isExpanded ? item.label : undefined}
+          className={`group relative flex items-center gap-3 rounded-lg mb-0.5 px-3 py-2.5 mx-2 transition-all duration-150 ${
+            active
+              ? 'bg-gradient-to-r from-violet-600 to-blue-600 text-white shadow-sm shadow-violet-200'
+              : 'text-gray-900 hover:bg-violet-50 hover:text-violet-700'
+          }`}
+        >
+          {active && (
+            <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full bg-white/60" />
+          )}
+          <span className={`shrink-0 transition-colors ${active ? 'text-white' : 'text-gray-700 group-hover:text-violet-500'}`}>
+            {item.icon}
+          </span>
+          {isExpanded && (
+            <span className="truncate text-[13px] font-bold">{item.label}</span>
+          )}
+        </Link>
+      )
+    }
+
     return (
       <Link
         key={item.path}
         to={item.path}
-        title={collapsed ? item.label : undefined}
-        className={`relative flex items-center gap-3 rounded-lg mb-0.5 transition-all duration-150 ${
+        title={!isExpanded ? item.label : undefined}
+        className={`group relative flex items-center gap-3 rounded-lg mb-0.5 transition-all duration-150 ${
           indent ? 'px-2.5 py-1.5' : 'px-3 py-2.5 mx-2'
         } ${
           active
-            ? 'bg-gradient-to-r from-violet-600 to-blue-600/20 text-white'
-            : 'text-slate-400 hover:bg-white/5 hover:text-slate-100'
+            ? 'bg-gradient-to-r from-violet-600 to-blue-600 text-white shadow-sm shadow-violet-200'
+            : indent
+              ? 'text-gray-500 hover:bg-violet-50 hover:text-violet-700'
+              : 'text-gray-500 hover:bg-violet-50 hover:text-violet-700'
         }`}
       >
-        {active && !indent && (
-          <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full bg-primary-400" />
+        {active && (
+          <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full bg-white/60" />
         )}
-        <span className={`shrink-0 ${active ? 'text-primary-400' : ''}`}>
+        <span className={`shrink-0 transition-colors ${active ? 'text-white' : 'text-gray-400 group-hover:text-violet-500'}`}>
           {item.icon}
         </span>
-        {!collapsed && (
-          <span className={`truncate font-medium ${indent ? 'text-[11.5px]' : 'text-[13px]'}`}>
+        {isExpanded && (
+          <span className={`truncate ${indent ? 'text-[11.5px]' : 'text-[13px] font-medium'}`}>
             {item.label}
           </span>
         )}
@@ -210,30 +261,30 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return (
       <div key={group.key} className="mx-2 mb-0.5">
         <button
-          onClick={() => !collapsed && toggleGroup(group.key)}
-          title={collapsed ? group.label : undefined}
-          className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 transition-all duration-150 ${
+          onClick={() => isExpanded && toggleGroup(group.key)}
+          title={!isExpanded ? group.label : undefined}
+          className={`group w-full flex items-center gap-3 rounded-lg px-3 py-2.5 transition-all duration-150 ${
             isActive
-              ? 'bg-white/5 text-white'
-              : 'text-slate-400 hover:bg-white/5 hover:text-slate-100'
+              ? 'text-violet-700'
+              : 'text-gray-500 hover:bg-violet-50 hover:text-violet-700'
           }`}
         >
-          <span className={`shrink-0 ${isActive ? 'text-primary-400' : ''}`}>
+          <span className={`shrink-0 transition-colors ${isActive ? 'text-violet-500' : 'text-gray-400 group-hover:text-violet-500'}`}>
             {group.icon}
           </span>
-          {!collapsed && (
+          {isExpanded && (
             <>
-              <span className="text-[13px] font-medium flex-1 text-left">{group.label}</span>
+              <span className={`text-[13px] flex-1 text-left ${isActive ? 'font-semibold' : 'font-medium'}`}>{group.label}</span>
               <ChevronRight
                 size={13}
-                className={`text-slate-500 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`}
+                className={`transition-transform duration-200 ${isOpen ? 'rotate-90' : ''} ${isActive ? 'text-violet-400' : 'text-gray-300 group-hover:text-violet-400'}`}
               />
             </>
           )}
         </button>
 
-        {!collapsed && isOpen && (
-          <div className="mt-1 ml-[17px] pl-3 border-l border-white/[0.08] mb-1">
+        {isExpanded && isOpen && (
+          <div className="mt-0.5 ml-[17px] pl-3 border-l-2 border-violet-100 mb-1">
             {group.children.map(child => {
               if (!isVisible(child.roles)) return null
               return renderItem(child, true)
@@ -249,33 +300,34 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     : 'U'
 
   return (
-    <div className="flex h-screen bg-gray-100 overflow-hidden">
-      {/* Sidebar */}
+    <div className="flex h-screen bg-gray-50 overflow-hidden">
+      {/* Sidebar — fixed overlay, never pushes content */}
       <aside
-        className={`${
-          collapsed ? 'w-[64px]' : 'w-[220px]'
-        } bg-[#0d1117] flex flex-col transition-all duration-300 ease-in-out shrink-0 border-r border-white/[0.06]`}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        className={`fixed left-0 top-0 h-full z-50 ${
+          isExpanded ? 'w-[220px]' : 'w-[64px]'
+        } bg-white flex flex-col transition-all duration-200 ease-in-out border-r border-violet-100 shadow-[6px_0_30px_-4px_rgba(109,40,217,0.15),2px_0_10px_-2px_rgba(148,163,184,0.12)]`}
       >
         {/* Logo */}
-        <div className={`flex items-center px-3 pt-4 pb-3 ${collapsed ? 'justify-center' : 'justify-between'}`}>
-          {!collapsed && (
+        <div className={`flex items-center px-3 pt-4 pb-3 border-b border-gray-100 ${isExpanded ? 'justify-between' : 'justify-center'}`}>
+          {isExpanded && (
             <div className="flex items-center gap-2.5 pl-1 min-w-0">
-              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center shrink-0 shadow-lg">
-                <ShoppingCart size={13} className="text-white" />
-              </div>
-              <span className="font-bold text-white text-sm tracking-wide truncate" title={businessName}>{businessName}</span>
+              <img src="/pp-logo.png" alt="P&P" className="h-8 w-auto object-contain shrink-0" />
+              <span className="font-bold text-gray-800 text-sm tracking-wide truncate" title={businessName}>{businessName}</span>
             </div>
           )}
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="w-6 h-6 rounded-md flex items-center justify-center text-slate-500 hover:text-slate-200 hover:bg-white/10 transition-colors"
+            title={collapsed ? 'Pin open' : 'Collapse'}
+            className="w-6 h-6 rounded-md flex items-center justify-center text-gray-400 hover:text-violet-600 hover:bg-violet-50 transition-colors"
           >
-            {collapsed ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
+            {isExpanded ? <ChevronLeft size={13} /> : <ChevronRight size={13} />}
           </button>
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 py-1 overflow-y-auto">
+        <nav className="flex-1 py-2 overflow-y-auto">
           {navEntries.map(entry => {
             if (isGroup(entry)) return renderGroup(entry)
             if (!isVisible(entry.roles)) return null
@@ -284,39 +336,39 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </nav>
 
         {/* User + Logout */}
-        <div className="p-2.5 border-t border-white/[0.06]">
-          {!collapsed && user && (
-            <Link to="/profile" className="flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-white/5 mb-1 transition-colors group">
-              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center text-white text-[10px] font-bold shrink-0">
+        <div className="p-2.5 border-t border-gray-100">
+          {isExpanded && user && (
+            <Link to="/profile" className="flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-violet-50 mb-1 transition-colors group">
+              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-600 to-blue-600 flex items-center justify-center text-white text-[10px] font-bold shrink-0 shadow-sm">
                 {initials}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold text-white truncate leading-tight group-hover:text-primary-300 transition-colors">{user.name}</p>
-                <p className="text-[10px] text-slate-500 truncate leading-tight mt-0.5">{user.outletName}</p>
+                <p className="text-xs font-semibold text-gray-800 truncate leading-tight group-hover:text-violet-700 transition-colors">{user.name}</p>
+                <p className="text-[10px] text-gray-400 truncate leading-tight mt-0.5">{user.outletName}</p>
               </div>
             </Link>
           )}
-          {collapsed && user && (
+          {!isExpanded && user && (
             <div className="flex justify-center mb-1">
-              <Link to="/profile" title={user.name} className="w-7 h-7 rounded-full bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center text-white text-[10px] font-bold hover:opacity-80 transition-opacity">
+              <Link to="/profile" title={user.name} className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-600 to-blue-600 flex items-center justify-center text-white text-[10px] font-bold hover:opacity-80 transition-opacity shadow-sm">
                 {initials}
               </Link>
             </div>
           )}
           <button
             onClick={handleLogout}
-            className={`flex items-center gap-2.5 text-slate-500 hover:text-red-400 transition-colors rounded-lg px-2 py-1.5 w-full hover:bg-red-500/10 ${
-              collapsed ? 'justify-center' : ''
+            className={`flex items-center gap-2.5 text-gray-400 hover:text-red-500 transition-colors rounded-lg px-2 py-1.5 w-full hover:bg-red-50 ${
+              !isExpanded ? 'justify-center' : ''
             }`}
           >
             <LogOut size={14} className="shrink-0" />
-            {!collapsed && <span className="text-xs font-medium">Sign Out</span>}
+            {isExpanded && <span className="text-xs font-medium">Sign Out</span>}
           </button>
         </div>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 overflow-auto ml-[64px]">
         {children}
       </main>
     </div>

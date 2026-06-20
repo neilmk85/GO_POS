@@ -1,23 +1,108 @@
-import { useState, useEffect } from 'react'
-import { format, subDays, startOfMonth } from 'date-fns'
+import { useState, useEffect, useRef } from 'react'
+import { format, subDays } from 'date-fns'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
 } from 'recharts'
 import {
-  ShoppingBag, IndianRupee, AlertCircle, Loader2, RefreshCw,
-  Building2, TrendingDown, PackageCheck, XCircle, Search,
-  ChevronLeft, ChevronRight, Download, Clock, FileText,
+  ShoppingBag, Loader2, RefreshCw,
+  Building2, PackageCheck, Search,
+  ChevronLeft, ChevronRight, Download,
+  Calendar, ChevronDown, X,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { reportApi, purchaseOrderApi } from '@/services/api'
 import { useAuthStore } from '@/store/authStore'
 
+function startOf(unit: 'month' | 'quarter', d = new Date()) {
+  const r = new Date(d)
+  if (unit === 'month')   r.setDate(1)
+  else                    r.setMonth(Math.floor(r.getMonth() / 3) * 3, 1)
+  r.setHours(0, 0, 0, 0)
+  return r
+}
+
 const PRESETS = [
-  { label: 'Today',      from: () => format(new Date(), 'yyyy-MM-dd'),             to: () => format(new Date(), 'yyyy-MM-dd') },
-  { label: 'Last 7d',   from: () => format(subDays(new Date(), 6), 'yyyy-MM-dd'),  to: () => format(new Date(), 'yyyy-MM-dd') },
-  { label: 'Last 30d',  from: () => format(subDays(new Date(), 29), 'yyyy-MM-dd'), to: () => format(new Date(), 'yyyy-MM-dd') },
-  { label: 'This Month',from: () => format(startOfMonth(new Date()), 'yyyy-MM-dd'),to: () => format(new Date(), 'yyyy-MM-dd') },
+  { label: 'Today',         from: () => format(new Date(), 'yyyy-MM-dd'),              to: () => format(new Date(), 'yyyy-MM-dd') },
+  { label: 'Last 7d',      from: () => format(subDays(new Date(), 6), 'yyyy-MM-dd'),   to: () => format(new Date(), 'yyyy-MM-dd') },
+  { label: 'Last 30d',     from: () => format(subDays(new Date(), 29), 'yyyy-MM-dd'),  to: () => format(new Date(), 'yyyy-MM-dd') },
+  { label: 'This Month',   from: () => format(startOf('month'), 'yyyy-MM-dd'),          to: () => format(new Date(), 'yyyy-MM-dd') },
+  { label: 'This Quarter', from: () => format(startOf('quarter'), 'yyyy-MM-dd'),        to: () => format(new Date(), 'yyyy-MM-dd') },
 ]
+
+function dmy(iso: string) {
+  if (!iso) return ''
+  const [y, m, d] = iso.split('-')
+  return d && m && y ? `${d}/${m}/${y}` : iso
+}
+
+function CustomRangePicker({ fromDate, toDate, onChange }: {
+  fromDate: string; toDate: string; onChange: (f: string, t: string) => void
+}) {
+  const [open, setOpen]       = useState(false)
+  const [tmpFrom, setTmpFrom] = useState(fromDate)
+  const [tmpTo,   setTmpTo]   = useState(toDate)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  const presetActive = PRESETS.some(p => fromDate === p.from() && toDate === p.to())
+  const customActive = !presetActive && !!(fromDate || toDate)
+
+  function openPicker() { setTmpFrom(fromDate); setTmpTo(toDate); setOpen(true) }
+  function apply()      { onChange(tmpFrom, tmpTo); setOpen(false) }
+  function clear()      { setTmpFrom(''); setTmpTo(''); onChange('', ''); setOpen(false) }
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={openPicker}
+        className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+          customActive
+            ? 'bg-white text-violet-700 shadow-sm'
+            : 'text-white/70 hover:text-white hover:bg-white/10'
+        }`}
+      >
+        <Calendar size={11} />
+        {customActive ? `${dmy(fromDate)} – ${dmy(toDate)}` : 'Custom'}
+        {customActive
+          ? <X size={10} className="ml-0.5 opacity-70 hover:opacity-100" onClick={e => { e.stopPropagation(); clear() }} />
+          : <ChevronDown size={10} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+        }
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-2 z-50 bg-white rounded-2xl shadow-xl border border-gray-100 p-4 w-64">
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Custom Range</p>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">From</label>
+              <input type="date" value={tmpFrom} onChange={e => setTmpFrom(e.target.value)}
+                className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-400 text-gray-800" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">To</label>
+              <input type="date" value={tmpTo} onChange={e => setTmpTo(e.target.value)}
+                className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-400 text-gray-800" />
+            </div>
+          </div>
+          <div className="flex gap-2 mt-4">
+            <button onClick={clear}
+              className="flex-1 py-1.5 text-xs font-medium text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+              Clear
+            </button>
+            <button onClick={apply} disabled={!tmpFrom && !tmpTo}
+              className="flex-1 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-violet-600 to-blue-600 rounded-xl hover:from-violet-700 hover:to-blue-700 disabled:opacity-40 transition-all">
+              Apply
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 const STATUS_COLORS: Record<string, string> = {
   DRAFT:    'bg-gray-100 text-gray-600',
@@ -131,93 +216,100 @@ export default function PurchaseReportPage() {
     finally { setExporting(false) }
   }
 
-  const kpiCards = summary ? [
-    { label: 'Total PO Value',   value: fmt(summary.totalValue ?? 0),            icon: <IndianRupee size={18} />, gradient: 'from-blue-500 to-indigo-600',   color: '#3b82f6' },
-    { label: 'Purchase Orders',  value: (summary.totalOrders ?? 0).toString(),   icon: <ShoppingBag size={18} />, gradient: 'from-sky-500 to-blue-600',       color: '#0ea5e9' },
-    { label: 'Received',         value: (summary.received ?? 0).toString(),      icon: <PackageCheck size={18} />,gradient: 'from-emerald-500 to-teal-600',   color: '#10b981' },
-    { label: 'Outstanding Amt',  value: fmt(summary.outstanding ?? 0),           icon: <AlertCircle size={18} />, gradient: 'from-amber-400 to-orange-500',   color: '#f59e0b' },
-    { label: 'Avg PO Value',     value: fmt(summary.avgPoValue ?? 0),            icon: <TrendingDown size={18} />,gradient: 'from-violet-500 to-indigo-600',  color: '#8b5cf6' },
-    { label: 'Unique Suppliers', value: (summary.uniqueSuppliers ?? 0).toString(),icon: <Building2 size={18} />, gradient: 'from-cyan-500 to-sky-600',        color: '#0ea5e9' },
-    { label: 'Pending',          value: (summary.pending ?? 0).toString(),       icon: <Clock size={18} />,       gradient: 'from-orange-400 to-amber-500',   color: '#f59e0b' },
-    { label: 'Cancelled',        value: (summary.cancelled ?? 0).toString(),     icon: <XCircle size={18} />,     gradient: 'from-rose-500 to-red-600',       color: '#f43f5e' },
-  ] : []
-
   const supTotalValue = supData.reduce((s, r) => s + Number(r.totalValue ?? 0), 0)
   const outTotalValue = outData.reduce((s, r) => s + Number(r.totalAmount ?? 0), 0)
 
   return (
-    <div className="p-6">
-      <div className="relative bg-white border border-gray-200 rounded-xl px-5 py-3.5 mb-5 flex flex-wrap items-center gap-3">
-        <button onClick={load} disabled={loading || txLoading}
-          className="absolute top-2.5 right-3 p-1.5 rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100 disabled:opacity-50 transition-colors">
-          {loading || txLoading
-            ? <Loader2 size={14} className="animate-spin text-green-500" />
-            : <RefreshCw size={14} className="text-green-500" />}
-        </button>
-        <h1 className="text-lg font-bold text-gray-900 shrink-0">Purchase Report</h1>
+    <div className="min-h-screen bg-gray-50/60 p-6 space-y-6">
+      {/* ── Gradient Hero ── */}
+      <div className="bg-gradient-to-br from-violet-700 via-violet-600 to-blue-600 rounded-2xl shadow-[0_8px_40px_rgba(109,40,217,0.30)] overflow-hidden">
+        <div className="px-6 pt-6 pb-4">
+          {/* Title row */}
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-amber-400/20 border border-amber-400/30 flex items-center justify-center shrink-0">
+                <ShoppingBag size={24} className="text-amber-300" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-white leading-tight">Purchase Report</h1>
+                <p className="text-sm text-white/60 mt-0.5">Orders · Suppliers · Outstanding · Receivables</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button onClick={load} disabled={loading || txLoading}
+                className="p-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 disabled:opacity-50 transition-colors">
+                {loading || txLoading
+                  ? <Loader2 size={14} className="animate-spin text-white" />
+                  : <RefreshCw size={14} className="text-white" />}
+              </button>
+              <button onClick={handleExport} disabled={exporting}
+                className="flex items-center gap-1.5 bg-amber-400 hover:bg-amber-300 active:scale-95 text-amber-900 px-3.5 py-1.5 rounded-xl text-xs font-semibold disabled:opacity-60 transition-all shadow-sm">
+                <Download size={11} className={exporting ? 'animate-bounce' : ''} />
+                {exporting ? 'Exporting…' : 'Export CSV'}
+              </button>
+            </div>
+          </div>
 
-        <div className="flex gap-1 bg-gray-100 rounded-full p-1">
-          {TABS.map(t => (
-            <button key={t.key} onClick={() => setTab(t.key)}
-              className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
-                tab === t.key
-                  ? 'bg-gradient-to-r from-violet-500 to-blue-500 text-white shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200'
-              }`}>
-              {t.label}
-            </button>
-          ))}
+          {/* Tab switcher + date filters — separate strips */}
+          <div className="flex items-center justify-between gap-3">
+            {/* Tabs */}
+            <div className="bg-white/10 rounded-xl p-1 backdrop-blur-sm flex items-center gap-1">
+              {TABS.map(t => (
+                <button key={t.key} onClick={() => setTab(t.key)}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    tab === t.key
+                      ? 'bg-white text-violet-700 shadow-sm'
+                      : 'text-white/70 hover:text-white hover:bg-white/10'
+                  }`}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Date presets + custom picker */}
+            <div className="bg-white/10 rounded-xl p-1 backdrop-blur-sm flex items-center gap-1">
+              {PRESETS.map(p => (
+                <button key={p.label} onClick={() => { setFrom(p.from()); setTo(p.to()) }}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                    from === p.from() && to === p.to()
+                      ? 'bg-white text-violet-700 shadow-sm'
+                      : 'text-white/70 hover:text-white hover:bg-white/10'
+                  }`}>
+                  {p.label}
+                </button>
+              ))}
+              <CustomRangePicker fromDate={from} toDate={to} onChange={(f, t) => { setFrom(f); setTo(t) }} />
+            </div>
+          </div>
         </div>
 
-        <div className="ml-auto flex items-center gap-2 flex-wrap">
-          {PRESETS.map(p => (
-            <button key={p.label} onClick={() => { setFrom(p.from()); setTo(p.to()) }}
-              className={`px-2.5 py-1 text-xs font-medium rounded-md border transition-colors ${
-                from === p.from() && to === p.to()
-                  ? 'bg-gradient-to-r from-violet-500 to-blue-500 text-white border-transparent'
-                  : 'border-gray-300 text-gray-600 hover:border-gray-400'
-              }`}>
-              {p.label}
-            </button>
+        {/* Stats strip */}
+        <div className="grid grid-cols-8 divide-x divide-white/10 border-t border-white/10 mt-2">
+          {[
+            { label: 'Total PO Value',    value: summary ? fmt(summary.totalValue ?? 0)              : '—' },
+            { label: 'Orders',            value: summary ? String(summary.totalOrders ?? 0)          : '—' },
+            { label: 'Received',          value: summary ? String(summary.received ?? 0)             : '—' },
+            { label: 'Pending',           value: summary ? String(summary.pending ?? 0)              : '—', cls: (summary?.pending ?? 0) > 0 ? 'text-amber-300' : undefined },
+            { label: 'Outstanding',       value: summary ? fmt(summary.outstanding ?? 0)             : '—', cls: (summary?.outstanding ?? 0) > 0 ? 'text-amber-300' : undefined },
+            { label: 'Avg PO Value',      value: summary ? fmt(summary.avgPoValue ?? 0)              : '—' },
+            { label: 'Suppliers',         value: summary ? String(summary.uniqueSuppliers ?? 0)      : '—' },
+            { label: 'Cancelled',         value: summary ? String(summary.cancelled ?? 0)            : '—', cls: (summary?.cancelled ?? 0) > 0 ? 'text-amber-300' : undefined },
+          ].map(st => (
+            <div key={st.label} className="px-3 py-3 text-center">
+              <p className={`text-sm font-bold truncate ${st.cls ?? 'text-white'}`}>{st.value}</p>
+              <p className="text-[11px] text-white/50 mt-0.5 truncate">{st.label}</p>
+            </div>
           ))}
-          <div className="flex items-center gap-1.5 border border-gray-300 rounded-md px-2 py-1">
-            <input type="date" value={from} onChange={e => setFrom(e.target.value)}
-              className="text-xs text-gray-700 bg-transparent focus:outline-none" />
-            <span className="text-gray-400 text-xs">–</span>
-            <input type="date" value={to} onChange={e => setTo(e.target.value)}
-              className="text-xs text-gray-700 bg-transparent focus:outline-none" />
-          </div>
-          <button onClick={handleExport} disabled={exporting}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 transition-colors">
-            <Download size={13} className="text-green-600" />
-            {exporting ? 'Exporting…' : 'Export CSV'}
-          </button>
         </div>
       </div>
 
       {tab === 'summary' && (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            {loading && !summary ? Array(8).fill(0).map((_, i) => (
-              <div key={i} className="rounded-2xl p-4 bg-gray-100 animate-pulse flex items-center gap-3">
-                <div className="w-10 h-10 bg-gray-200 rounded-xl shrink-0" />
-                <div className="flex-1"><div className="h-3 bg-gray-200 rounded w-1/2 mb-2" /><div className="h-5 bg-gray-200 rounded w-3/4" /></div>
-              </div>
-            )) : kpiCards.map((c, i) => (
-              <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-shadow">
-                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${c.gradient} flex items-center justify-center text-white shrink-0 shadow-sm`}>
-                  {c.icon}
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 font-medium">{c.label}</p>
-                  <p className="text-xl font-bold text-gray-900">{c.value}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="bg-white rounded-xl border p-5">
-            <h2 className="text-sm font-semibold text-gray-900 mb-4">Purchases by Supplier</h2>
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="px-5 py-3.5" style={{background:'linear-gradient(to right,#eff6ff 0%,#eef2ff 100%)',borderBottom:'1px solid #dbeafe'}}>
+              <h2 className="text-sm font-semibold" style={{color:'#1f2937'}}>Purchases by Supplier</h2>
+            </div>
+            <div className="p-5">
             {supChart.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-48 text-gray-300 gap-2">
                 <Building2 size={36} /><p className="text-sm text-gray-400">No purchase data for this period</p>
@@ -249,27 +341,28 @@ export default function PurchaseReportPage() {
                 </div>
               )
             })()}
+            </div>
           </div>
         </>
       )}
 
       {tab === 'transactions' && (
-        <div className="bg-white rounded-xl border overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b bg-gray-50">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-5 py-3.5 flex items-center justify-between" style={{background:'linear-gradient(to right,#eff6ff 0%,#eef2ff 100%)',borderBottom:'1px solid #dbeafe'}}>
             <div>
-              <h2 className="text-sm font-semibold text-gray-900">Purchase Orders</h2>
-              {txTotal > 0 && <p className="text-xs text-gray-400 mt-0.5">{txTotal} orders in this period</p>}
+              <h2 className="text-sm font-semibold" style={{color:'#1f2937'}}>Purchase Orders</h2>
+              {txTotal > 0 && <p className="text-xs mt-0.5" style={{color:'#6b7280'}}>{txTotal} orders in this period</p>}
             </div>
             <div className="relative">
               <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
               <input value={txSearch} onChange={e => setTxSearch(e.target.value)} placeholder="Search PO #..."
-                className="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg w-44 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400" />
+                className="pl-8 pr-3 py-1.5 text-xs bg-white border border-blue-200 rounded-xl text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-200 w-44" />
             </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50 text-[11px] text-gray-500 uppercase tracking-wide">
-                <tr>
+              <thead className="text-[11px] uppercase tracking-wide" >
+                <tr style={{background:'linear-gradient(to right,#eff6ff 0%,#eef2ff 100%)',borderBottom:'1px solid #dbeafe',color:'#1f2937'}}>
                   <th className="px-4 py-3 text-left">PO Number</th>
                   <th className="px-4 py-3 text-left">Date</th>
                   <th className="px-4 py-3 text-left">Supplier</th>
@@ -333,32 +426,13 @@ export default function PurchaseReportPage() {
 
       {tab === 'by-supplier' && (
         <div className="space-y-5">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[
-              { label: 'Total Suppliers', value: supData.length.toString(),                                          icon: <Building2 size={18} />,  gradient: 'from-blue-500 to-indigo-600'  },
-              { label: 'Total Value',     value: fmt(supTotalValue),                                                  icon: <IndianRupee size={18} />, gradient: 'from-emerald-500 to-teal-600' },
-              { label: 'Top Supplier',    value: supData[0]?.supplierName ?? '—',                                    icon: <Building2 size={18} />,  gradient: 'from-amber-400 to-orange-500' },
-              { label: 'Outstanding',     value: fmt(supData.reduce((s, r) => s + Number(r.outstanding ?? 0), 0)),  icon: <AlertCircle size={18} />, gradient: 'from-rose-500 to-red-600'     },
-            ].map((c, i) => (
-              <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-shadow">
-                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${c.gradient} flex items-center justify-center text-white shrink-0 shadow-sm`}>
-                  {c.icon}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs text-gray-500 font-medium">{c.label}</p>
-                  <p className="text-xl font-bold text-gray-900 truncate">{c.value}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="bg-white rounded-xl border overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-3.5 border-b bg-gray-50">
-              <h2 className="text-sm font-semibold text-gray-900">Supplier Analysis</h2>
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="px-5 py-3.5 flex items-center justify-between" style={{background:'linear-gradient(to right,#eff6ff 0%,#eef2ff 100%)',borderBottom:'1px solid #dbeafe'}}>
+              <h2 className="text-sm font-semibold" style={{color:'#1f2937'}}>Supplier Analysis</h2>
               <div className="relative">
                 <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input value={supSearch} onChange={e => setSupSearch(e.target.value)} placeholder="Search supplier..."
-                  className="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg w-44 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400" />
+                  className="pl-8 pr-3 py-1.5 text-xs bg-white border border-blue-200 rounded-xl text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-200 w-44" />
               </div>
             </div>
             {loading ? (
@@ -368,8 +442,8 @@ export default function PurchaseReportPage() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gray-50 text-[11px] text-gray-500 uppercase tracking-wide">
-                    <tr>
+                  <thead className="text-[11px] uppercase tracking-wide" >
+                    <tr style={{background:'linear-gradient(to right,#eff6ff 0%,#eef2ff 100%)',borderBottom:'1px solid #dbeafe',color:'#1f2937'}}>
                       <th className="px-4 py-3 text-left">#</th>
                       <th className="px-4 py-3 text-left">Supplier</th>
                       <th className="px-4 py-3 text-center">Orders</th>
@@ -417,34 +491,16 @@ export default function PurchaseReportPage() {
 
       {tab === 'outstanding' && (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {[
-              { label: 'Open POs',          value: outData.length.toString(),                                                                     icon: <FileText size={18} />,    gradient: 'from-blue-500 to-indigo-600'  },
-              { label: 'Total Outstanding', value: fmt(outTotalValue),                                                                             icon: <IndianRupee size={18} />, gradient: 'from-amber-400 to-orange-500' },
-              { label: 'Overdue',           value: outData.filter(r => r.expectedDate && new Date(r.expectedDate) < new Date()).length.toString(), icon: <AlertCircle size={18} />, gradient: 'from-rose-500 to-red-600'     },
-            ].map((c, i) => (
-              <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-shadow">
-                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${c.gradient} flex items-center justify-center text-white shrink-0 shadow-sm`}>
-                  {c.icon}
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 font-medium">{c.label}</p>
-                  <p className="text-xl font-bold text-gray-900">{c.value}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="bg-white rounded-xl border overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-3.5 border-b bg-gray-50">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="px-5 py-3.5 flex items-center justify-between" style={{background:'linear-gradient(to right,#eff6ff 0%,#eef2ff 100%)',borderBottom:'1px solid #dbeafe'}}>
               <div>
-                <h2 className="text-sm font-semibold text-gray-900">Outstanding Purchase Orders</h2>
-                <p className="text-xs text-gray-400 mt-0.5">Draft, Sent, and Partially received orders</p>
+                <h2 className="text-sm font-semibold" style={{color:'#1f2937'}}>Outstanding Purchase Orders</h2>
+                <p className="text-xs mt-0.5" style={{color:'#6b7280'}}>Draft, Sent, and Partially received orders</p>
               </div>
               <div className="relative">
                 <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input value={outSearch} onChange={e => setOutSearch(e.target.value)} placeholder="Search PO / supplier..."
-                  className="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg w-52 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400" />
+                  className="pl-8 pr-3 py-1.5 text-xs bg-white border border-blue-200 rounded-xl text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-200 w-52" />
               </div>
             </div>
             {loading ? (
@@ -456,8 +512,8 @@ export default function PurchaseReportPage() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gray-50 text-[11px] text-gray-500 uppercase tracking-wide">
-                    <tr>
+                  <thead className="text-[11px] uppercase tracking-wide" >
+                    <tr style={{background:'linear-gradient(to right,#eff6ff 0%,#eef2ff 100%)',borderBottom:'1px solid #dbeafe',color:'#1f2937'}}>
                       <th className="px-4 py-3 text-left">PO Number</th>
                       <th className="px-4 py-3 text-left">Supplier</th>
                       <th className="px-4 py-3 text-center">Status</th>

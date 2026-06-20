@@ -12,8 +12,12 @@ func CORS(frontendURL string) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
 
-			// Allow requests from the configured frontend URL
-			if strings.HasPrefix(origin, frontendURL) || origin == frontendURL {
+			// Allow requests from the configured frontend URL or any localhost origin (dev)
+			allowed := strings.HasPrefix(origin, frontendURL) ||
+				origin == frontendURL ||
+				strings.HasPrefix(origin, "http://localhost:") ||
+				strings.HasPrefix(origin, "http://127.0.0.1:")
+			if allowed {
 				w.Header().Set("Access-Control-Allow-Origin", origin)
 			}
 

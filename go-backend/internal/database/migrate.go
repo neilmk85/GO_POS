@@ -4,6 +4,7 @@ import (
 	"log/slog"
 
 	"github.com/nilesh/pos-backend/internal/models"
+	"github.com/nilesh/pos-backend/internal/util"
 	"gorm.io/gorm"
 )
 
@@ -11,6 +12,12 @@ import (
 // respecting foreign key dependencies
 func Migrate(db *gorm.DB) error {
 	slog.Info("[Database] Starting migrations")
+
+	// Phase 0: Utility tables (sequences — used by all number generators)
+	if err := db.AutoMigrate(&util.Sequence{}); err != nil {
+		slog.Error("[Database] Failed to migrate Sequence", "error", err)
+		return err
+	}
 
 	// Phase 1: Base entities with no dependencies
 	if err := db.AutoMigrate(&models.Role{}); err != nil {
@@ -175,6 +182,14 @@ func Migrate(db *gorm.DB) error {
 		slog.Error("[Database] Failed to migrate PurchaseReturnItem", "error", err)
 		return err
 	}
+	if err := db.AutoMigrate(&models.SaleReturn{}); err != nil {
+		slog.Error("[Database] Failed to migrate SaleReturn", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.SaleReturnItem{}); err != nil {
+		slog.Error("[Database] Failed to migrate SaleReturnItem", "error", err)
+		return err
+	}
 
 	// Phase 11: Expenses and bulk purchases
 	if err := db.AutoMigrate(&models.Expense{}); err != nil {
@@ -239,6 +254,263 @@ func Migrate(db *gorm.DB) error {
 	}
 	if err := db.AutoMigrate(&models.SalesOrderItem{}); err != nil {
 		slog.Error("[Database] Failed to migrate SalesOrderItem", "error", err)
+		return err
+	}
+
+	// Phase 16: PCCP Production Line
+	// Order respects FK dependencies:
+	// PipeConfig → PipeConfigMaterial (refs Product)
+	// ProductionMachine (refs Outlet)
+	// ProductionShiftTemplate (refs Outlet)
+	// ProductionOrder (refs PipeConfig, Outlet, SalesOrder)
+	// ProductionEntry (refs ProductionOrder, PipeConfig, ProductionMachine)
+	// MaterialConsumption (refs ProductionEntry, PipeConfigMaterial, Product)
+	// OverheadConfig (refs Outlet)
+	// CostSheet / CostSheetLine (refs ProductionOrder)
+	// ProductionPlan / ProductionPlanEntry (refs Outlet, ProductionOrder, ProductionMachine)
+	// YardZone / YardLocation / YardMovement (refs Outlet, ProductionOrder, PipeConfig)
+	if err := db.AutoMigrate(&models.PipeConfig{}); err != nil {
+		slog.Error("[Database] Failed to migrate PipeConfig", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.PipeConfigMaterial{}); err != nil {
+		slog.Error("[Database] Failed to migrate PipeConfigMaterial", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.ProductionMachine{}); err != nil {
+		slog.Error("[Database] Failed to migrate ProductionMachine", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.ProductionShiftTemplate{}); err != nil {
+		slog.Error("[Database] Failed to migrate ProductionShiftTemplate", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.ProductionOrder{}); err != nil {
+		slog.Error("[Database] Failed to migrate ProductionOrder", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.ProductionEntry{}); err != nil {
+		slog.Error("[Database] Failed to migrate ProductionEntry", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.MaterialConsumption{}); err != nil {
+		slog.Error("[Database] Failed to migrate MaterialConsumption", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.OverheadConfig{}); err != nil {
+		slog.Error("[Database] Failed to migrate OverheadConfig", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.CostSheet{}); err != nil {
+		slog.Error("[Database] Failed to migrate CostSheet", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.CostSheetLine{}); err != nil {
+		slog.Error("[Database] Failed to migrate CostSheetLine", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.ProductionPlan{}); err != nil {
+		slog.Error("[Database] Failed to migrate ProductionPlan", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.ProductionPlanEntry{}); err != nil {
+		slog.Error("[Database] Failed to migrate ProductionPlanEntry", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.YardZone{}); err != nil {
+		slog.Error("[Database] Failed to migrate YardZone", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.YardLocation{}); err != nil {
+		slog.Error("[Database] Failed to migrate YardLocation", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.YardMovement{}); err != nil {
+		slog.Error("[Database] Failed to migrate YardMovement", "error", err)
+		return err
+	}
+
+	// Phase 17: Business page models (standalone, no FK dependencies)
+	if err := db.AutoMigrate(&models.CementBag{}); err != nil {
+		slog.Error("[Database] Failed to migrate CementBag", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.Vehicle{}); err != nil {
+		slog.Error("[Database] Failed to migrate Vehicle", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.Maintenance{}); err != nil {
+		slog.Error("[Database] Failed to migrate Maintenance", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.Silo{}); err != nil {
+		slog.Error("[Database] Failed to migrate Silo", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.SiloExtraction{}); err != nil {
+		slog.Error("[Database] Failed to migrate SiloExtraction", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.DieselMaintenance{}); err != nil {
+		slog.Error("[Database] Failed to migrate DieselMaintenance", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.StoreRoomMaterial{}); err != nil {
+		slog.Error("[Database] Failed to migrate StoreRoomMaterial", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.ExtraVehicle{}); err != nil {
+		slog.Error("[Database] Failed to migrate ExtraVehicle", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.TestingLab{}); err != nil {
+		slog.Error("[Database] Failed to migrate TestingLab", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.BizConversion{}); err != nil {
+		slog.Error("[Database] Failed to migrate BizConversion", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.Discard{}); err != nil {
+		slog.Error("[Database] Failed to migrate Discard", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.PDI{}); err != nil {
+		slog.Error("[Database] Failed to migrate PDI", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.LoadingRecord{}); err != nil {
+		slog.Error("[Database] Failed to migrate LoadingRecord", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.SiloFill{}); err != nil {
+		slog.Error("[Database] Failed to migrate SiloFill", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.Labour{}); err != nil {
+		slog.Error("[Database] Failed to migrate Labour", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.BusinessRateConfig{}); err != nil {
+		slog.Error("[Database] Failed to migrate BusinessRateConfig", "error", err)
+		return err
+	}
+
+	// Phase 17 additions: User preferences, vendor payments, vendor credits, cart holds
+	if err := db.AutoMigrate(&models.UserPreference{}); err != nil {
+		slog.Error("[Database] Failed to migrate UserPreference", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.VendorPayment{}); err != nil {
+		slog.Error("[Database] Failed to migrate VendorPayment", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.VendorCredit{}); err != nil {
+		slog.Error("[Database] Failed to migrate VendorCredit", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.CartHold{}); err != nil {
+		slog.Error("[Database] Failed to migrate CartHold", "error", err)
+		return err
+	}
+
+	// Phase 18: TDS (Tax Deducted at Source)
+	if err := db.AutoMigrate(&models.TDSSection{}); err != nil {
+		slog.Error("[Database] Failed to migrate TDSSection", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.TDSDeduction{}); err != nil {
+		slog.Error("[Database] Failed to migrate TDSDeduction", "error", err)
+		return err
+	}
+	// Add TDS columns to existing tables
+	if err := db.AutoMigrate(&models.Supplier{}); err != nil {
+		slog.Error("[Database] Failed to migrate Supplier (TDS)", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.VendorPayment{}); err != nil {
+		slog.Error("[Database] Failed to migrate VendorPayment (TDS)", "error", err)
+		return err
+	}
+
+	// Phase 19: Loading record invoice link
+	if err := db.AutoMigrate(&models.LoadingRecord{}); err != nil {
+		slog.Error("[Database] Failed to migrate LoadingRecord (invoice link)", "error", err)
+		return err
+	}
+
+	// Phase 20: Invoice — delivery challan no, e-way bill no, e-invoice no
+	if err := db.AutoMigrate(&models.Invoice{}); err != nil {
+		slog.Error("[Database] Failed to migrate Invoice (DC/EWay/EInvoice)", "error", err)
+		return err
+	}
+
+	// Phase 21: Site — Work Orders and Work Bills
+	if err := db.AutoMigrate(&models.WorkOrder{}); err != nil {
+		slog.Error("[Database] Failed to migrate WorkOrder", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.WorkOrderItem{}); err != nil {
+		slog.Error("[Database] Failed to migrate WorkOrderItem", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.WorkBill{}); err != nil {
+		slog.Error("[Database] Failed to migrate WorkBill", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.WorkBillItem{}); err != nil {
+		slog.Error("[Database] Failed to migrate WorkBillItem", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.WorkBillPayment{}); err != nil {
+		slog.Error("[Database] Failed to migrate WorkBillPayment", "error", err)
+		return err
+	}
+
+	// ── Site: Contractors ──────────────────────────────────────────────────
+	if err := db.AutoMigrate(&models.Contractor{}); err != nil {
+		slog.Error("[Database] Failed to migrate Contractor", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.SiteProject{}); err != nil {
+		slog.Error("[Database] Failed to migrate SiteProject", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.WorkPackage{}); err != nil {
+		slog.Error("[Database] Failed to migrate WorkPackage", "error", err)
+		return err
+	}
+	// Add site_project_id and work_package_id columns to work_orders (nullable, backward compat)
+	if err := db.AutoMigrate(&models.WorkOrder{}); err != nil {
+		slog.Error("[Database] Failed to migrate WorkOrder (add package columns)", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.MaterialIssue{}); err != nil {
+		slog.Error("[Database] Failed to migrate MaterialIssue", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.ProgressClaim{}); err != nil {
+		slog.Error("[Database] Failed to migrate ProgressClaim", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.ProgressClaimItem{}); err != nil {
+		slog.Error("[Database] Failed to migrate ProgressClaimItem", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.DailyProgress{}); err != nil {
+		slog.Error("[Database] Failed to migrate DailyProgress", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.LabourAttendance{}); err != nil {
+		slog.Error("[Database] Failed to migrate LabourAttendance", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.EquipmentLog{}); err != nil {
+		slog.Error("[Database] Failed to migrate EquipmentLog", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.MaterialReceipt{}); err != nil {
+		slog.Error("[Database] Failed to migrate MaterialReceipt", "error", err)
 		return err
 	}
 

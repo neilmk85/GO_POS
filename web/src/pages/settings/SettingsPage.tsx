@@ -1,49 +1,88 @@
 import { useState, useEffect, useRef } from 'react'
-import { Store, Users, Receipt, Percent, Package, Plus, Pencil, Trash2, X, Loader2, Shield, Lock, Check, AlertCircle, ShieldCheck, Edit2, Building2, Phone, Mail, MapPin, FileText, Hash, MessageSquare, MessageCircle, Eye, EyeOff, Zap, Send, LayoutTemplate, Palette, Image, AlignLeft, Type, Baseline } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Store, Users, Receipt, Percent, Plus, Pencil, Trash2, X, Loader2, Shield, Lock, Check, AlertCircle, ShieldCheck, Edit2, Building2, Phone, Mail, MapPin, FileText, Hash, MessageSquare, MessageCircle, Eye, EyeOff, Zap, Send, LayoutTemplate, Palette, Image, AlignLeft, Type, Baseline, KeyRound, Settings as SettingsIcon, ArrowLeft, IndianRupee, Save, Wrench } from 'lucide-react'
+import PermissionsSettings from './PermissionsSettings'
+import { tdsApi } from '@/services/api'
 import toast from 'react-hot-toast'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { taxGroupApi, rolesApi, outletApi, integrationApi } from '@/services/api'
 import { useAuthStore } from '@/store/authStore'
 
 const tabs = [
-  { key: 'outlet', label: 'Outlet', icon: <Store size={16} /> },
-  { key: 'roles', label: 'Roles', icon: <Shield size={16} /> },
-  { key: 'tax', label: 'Tax Groups', icon: <Percent size={16} /> },
-  { key: 'receipt', label: 'Receipt', icon: <Receipt size={16} /> },
-  { key: 'invoice', label: 'Templates', icon: <LayoutTemplate size={16} /> },
-  { key: 'loyalty', label: 'Loyalty', icon: <Package size={16} /> },
-  { key: 'integrations', label: 'Integrations', icon: <Zap size={16} /> },
+  { key: 'outlet',       label: 'Factory',      icon: <Store size={13} />,         desc: 'Manage your factory details and business information' },
+  { key: 'roles',        label: 'Roles',        icon: <Shield size={13} />,        desc: 'Define staff roles and access levels' },
+  { key: 'permissions',  label: 'Permissions',  icon: <KeyRound size={13} />,      desc: 'Enable or disable individual system permissions' },
+  { key: 'tax',          label: 'Tax Groups',   icon: <Percent size={13} />,       desc: 'Configure GST tax groups and rates' },
+  { key: 'receipt',      label: 'Receipt',      icon: <Receipt size={13} />,       desc: 'Customise your POS receipt template' },
+  { key: 'invoice',      label: 'Templates',    icon: <LayoutTemplate size={13} />,desc: 'Manage notification and document templates' },
+  { key: 'integrations', label: 'Integrations', icon: <Zap size={13} />,           desc: 'Connect email, SMS, and WhatsApp channels' },
+  { key: 'service-rates', label: 'Service Rates', icon: <IndianRupee size={13} />, desc: 'Define third-party service rates for fabrication, spinning, transport and labour' },
+  { key: 'tds',           label: 'TDS Sections', icon: <Wrench size={13} />,      desc: 'Manage TDS sections and applicable rates (194C, 194J, etc.)' },
 ]
 
 export default function SettingsPage() {
+  const navigate = useNavigate()
   const [tab, setTab] = useState('outlet')
 
-  return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Settings</h1>
-      <div className="flex gap-6">
-        {/* Sidebar */}
-        <nav className="w-48 shrink-0">
-          <div className="space-y-1">
-            {tabs.map(t => (
-              <button key={t.key} onClick={() => setTab(t.key)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${tab === t.key ? 'bg-gradient-to-r from-violet-500 to-blue-500 text-white shadow-sm' : 'text-gray-600 bg-gray-50 hover:bg-gray-100 hover:text-gray-900'}`}>
-                {t.icon}{t.label}
-              </button>
-            ))}
-          </div>
-        </nav>
+  const activeTab = tabs.find(t => t.key === tab)
 
-        {/* Content */}
-        <div className="flex-1 bg-white rounded-xl border p-6">
-          {tab === 'outlet' && <OutletSettings />}
-          {tab === 'roles' && <RolesSettings />}
-          {tab === 'tax' && <TaxSettings />}
-          {tab === 'receipt' && <ReceiptSettings />}
-          {tab === 'invoice' && <TemplatesSettings />}
-          {tab === 'loyalty' && <LoyaltySettings />}
-          {tab === 'integrations' && <IntegrationsSettings />}
+  return (
+    <div className="min-h-screen bg-gray-50/60">
+
+      {/* ── Hero header ──────────────────────────────────────────── */}
+      <div className="relative shadow-[0_8px_40px_rgba(109,40,217,0.28)]">
+        {/* Background */}
+        <div className="absolute inset-0 overflow-hidden bg-gradient-to-br from-violet-700 via-violet-600 to-blue-600 pointer-events-none">
+          <div className="absolute -top-8 -right-8 w-52 h-52 rounded-full bg-white/5 blur-2xl" />
+          <div className="absolute bottom-0 left-1/4 w-64 h-28 rounded-full bg-blue-400/10 blur-3xl" />
+          <div className="absolute inset-0 opacity-[0.07]"
+            style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
         </div>
+
+        {/* Title row */}
+        <div className="relative px-8 pt-6 pb-4">
+          <div className="flex items-center gap-5 min-w-0">
+            <button onClick={() => navigate(-1)}
+              className="w-9 h-9 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center hover:bg-white/20 transition-colors flex-shrink-0">
+              <ArrowLeft size={16} className="text-white" />
+            </button>
+            <div className="w-14 h-14 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center shadow-inner flex-shrink-0">
+              <SettingsIcon size={26} className="text-violet-200" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-blue-200 uppercase tracking-widest mb-0.5">System</p>
+              <h1 className="text-2xl font-extrabold text-white tracking-tight leading-tight">Settings</h1>
+              <p className="text-sm text-blue-200 mt-0.5 transition-all">{activeTab?.desc}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Tab strip */}
+        <div className="relative border-t border-white/10 flex items-center gap-1 px-6 py-2 overflow-x-auto">
+          {tabs.map(t => (
+            <button key={t.key} onClick={() => setTab(t.key)}
+              className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-xl whitespace-nowrap transition-all ${
+                tab === t.key
+                  ? 'bg-white text-violet-700 shadow-sm'
+                  : 'text-white/70 hover:text-white hover:bg-white/10'
+              }`}>
+              {t.icon}{t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Content ──────────────────────────────────────────────── */}
+      <div className="p-6">
+        {tab === 'outlet'      && <OutletSettings />}
+        {tab === 'roles'       && <RolesSettings />}
+        {tab === 'permissions' && <PermissionsSettings />}
+        {tab === 'tax'         && <TaxSettings />}
+        {tab === 'receipt'     && <ReceiptSettings />}
+        {tab === 'invoice'     && <TemplatesSettings />}
+        {tab === 'integrations'  && <IntegrationsSettings />}
+        {tab === 'service-rates' && <ServiceRatesSettings />}
+        {tab === 'tds'           && <TDSSectionsSettings />}
       </div>
     </div>
   )
@@ -55,13 +94,26 @@ function OutletSettings() {
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState<any>({})
 
-  const { data: outlet, isLoading } = useQuery({
-    queryKey: ['outlet', outletId],
+  // When the logged-in user has no outletId (e.g. super-admin), fall back to
+  // fetching all outlets and using the first one.
+  const { data: allOutlets } = useQuery({
+    queryKey: ['outlets-all'],
     queryFn: async () => {
-      const res = await outletApi.getById(outletId!)
+      const res = await outletApi.getAll()
+      return res.data.data as { id: number; name: string; code: string }[]
+    },
+    enabled: !outletId,
+  })
+
+  const resolvedOutletId: number | null = outletId ?? (allOutlets?.[0]?.id ?? null)
+
+  const { data: outlet, isLoading } = useQuery({
+    queryKey: ['outlet', resolvedOutletId],
+    queryFn: async () => {
+      const res = await outletApi.getById(resolvedOutletId!)
       return res.data.data
     },
-    enabled: !!outletId,
+    enabled: !!resolvedOutletId,
   })
 
   useEffect(() => {
@@ -82,10 +134,10 @@ function OutletSettings() {
   }, [outlet, editing])
 
   const { mutate: save, isPending } = useMutation({
-    mutationFn: () => outletApi.update(outletId!, form),
+    mutationFn: () => outletApi.update(resolvedOutletId!, form),
     onSuccess: (res) => {
       toast.success('Business info saved')
-      qc.setQueryData(['outlet', outletId], res.data.data)
+      qc.setQueryData(['outlet', resolvedOutletId], res.data.data)
       qc.invalidateQueries({ queryKey: ['outlet-name'] })
       setEditing(false)
     },
@@ -108,7 +160,7 @@ function OutletSettings() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Business Info</h2>
-            <p className="text-sm text-gray-500 mt-0.5">Your outlet details shown on receipts and reports</p>
+            <p className="text-sm text-gray-500 mt-0.5">Your factory details shown on receipts and reports</p>
           </div>
           <button onClick={() => setEditing(true)}
             className="flex items-center gap-2 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
@@ -1154,13 +1206,24 @@ function ReceiptSettings() {
     showBarcodeOnReceipt: true,
   })
 
-  const { data: outlet, isLoading } = useQuery({
-    queryKey: ['outlet', outletId],
+  const { data: allOutlets } = useQuery({
+    queryKey: ['outlets-all'],
     queryFn: async () => {
-      const res = await outletApi.getById(outletId!)
+      const res = await outletApi.getAll()
+      return res.data.data as { id: number; name: string; code: string }[]
+    },
+    enabled: !outletId,
+  })
+
+  const resolvedOutletId: number | null = outletId ?? (allOutlets?.[0]?.id ?? null)
+
+  const { data: outlet, isLoading } = useQuery({
+    queryKey: ['outlet', resolvedOutletId],
+    queryFn: async () => {
+      const res = await outletApi.getById(resolvedOutletId!)
       return res.data.data
     },
-    enabled: !!outletId,
+    enabled: !!resolvedOutletId,
   })
 
   useEffect(() => {
@@ -1176,10 +1239,10 @@ function ReceiptSettings() {
   }, [outlet, editing])
 
   const { mutate: save, isPending } = useMutation({
-    mutationFn: () => outletApi.update(outletId!, form),
+    mutationFn: () => outletApi.update(resolvedOutletId!, form),
     onSuccess: (res) => {
       toast.success('Receipt settings saved')
-      qc.setQueryData(['outlet', outletId], res.data.data)
+      qc.setQueryData(['outlet', resolvedOutletId], res.data.data)
       setEditing(false)
     },
     onError: () => toast.error('Failed to save receipt settings'),
@@ -1272,28 +1335,6 @@ function ReceiptSettings() {
           </button>
         </div>
       )}
-    </div>
-  )
-}
-
-function LoyaltySettings() {
-  return (
-    <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-gray-900">Loyalty Program</h2>
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Points per ₹1 Spent</label>
-        <input type="number" defaultValue="0.01" step="0.001"
-          className="w-32 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none" />
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">₹1 = How many Points?</label>
-        <input type="number" defaultValue="10" step="1"
-          className="w-32 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none" />
-      </div>
-      <button onClick={() => toast.success('Loyalty settings saved')}
-        className="bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-700 hover:to-blue-700 text-white px-6 py-2 rounded-lg font-medium text-sm">
-        Save Changes
-      </button>
     </div>
   )
 }
@@ -1442,6 +1483,17 @@ function IntegrationsSettings() {
   const { outletId } = useAuthStore()
   const [subTab, setSubTab] = useState<'channels' | 'templates'>('channels')
 
+  const { data: allOutlets } = useQuery({
+    queryKey: ['outlets-all'],
+    queryFn: async () => {
+      const res = await outletApi.getAll()
+      return res.data.data as { id: number; name: string; code: string }[]
+    },
+    enabled: !outletId,
+  })
+
+  const resolvedOutletId: number | null = outletId ?? (allOutlets?.[0]?.id ?? null)
+
   // ── Channels ─────────────────────────────────────────────────────────────
   const [channels, setChannels] = useState<typeof DEFAULT_CHANNELS>(JSON.parse(JSON.stringify(DEFAULT_CHANNELS)))
   const [showPass, setShowPass] = useState<Record<string, boolean>>({})
@@ -1462,12 +1514,12 @@ function IntegrationsSettings() {
 
   // Load channel config from API
   const { data: channelData } = useQuery({
-    queryKey: ['integration-channels', outletId],
+    queryKey: ['integration-channels', resolvedOutletId],
     queryFn: async () => {
-      const res = await integrationApi.getChannels(outletId!)
+      const res = await integrationApi.getChannels(resolvedOutletId!)
       return res.data.data
     },
-    enabled: !!outletId,
+    enabled: !!resolvedOutletId,
     retry: false,
   })
   useEffect(() => {
@@ -1482,12 +1534,12 @@ function IntegrationsSettings() {
 
   // Load templates from API
   const { data: tmplApiData } = useQuery({
-    queryKey: ['integration-templates', outletId],
+    queryKey: ['integration-templates', resolvedOutletId],
     queryFn: async () => {
-      const res = await integrationApi.getTemplates(outletId!)
+      const res = await integrationApi.getTemplates(resolvedOutletId!)
       return res.data.data
     },
-    enabled: !!outletId,
+    enabled: !!resolvedOutletId,
     retry: false,
   })
   useEffect(() => {
@@ -1526,7 +1578,7 @@ function IntegrationsSettings() {
   const handleSaveChannels = async () => {
     setSavingCh(true)
     try {
-      await integrationApi.saveChannels(outletId!, channels)
+      await integrationApi.saveChannels(resolvedOutletId!, channels)
       toast.success('Channel settings saved')
     } catch {
       toast.error('Failed to save channel settings')
@@ -1538,7 +1590,7 @@ function IntegrationsSettings() {
   const handleTestChannel = async (ch: string) => {
     setTestingCh(ch)
     try {
-      await integrationApi.testChannel(outletId!, ch)
+      await integrationApi.testChannel(resolvedOutletId!, ch)
       toast.success(`Test ${ch} sent successfully`)
     } catch (err: any) {
       const msg = err?.response?.data?.message || `Test ${ch} failed – check your settings`
@@ -1551,7 +1603,7 @@ function IntegrationsSettings() {
   const handleSaveTemplate = async () => {
     setSavingTmpl(true)
     try {
-      await integrationApi.saveTemplates(outletId!, templates)
+      await integrationApi.saveTemplates(resolvedOutletId!, templates)
       toast.success('Templates saved')
     } catch {
       toast.error('Failed to save templates')
@@ -2189,10 +2241,21 @@ function TemplatesSettings() {
     else setPurchaseOrderCfg(p => ({ ...p, [key]: value }))
   }
 
+  const { data: allOutlets } = useQuery({
+    queryKey: ['outlets-all'],
+    queryFn: async () => {
+      const res = await outletApi.getAll()
+      return res.data.data as { id: number; name: string; code: string }[]
+    },
+    enabled: !outletId,
+  })
+
+  const resolvedOutletId: number | null = outletId ?? (allOutlets?.[0]?.id ?? null)
+
   const { data: outlet, isLoading } = useQuery({
-    queryKey: ['outlet', outletId],
-    queryFn: async () => { const res = await outletApi.getById(outletId!); return res.data.data },
-    enabled: !!outletId,
+    queryKey: ['outlet', resolvedOutletId],
+    queryFn: async () => { const res = await outletApi.getById(resolvedOutletId!); return res.data.data },
+    enabled: !!resolvedOutletId,
   })
 
   useEffect(() => {
@@ -2208,8 +2271,8 @@ function TemplatesSettings() {
     setSaving(true)
     try {
       const config: TemplatesConfig = { invoice: invoiceCfg, quotation: quotationCfg, purchaseOrder: purchaseOrderCfg }
-      await outletApi.update(outletId!, { invoiceTemplate: JSON.stringify(config) })
-      qc.invalidateQueries({ queryKey: ['outlet', outletId] })
+      await outletApi.update(resolvedOutletId!, { invoiceTemplate: JSON.stringify(config) })
+      qc.invalidateQueries({ queryKey: ['outlet', resolvedOutletId] })
       toast.success('Templates saved!')
     } catch { toast.error('Failed to save templates') }
     finally { setSaving(false) }
@@ -2905,6 +2968,364 @@ function DocumentPreview({ cfg, docType, outletName, gstin }: {
       <ItemsTable />
       <TotalsBlock />
       <FooterBlock />
+    </div>
+  )
+}
+
+// ── Third-Party Service Rates ─────────────────────────────────────────────────
+
+const SERVICE_RATES_KEY = 'ppp_service_rates'
+
+const RATE_FIELDS = [
+  {
+    group: 'Fabrication',
+    fields: [
+      { key: 'fabrication_per_kg', label: 'Fabrication', unit: 'per Kg' },
+    ],
+  },
+  {
+    group: 'Spinning',
+    fields: [
+      { key: 'spinning_small_per_pipe', label: 'Spinning – Small Bed', unit: 'per Pipe' },
+      { key: 'spinning_large_per_pipe', label: 'Spinning – Large Bed', unit: 'per Pipe' },
+    ],
+  },
+  {
+    group: 'Transport',
+    fields: [
+      { key: 'transport_per_km',   label: 'Transport', unit: 'per Km' },
+      { key: 'transport_per_trip', label: 'Transport', unit: 'per Trip' },
+    ],
+  },
+  {
+    group: 'Labour',
+    fields: [
+      { key: 'labour_per_day',  label: 'Labour', unit: 'per Day' },
+      { key: 'labour_per_hour', label: 'Labour', unit: 'per Hour' },
+    ],
+  },
+]
+
+type ServiceRates = Record<string, string>
+
+function ServiceRatesSettings() {
+  const allKeys = RATE_FIELDS.flatMap(g => g.fields.map(f => f.key))
+  const defaultRates = Object.fromEntries(allKeys.map(k => [k, '']))
+
+  const loadSaved = (): ServiceRates => {
+    try {
+      const s = localStorage.getItem(SERVICE_RATES_KEY)
+      return s ? { ...defaultRates, ...JSON.parse(s) } : defaultRates
+    } catch { return defaultRates }
+  }
+
+  const [rates, setRates] = useState<ServiceRates>(loadSaved)
+  const [editing, setEditing] = useState(() => {
+    // Start in edit mode if nothing has been saved yet
+    const s = localStorage.getItem(SERVICE_RATES_KEY)
+    return !s
+  })
+  const [saveFlash, setSaveFlash] = useState(false)
+
+  function handleSave() {
+    localStorage.setItem(SERVICE_RATES_KEY, JSON.stringify(rates))
+    setSaveFlash(true)
+    setTimeout(() => setSaveFlash(false), 2000)
+    setEditing(false)
+    toast.success('Service rates saved')
+  }
+
+  function handleEdit() {
+    setRates(loadSaved())
+    setEditing(true)
+  }
+
+  function handleCancel() {
+    setRates(loadSaved())
+    setEditing(false)
+  }
+
+  const fmt = (val: string) =>
+    val && Number(val) > 0
+      ? `₹ ${parseFloat(val).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : '—'
+
+  return (
+    <div className="max-w-2xl mx-auto space-y-6">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+
+        {/* Card header */}
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-violet-100 flex items-center justify-center flex-shrink-0">
+            <IndianRupee size={18} className="text-violet-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-base font-semibold text-gray-900">Third Party Service Rates</p>
+            <p className="text-sm text-gray-500">Used for cost calculations across the system</p>
+          </div>
+          {!editing && (
+            <button
+              onClick={handleEdit}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-medium text-gray-900 hover:bg-gray-100 transition-colors"
+            >
+              <Pencil size={14} /> Edit
+            </button>
+          )}
+        </div>
+
+        {/* Body */}
+        <div className="divide-y divide-gray-100">
+          {RATE_FIELDS.map(group => (
+            <div key={group.group} className="px-6 py-6 flex gap-4">
+              <div className="w-0.5 rounded-full bg-violet-500 self-stretch flex-shrink-0" />
+              <div className="flex-1">
+              <p className="text-sm font-bold text-gray-700 uppercase tracking-widest mb-5">{group.group}</p>
+
+              {editing ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  {group.fields.map(f => (
+                    <div key={f.key}>
+                      <label className="block text-sm font-medium text-gray-600 mb-1.5">
+                        {f.label} <span className="text-gray-400">({f.unit})</span>
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base font-medium">₹</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={rates[f.key]}
+                          onChange={e => setRates(prev => ({ ...prev, [f.key]: e.target.value }))}
+                          placeholder="0.00"
+                          className="w-full pl-8 pr-3 py-2.5 text-base border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-400/50 focus:border-violet-400 transition-colors"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {group.fields.map(f => (
+                    <div key={f.key} className="bg-gray-50 rounded-xl px-4 py-3.5 flex flex-col gap-1">
+                      <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+                        {f.label} <span className="normal-case">({f.unit})</span>
+                      </span>
+                      <span className={`text-lg font-semibold ${rates[f.key] && Number(rates[f.key]) > 0 ? 'text-gray-900' : 'text-gray-300'}`}>
+                        {fmt(rates[f.key])}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Footer */}
+        {editing && (
+          <div className="px-6 py-4 bg-gray-50/60 border-t border-gray-100 flex items-center justify-end gap-3">
+            <button
+              onClick={handleCancel}
+              className="px-4 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-base font-semibold transition-all shadow-sm ${
+                saveFlash ? 'bg-green-500 text-white' : 'bg-violet-600 hover:bg-violet-700 text-white'
+              }`}
+            >
+              {saveFlash ? <Check size={15} /> : <Save size={15} />}
+              {saveFlash ? 'Saved' : 'Save Rates'}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── TDS Sections Settings ─────────────────────────────────────────────────────
+
+const DEFAULT_SECTIONS = [
+  { sectionCode: '194C', description: 'Contractors & Sub-contractors', rate: 1, threshold: 30000 },
+  { sectionCode: '194J', description: 'Professional / Technical Services', rate: 10, threshold: 30000 },
+  { sectionCode: '194I', description: 'Rent', rate: 10, threshold: 240000 },
+  { sectionCode: '194H', description: 'Commission / Brokerage', rate: 5, threshold: 15000 },
+]
+
+function TDSSectionsSettings() {
+  const [sections, setSections] = useState<any[]>([])
+  const [loading, setLoading]   = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [editing, setEditing]   = useState<any | null>(null)
+  const [form, setForm]         = useState({ sectionCode: '', description: '', rate: '', threshold: '' })
+
+  function load() {
+    setLoading(true)
+    tdsApi.getSections()
+      .then(r => setSections(r.data.data ?? []))
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => { load() }, [])
+
+  function openNew() {
+    setEditing(null)
+    setForm({ sectionCode: '', description: '', rate: '', threshold: '' })
+    setShowForm(true)
+  }
+
+  function openEdit(s: any) {
+    setEditing(s)
+    setForm({ sectionCode: s.sectionCode, description: s.description, rate: String(s.rate), threshold: String(s.threshold) })
+    setShowForm(true)
+  }
+
+  async function handleSave() {
+    const payload = {
+      sectionCode: form.sectionCode,
+      description: form.description,
+      rate: parseFloat(form.rate) || 0,
+      threshold: parseFloat(form.threshold) || 0,
+      isActive: true,
+    }
+    try {
+      if (editing) {
+        await tdsApi.updateSection(editing.id, payload)
+        toast.success('Section updated')
+      } else {
+        await tdsApi.createSection(payload)
+        toast.success('Section created')
+      }
+      setShowForm(false)
+      load()
+    } catch { toast.error('Failed to save') }
+  }
+
+  async function handleDelete(id: number) {
+    if (!confirm('Delete this TDS section?')) return
+    try { await tdsApi.deleteSection(id); toast.success('Deleted'); load() }
+    catch { toast.error('Failed to delete') }
+  }
+
+  async function seedDefaults() {
+    for (const s of DEFAULT_SECTIONS) {
+      await tdsApi.createSection({ ...s, isActive: true }).catch(() => {})
+    }
+    toast.success('Default sections added')
+    load()
+  }
+
+  return (
+    <div className="max-w-3xl mx-auto space-y-5">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-violet-100 flex items-center justify-center flex-shrink-0">
+            <Wrench size={16} className="text-violet-600" />
+          </div>
+          <div className="flex-1">
+            <p className="text-base font-semibold text-gray-900">TDS Sections</p>
+            <p className="text-sm text-gray-500">Configure Income Tax TDS sections and applicable rates</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {sections.length === 0 && !loading && (
+              <button onClick={seedDefaults} className="px-3.5 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors">
+                Add Defaults
+              </button>
+            )}
+            <button onClick={openNew} className="flex items-center gap-1.5 px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm">
+              <Plus size={14} /> Add Section
+            </button>
+          </div>
+        </div>
+
+        {/* Add / Edit form */}
+        {showForm && (
+          <div className="px-6 py-5 border-b border-gray-100 bg-violet-50/40">
+            <p className="text-sm font-semibold text-gray-800 mb-4">{editing ? 'Edit Section' : 'New TDS Section'}</p>
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">Section Code *</label>
+                <input value={form.sectionCode} onChange={e => setForm(p => ({...p, sectionCode: e.target.value}))}
+                  placeholder="e.g. 194C"
+                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-400/50 focus:border-violet-400" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">Rate (%) *</label>
+                <input type="number" value={form.rate} onChange={e => setForm(p => ({...p, rate: e.target.value}))}
+                  placeholder="e.g. 1"
+                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-400/50 focus:border-violet-400" />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">Description *</label>
+                <input value={form.description} onChange={e => setForm(p => ({...p, description: e.target.value}))}
+                  placeholder="e.g. Contractors & Sub-contractors"
+                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-400/50 focus:border-violet-400" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">Threshold Limit (₹)</label>
+                <input type="number" value={form.threshold} onChange={e => setForm(p => ({...p, threshold: e.target.value}))}
+                  placeholder="e.g. 30000"
+                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-400/50 focus:border-violet-400" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl transition-colors">Cancel</button>
+              <button onClick={handleSave} className="flex items-center gap-1.5 px-5 py-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm">
+                <Save size={13} /> {editing ? 'Update' : 'Save'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* List */}
+        {loading ? (
+          <div className="py-12 flex justify-center"><Loader2 size={24} className="animate-spin text-violet-400" /></div>
+        ) : sections.length === 0 ? (
+          <div className="py-14 text-center">
+            <p className="text-sm text-gray-400 mb-3">No TDS sections configured yet</p>
+            <button onClick={seedDefaults} className="text-violet-600 text-sm font-medium hover:underline">Add common defaults (194C, 194J, 194I, 194H)</button>
+          </div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-100">
+              <tr>
+                {['Section','Description','Rate','Threshold','Status',''].map(h => (
+                  <th key={h} className={`px-5 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider ${h === '' || h === 'Rate' || h === 'Threshold' ? 'text-right' : 'text-left'}`}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {sections.map(s => (
+                <tr key={s.id} className="hover:bg-gray-50/60 transition-colors">
+                  <td className="px-5 py-3.5">
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-violet-100 text-violet-700 text-xs font-bold">{s.sectionCode}</span>
+                  </td>
+                  <td className="px-5 py-3.5 text-gray-700">{s.description}</td>
+                  <td className="px-5 py-3.5 text-right font-semibold text-gray-800">{parseFloat(s.rate).toFixed(2)}%</td>
+                  <td className="px-5 py-3.5 text-right text-gray-600">₹ {parseFloat(s.threshold).toLocaleString('en-IN')}</td>
+                  <td className="px-5 py-3.5">
+                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${s.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                      {s.isActive ? 'Active' : 'Inactive'}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3.5 text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <button onClick={() => openEdit(s)} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"><Pencil size={13} className="text-gray-500" /></button>
+                      <button onClick={() => handleDelete(s.id)} className="p-1.5 rounded-lg hover:bg-red-50 transition-colors"><Trash2 size={13} className="text-red-400" /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   )
 }

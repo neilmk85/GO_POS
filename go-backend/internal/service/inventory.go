@@ -43,11 +43,17 @@ func (is *InventoryService) GetByProductAllOutlets(productId int) (inventories [
 	return inventories, err
 }
 
-// GetByOutlet returns paginated inventory list for an outlet
-func (is *InventoryService) GetByOutlet(outletId int, page, size int) (inventories []models.Inventory, total int64, err error) {
-	query := is.db.Where("outlet_id = ?", outletId)
+// GetByOutlet returns paginated inventory list for an outlet, optionally filtered by product item_type
+func (is *InventoryService) GetByOutlet(outletId int, itemType string, page, size int) (inventories []models.Inventory, total int64, err error) {
+	query := is.db.Model(&models.Inventory{}).Where("inventory.outlet_id = ?", outletId)
 
-	if err := query.Model(&models.Inventory{}).Count(&total).Error; err != nil {
+	if itemType != "" {
+		query = query.
+			Joins("JOIN products ON products.id = inventory.product_id").
+			Where("products.item_type = ?", itemType)
+	}
+
+	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
@@ -149,6 +155,9 @@ func (is *InventoryService) AdjustStock(dto AdjustStockDTO) (adjustment *models.
 		return nil, err
 	}
 
+	// Preload product so the response (and activity log) includes the product name
+	is.db.Preload("Product").First(adjustment, adjustment.ID)
+
 	// Update inventory
 	now := time.Now()
 	if err := is.db.Model(inventory).Updates(map[string]interface{}{
@@ -160,6 +169,35 @@ func (is *InventoryService) AdjustStock(dto AdjustStockDTO) (adjustment *models.
 	}
 
 	return adjustment, nil
+}
+
+// UpdateReorderLevelDTO for updating inventory reorder settings
+type UpdateReorderLevelDTO struct {
+	ProductID    int  `json:"productId"`
+	OutletID     int  `json:"outletId"`
+	ReorderLevel int  `json:"reorderLevel"`
+}
+
+// UpdateReorderLevel updates reorder_level on both the product and the inventory record
+// so the product form and inventory page always show the same value.
+func (is *InventoryService) UpdateReorderLevel(dto UpdateReorderLevelDTO) (inventory *models.Inventory, err error) {
+	// 1. Update product.reorder_level (single source of truth)
+	if err := is.db.Model(&models.Product{}).
+		Where("id = ?", dto.ProductID).
+		Update("reorder_level", dto.ReorderLevel).Error; err != nil {
+		return nil, err
+	}
+	// 2. Keep inventory.reorder_level in sync
+	inv := &models.Inventory{}
+	if err := is.db.Where("product_id = ? AND outlet_id = ?", dto.ProductID, dto.OutletID).First(inv).Error; err != nil {
+		return nil, err
+	}
+	if err := is.db.Model(inv).Update("reorder_level", dto.ReorderLevel).Error; err != nil {
+		return nil, err
+	}
+	// Reload with product
+	is.db.Preload("Product").Preload("Product.TaxGroup").Preload("Product.Category").First(inv, inv.ID)
+	return inv, nil
 }
 
 // GetAdjustmentsDTO for filtering adjustments

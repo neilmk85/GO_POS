@@ -91,7 +91,7 @@ func (soh *SalesOrderHandler) Create(w http.ResponseWriter, r *http.Request) {
 	util.SendSuccess(w, "Sales Order created", so)
 }
 
-// GetByID retrieves a sales order by ID
+// GetByID retrieves a sales order by ID (with PipeConfig + ProductionOrder on items)
 func (soh *SalesOrderHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	idStr := r.PathValue("id")
 	if idStr == "" {
@@ -105,13 +105,63 @@ func (soh *SalesOrderHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	so, err := soh.service.GetByID(id)
+	so, err := soh.service.GetByIDWithPipeConfig(id)
 	if err != nil {
 		handleError(w, err)
 		return
 	}
 
 	util.SendSuccess(w, "Sales Order retrieved", so)
+}
+
+// ConvertItemToPO converts a single SO line item to a Production Order
+func (soh *SalesOrderHandler) ConvertItemToPO(w http.ResponseWriter, r *http.Request) {
+	itemIDStr := r.PathValue("itemId")
+	itemID, err := strconv.Atoi(itemIDStr)
+	if err != nil {
+		util.SendError(w, http.StatusBadRequest, "Invalid item ID")
+		return
+	}
+
+	outletID := 1 // default outlet
+	if v := r.URL.Query().Get("outletId"); v != "" {
+		if id, e := strconv.Atoi(v); e == nil {
+			outletID = id
+		}
+	}
+
+	po, err := soh.service.ConvertItemToPO(itemID, outletID)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+
+	util.SendSuccess(w, "Production Order created", po)
+}
+
+// ConvertAllToPOs converts all unconverted pipe items in a SO to Production Orders
+func (soh *SalesOrderHandler) ConvertAllToPOs(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		util.SendError(w, http.StatusBadRequest, "Invalid ID")
+		return
+	}
+
+	outletID := 1
+	if v := r.URL.Query().Get("outletId"); v != "" {
+		if oid, e := strconv.Atoi(v); e == nil {
+			outletID = oid
+		}
+	}
+
+	pos, err := soh.service.ConvertAllToPOs(id, outletID)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+
+	util.SendSuccess(w, "Production Orders created", pos)
 }
 
 // Update updates a sales order (DRAFT only)

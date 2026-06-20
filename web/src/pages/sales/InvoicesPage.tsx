@@ -1,19 +1,19 @@
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import {
   Plus, Search, FileText, X, Loader2, ChevronLeft, ChevronRight,
   Trash2, IndianRupee, Calendar, CheckCircle, Send, Ban,
   CreditCard, Clock, Printer, ShoppingCart, Percent, Truck,
-  Hash, Edit2, AlertTriangle, ChevronDown, Mail,
+  Hash, Edit2, AlertTriangle, ChevronDown, Mail, Receipt, Building2,
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
 } from 'recharts'
 import toast from 'react-hot-toast'
-import { format, addDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth,
-         startOfQuarter, endOfQuarter, subMonths } from 'date-fns'
+import { format, addDays } from 'date-fns'
 import { invoiceApi, productApi, discountApi, integrationApi } from '@/services/api'
 import { useAuthStore } from '@/store/authStore'
 import CustomerSearchInput from '@/components/CustomerSearchInput'
@@ -45,41 +45,126 @@ const PIE_COLORS: Record<string, string> = {
   PARTIAL: '#f59e0b', OVERDUE: '#ef4444', CANCELLED: '#d1d5db',
 }
 
-type DatePreset = 'today' | 'week' | 'month' | 'lastMonth' | 'quarter' | 'fy' | 'custom' | 'all'
+// ─── Date helpers + presets (matches LoadingPage) ────────────────────────────
 
-function getDateRange(preset: DatePreset, custom: { from: string; to: string }) {
-  const now = new Date()
-  switch (preset) {
-    case 'today':     return { from: format(now, 'yyyy-MM-dd'), to: format(now, 'yyyy-MM-dd') }
-    case 'week':      return { from: format(startOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd'), to: format(endOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd') }
-    case 'month':     return { from: format(startOfMonth(now), 'yyyy-MM-dd'), to: format(endOfMonth(now), 'yyyy-MM-dd') }
-    case 'lastMonth': return { from: format(startOfMonth(subMonths(now, 1)), 'yyyy-MM-dd'), to: format(endOfMonth(subMonths(now, 1)), 'yyyy-MM-dd') }
-    case 'quarter':   return { from: format(startOfQuarter(now), 'yyyy-MM-dd'), to: format(endOfQuarter(now), 'yyyy-MM-dd') }
-    case 'fy': {
-      const yr = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1
-      return { from: `${yr}-04-01`, to: `${yr + 1}-03-31` }
-    }
-    case 'custom':    return custom.from && custom.to ? custom : { from: '', to: '' }
-    default:          return { from: '', to: '' }
-  }
+function _fmtD(d: Date) { return d.toISOString().split('T')[0] }
+function _dmy(iso: string) {
+  if (!iso) return ''
+  const [y, m, d] = iso.split('-')
+  return d && m && y ? `${d}/${m}/${y}` : iso
+}
+function _subDays(d: Date, n: number) { const r = new Date(d); r.setDate(r.getDate() - n); return r }
+function _startOf(unit: 'month' | 'year') { const r = new Date(); if (unit === 'month') r.setDate(1); else r.setMonth(0, 1); r.setHours(0,0,0,0); return r }
+function _startOfWeekSun() { const d = new Date(); d.setDate(d.getDate() - d.getDay()); d.setHours(0,0,0,0); return d }
+function _startOfLastMonth() { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth()-1); d.setHours(0,0,0,0); return d }
+function _endOfLastMonth() { const d = new Date(); d.setDate(0); d.setHours(0,0,0,0); return d }
+
+const DATE_PRESETS_INV = [
+  { label: 'Today',        from: () => _fmtD(new Date()),                  to: () => _fmtD(new Date()) },
+  { label: 'Yesterday',    from: () => _fmtD(_subDays(new Date(), 1)),     to: () => _fmtD(_subDays(new Date(), 1)) },
+  { label: 'Last 7 Days',  from: () => _fmtD(_subDays(new Date(), 6)),     to: () => _fmtD(new Date()) },
+  { label: 'Last 15 Days', from: () => _fmtD(_subDays(new Date(), 14)),    to: () => _fmtD(new Date()) },
+  { label: 'Last 30 Days', from: () => _fmtD(_subDays(new Date(), 29)),    to: () => _fmtD(new Date()) },
+  { label: 'This Week',    from: () => _fmtD(_startOfWeekSun()),           to: () => _fmtD(new Date()) },
+  { label: 'This Month',   from: () => _fmtD(_startOf('month')),           to: () => _fmtD(new Date()) },
+  { label: 'Last Month',   from: () => _fmtD(_startOfLastMonth()),         to: () => _fmtD(_endOfLastMonth()) },
+  { label: 'This Year',    from: () => _fmtD(_startOf('year')),            to: () => _fmtD(new Date()) },
+]
+
+function InvDateFilterDropdown({ from, to, onChange }: {
+  from: string; to: string; onChange: (f: string, t: string) => void
+}) {
+  const [open,    setOpen]    = useState(false)
+  const [tmpFrom, setTmpFrom] = useState(from)
+  const [tmpTo,   setTmpTo]   = useState(to)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  const activePreset = DATE_PRESETS_INV.find(p => from === p.from() && to === p.to())
+  const isCustom     = !activePreset && !!(from || to)
+
+  function applyPreset(p: typeof DATE_PRESETS_INV[number]) { onChange(p.from(), p.to()); setOpen(false) }
+  function applyCustom() { if (tmpFrom && tmpTo) { onChange(tmpFrom, tmpTo); setOpen(false) } }
+  function clearFilter() { setTmpFrom(''); setTmpTo(''); onChange('', ''); setOpen(false) }
+
+  const label = activePreset ? activePreset.label : isCustom ? `${_dmy(from)} – ${_dmy(to)}` : 'All Dates'
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => { setTmpFrom(from); setTmpTo(to); setOpen(v => !v) }}
+        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-xl transition-all active:scale-95 bg-white/10 border border-white/20 text-white hover:bg-white/20 hover:border-white/40"
+      >
+        <Calendar size={14} />
+        {label}
+        <ChevronDown size={13} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-full mt-2 z-50 bg-white rounded-2xl shadow-xl border border-gray-100 p-3 w-60">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">Quick Range</p>
+          <div className="space-y-0.5 mb-3">
+            {DATE_PRESETS_INV.map(p => {
+              const active = from === p.from() && to === p.to()
+              return (
+                <button key={p.label} onClick={() => applyPreset(p)}
+                  className={`w-full text-left px-3 py-2 text-sm rounded-xl transition-colors font-medium ${
+                    active ? 'bg-violet-50 text-violet-700' : 'text-gray-700 hover:bg-gray-50'
+                  }`}>
+                  {p.label}
+                </button>
+              )
+            })}
+          </div>
+          <div className="border-t border-gray-100 pt-3">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">Custom Range</p>
+            <div className="space-y-2">
+              <input type="date" value={tmpFrom} onChange={e => setTmpFrom(e.target.value)}
+                className="w-full px-3 py-1.5 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-400 text-gray-700" />
+              <input type="date" value={tmpTo} onChange={e => setTmpTo(e.target.value)}
+                className="w-full px-3 py-1.5 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-400 text-gray-700" />
+              <div className="flex gap-2">
+                <button onClick={clearFilter}
+                  className="flex-1 py-1.5 text-xs font-medium text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+                  Clear
+                </button>
+                <button onClick={applyCustom} disabled={!tmpFrom || !tmpTo}
+                  className="flex-1 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-violet-600 to-blue-600 rounded-xl hover:from-violet-700 hover:to-blue-700 disabled:opacity-40 transition-all">
+                  Apply
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ─── Line item type ────────────────────────────────────────────────────────────
+
+const METERS_PER_PIPE = 5.25
 
 interface LineItem {
   id: string
   productId: number | null
   productName: string
   productSku: string
-  quantity: number
-  unitPrice: number
+  meters: number
+  quantity: number             // derived: Math.ceil(meters / METERS_PER_PIPE)
+  unitPrice: number            // price per meter
   discountPercent: number
   taxRate: number
-  autoDiscountLabel?: string   // name of system discount that was auto-applied
+  autoDiscountLabel?: string
 }
 
 function calcLine(item: LineItem) {
-  const base = item.quantity * item.unitPrice
+  const base = item.meters * item.unitPrice
   const disc = base * (item.discountPercent / 100)
   const afterDisc = base - disc
   const tax = afterDisc * (item.taxRate / 100)
@@ -93,15 +178,35 @@ function ProductSearch({ onSelect }: { onSelect: (p: any) => void }) {
   const [results, setResults] = useState<any[]>([])
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
+  const [dropRect, setDropRect] = useState<{ top: number; left: number; width: number } | null>(null)
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const dropRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+      const t = e.target as Node
+      if (!wrapRef.current?.contains(t) && !dropRef.current?.contains(t)) setOpen(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [])
+
+  // Recalculate dropdown position on open or scroll
+  useEffect(() => {
+    if (!open || !wrapRef.current) { if (!open) setDropRect(null); return }
+    const update = () => {
+      if (!wrapRef.current) return
+      const r = wrapRef.current.getBoundingClientRect()
+      setDropRect({ top: r.bottom + 4, left: r.left, width: r.width })
+    }
+    update()
+    window.addEventListener('scroll', update, true)
+    window.addEventListener('resize', update)
+    return () => {
+      window.removeEventListener('scroll', update, true)
+      window.removeEventListener('resize', update)
+    }
+  }, [open])
 
   useEffect(() => {
     if (query.length < 2) { setResults([]); setOpen(false); return }
@@ -110,7 +215,6 @@ function ProductSearch({ onSelect }: { onSelect: (p: any) => void }) {
       try {
         const res = await productApi.search(query)
         const products = res.data.data ?? []
-        // Fetch discount previews for each product in parallel
         const withDiscounts = await Promise.all(products.map(async (p: any) => {
           try {
             const unitPrice = p.sellingPrice ?? p.price ?? 0
@@ -133,19 +237,21 @@ function ProductSearch({ onSelect }: { onSelect: (p: any) => void }) {
   }, [query])
 
   return (
-    <div ref={ref} className="relative">
-      <div className="flex items-center gap-2 border border-dashed border-primary-300 rounded-lg px-3 py-2 hover:border-primary-400 transition-colors">
-        <Search size={14} className="text-gray-400 shrink-0" />
+    <div ref={wrapRef}>
+      <div className="flex items-center gap-2 border border-gray-200 rounded-xl px-3 py-2.5 bg-white shadow-[0_4px_16px_rgba(0,0,0,0.10)] hover:shadow-[0_6px_24px_rgba(0,0,0,0.14)] transition-shadow">
+        <Search size={15} className="text-gray-400 shrink-0" />
         <input
           value={query}
           onChange={e => setQuery(e.target.value)}
           placeholder="Search product to add…"
-          className="flex-1 text-sm outline-none bg-transparent text-gray-700 placeholder-gray-400"
+          className="flex-1 text-sm outline-none bg-transparent text-gray-800 placeholder-gray-400"
         />
         {loading && <Loader2 size={13} className="animate-spin text-gray-400" />}
       </div>
-      {open && results.length > 0 && (
-        <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-white border rounded-lg shadow-lg max-h-52 overflow-y-auto">
+      {open && results.length > 0 && dropRect && createPortal(
+        <div ref={dropRef}
+          className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-2xl max-h-52 overflow-y-auto"
+          style={{ top: dropRect.top, left: dropRect.left, width: dropRect.width }}>
           {results.map(p => {
             const price = p.sellingPrice ?? p.price ?? 0
             const hasOffer = p._offerPct > 0
@@ -178,7 +284,8 @@ function ProductSearch({ onSelect }: { onSelect: (p: any) => void }) {
               </button>
             )
           })}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
@@ -205,23 +312,36 @@ function CreateInvoicePanel({ outletId, onClose, onCreated, editInvoice }: {
   editInvoice?: any
 }) {
   const isEdit = !!editInvoice
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setVisible(true))
+    return () => cancelAnimationFrame(id)
+  }, [])
+
+  function handleClose() {
+    setVisible(false)
+    setTimeout(onClose, 300)
+  }
 
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null)
-  const [issueDate, setIssueDate]       = useState(format(new Date(), 'yyyy-MM-dd'))
-  const [paymentTerms, setPaymentTerms] = useState('NET_30')
-  const [dueDate, setDueDate]           = useState(format(addDays(new Date(), 30), 'yyyy-MM-dd'))
-  const [notes, setNotes]               = useState('')
-  const [terms, setTerms]               = useState('')
-  const [items, setItems]               = useState<LineItem[]>([])
-  const [billDiscPct, setBillDiscPct]   = useState(0)
-  const [poNumber, setPoNumber]         = useState('')
-  const [shippingAmt, setShippingAmt]   = useState(0)
-  const [advanceAmt, setAdvanceAmt]     = useState(0)
-  const [submitting, setSubmitting]     = useState(false)
-  const [sendOnSave, setSendOnSave]     = useState(false)
+  const [issueDate, setIssueDate]           = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [paymentTerms, setPaymentTerms]     = useState('NET_30')
+  const [dueDate, setDueDate]               = useState(format(addDays(new Date(), 30), 'yyyy-MM-dd'))
+  const [notes, setNotes]                   = useState('')
+  const [terms, setTerms]                   = useState('')
+  const [items, setItems]                   = useState<LineItem[]>([])
+  const [billDiscPct, setBillDiscPct]       = useState(0)
+  const [poNumber, setPoNumber]             = useState('')
+  const [shippingAmt, setShippingAmt]       = useState(0)
+  const [advanceAmt, setAdvanceAmt]         = useState(0)
+  const [deliveryChallanNo, setDeliveryChallanNo] = useState('')
+  const [eWayBillNo, setEWayBillNo]         = useState('')
+  const [eInvoiceNo, setEInvoiceNo]         = useState('')
+  const [submitting, setSubmitting]         = useState(false)
+  const [sendOnSave, setSendOnSave]         = useState(false)
   const initialized = useRef(false)
 
-  // Pre-populate for edit mode (runs once)
   useEffect(() => {
     if (editInvoice && !initialized.current) {
       initialized.current = true
@@ -235,12 +355,16 @@ function CreateInvoicePanel({ outletId, onClose, onCreated, editInvoice }: {
       setPoNumber(editInvoice.poNumber ?? '')
       setShippingAmt(editInvoice.shippingAmount ?? 0)
       setAdvanceAmt(editInvoice.paidAmount ?? 0)
+      setDeliveryChallanNo(editInvoice.deliveryChallanNo ?? '')
+      setEWayBillNo(editInvoice.eWayBillNo ?? '')
+      setEInvoiceNo(editInvoice.eInvoiceNo ?? '')
       setItems((editInvoice.items ?? []).map((it: any) => ({
         id: crypto.randomUUID(),
         productId: it.product?.id ?? null,
         productName: it.productName,
         productSku: it.productSku ?? '',
-        quantity: Number(it.quantity),
+        meters: Number(it.quantity),
+        quantity: Math.ceil(Number(it.quantity) / METERS_PER_PIPE),
         unitPrice: Number(it.unitPrice),
         discountPercent: Number(it.discountPercent ?? 0),
         taxRate: Number(it.taxRate ?? 0),
@@ -248,7 +372,6 @@ function CreateInvoicePanel({ outletId, onClose, onCreated, editInvoice }: {
     }
   }, [editInvoice])
 
-  // Auto-calculate due date when payment terms or issue date changes (skip CUSTOM & edit init)
   useEffect(() => {
     if (!initialized.current && isEdit) return
     const term = PAYMENT_TERMS.find(t => t.value === paymentTerms)
@@ -264,12 +387,12 @@ function CreateInvoicePanel({ outletId, onClose, onCreated, editInvoice }: {
       productId: p.id,
       productName: p.name,
       productSku: p.sku ?? '',
+      meters: METERS_PER_PIPE,
       quantity: 1,
       unitPrice,
       discountPercent: 0,
       taxRate: p.taxGroup?.totalRate ?? 0,
     }
-    // Fetch auto-discount from system offers
     try {
       const res = await discountApi.itemPreview(p.id, 1, unitPrice)
       const preview = res.data.data
@@ -277,12 +400,19 @@ function CreateInvoicePanel({ outletId, onClose, onCreated, editInvoice }: {
         newItem.discountPercent = Number(preview.discountPct)
         newItem.autoDiscountLabel = preview.label
       }
-    } catch { /* no discount is fine */ }
+    } catch { /* no discount */ }
     setItems(prev => [...prev, newItem])
   }
 
   function updateItem(id: string, field: keyof LineItem, value: any) {
-    setItems(prev => prev.map(it => it.id === id ? { ...it, [field]: value } : it))
+    setItems(prev => prev.map(it => {
+      if (it.id !== id) return it
+      const updated = { ...it, [field]: value }
+      if (field === 'meters') {
+        updated.quantity = Math.ceil((value as number) / METERS_PER_PIPE)
+      }
+      return updated
+    }))
   }
 
   function removeItem(id: string) {
@@ -294,18 +424,13 @@ function CreateInvoicePanel({ outletId, onClose, onCreated, editInvoice }: {
     return { subtotal: acc.subtotal + c.base, lineDisc: acc.lineDisc + c.disc, tax: acc.tax + c.tax }
   }, { subtotal: 0, lineDisc: 0, tax: 0 })
 
-  const afterLineDisc   = lineTotals.subtotal - lineTotals.lineDisc
-  const billDiscAmt     = afterLineDisc * (billDiscPct / 100)
-  const taxableAmount   = afterLineDisc - billDiscAmt
-  const grandTotal      = taxableAmount + lineTotals.tax + shippingAmt
-
-  // GST label for invoice form: show % if all items share same rate
-  const formTaxRates = [...new Set(items.map(i => i.taxRate).filter(r => r > 0))]
-  const formGstLabel = formTaxRates.length === 1 ? `GST (${formTaxRates[0]}%)` : 'GST'
-
-  // Rounding off for invoice form
+  const afterLineDisc    = lineTotals.subtotal - lineTotals.lineDisc
+  const billDiscAmt      = afterLineDisc * (billDiscPct / 100)
+  const grandTotal       = afterLineDisc - billDiscAmt + lineTotals.tax + shippingAmt
   const roundedGrandTotal = Math.round(grandTotal)
-  const formRoundOff = parseFloat((roundedGrandTotal - grandTotal).toFixed(2))
+  const formRoundOff     = parseFloat((roundedGrandTotal - grandTotal).toFixed(2))
+  const formTaxRates     = [...new Set(items.map(i => i.taxRate).filter(r => r > 0))]
+  const formGstLabel     = formTaxRates.length === 1 ? `GST (${formTaxRates[0]}%)` : 'GST'
 
   async function handleSubmit(send: boolean) {
     if (items.length === 0) { toast.error('Add at least one item'); return }
@@ -323,11 +448,14 @@ function CreateInvoicePanel({ outletId, onClose, onCreated, editInvoice }: {
         shippingAmount: shippingAmt > 0 ? shippingAmt : undefined,
         notes: notes || undefined,
         termsConditions: terms || undefined,
+        deliveryChallanNo: deliveryChallanNo || undefined,
+        eWayBillNo: eWayBillNo || undefined,
+        eInvoiceNo: eInvoiceNo || undefined,
         items: items.map(it => ({
           productId: it.productId ?? undefined,
           productName: it.productName,
           productSku: it.productSku,
-          quantity: it.quantity,
+          quantity: it.meters,
           unitPrice: it.unitPrice,
           discountPercent: it.discountPercent,
           taxRate: it.taxRate,
@@ -337,7 +465,6 @@ function CreateInvoicePanel({ outletId, onClose, onCreated, editInvoice }: {
       if (isEdit) {
         const res = await invoiceApi.update(editInvoice.id, payload)
         invoiceId = res.data.data.id
-        // Sync advance payment: record the delta if it changed
         const prevPaid = editInvoice.paidAmount ?? 0
         const delta = advanceAmt - prevPaid
         if (delta > 0) await invoiceApi.recordPayment(invoiceId, delta)
@@ -351,7 +478,7 @@ function CreateInvoicePanel({ outletId, onClose, onCreated, editInvoice }: {
         toast.success(send ? 'Invoice created & sent' : 'Invoice saved as draft')
       }
       onCreated()
-      onClose()
+      handleClose()
     } catch (err: any) {
       toast.error(err.response?.data?.message ?? (isEdit ? 'Failed to update invoice' : 'Failed to create invoice'))
     } finally {
@@ -362,312 +489,383 @@ function CreateInvoicePanel({ outletId, onClose, onCreated, editInvoice }: {
   const selectedTerm = PAYMENT_TERMS.find(t => t.value === paymentTerms)
 
   return (
-    <div className="fixed inset-y-0 right-0 left-[220px] z-50 flex">
-      <div className="w-full bg-white shadow-2xl flex flex-col h-full overflow-hidden">
+    <>
+      {/* Backdrop */}
+      <div className={`fixed inset-0 bg-black/30 z-40 transition-opacity duration-300 ${visible ? 'opacity-100' : 'opacity-0'}`} onClick={handleClose} />
 
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b bg-gray-50 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-primary-100 flex items-center justify-center">
-              <FileText size={16} className="text-primary-600" />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-gray-900">{isEdit ? `Edit Invoice` : 'New Invoice'}</h2>
-              <p className="text-[11px] text-gray-400">{isEdit ? editInvoice.invoiceNumber : 'Invoice number assigned on save'}</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-200 transition-colors">
-            <X size={18} className="text-gray-500" />
-          </button>
-        </div>
+      {/* Sliding panel */}
+      <div className={`fixed inset-y-0 right-0 left-[220px] z-50 transition-transform duration-300 ease-out ${visible ? 'translate-x-0' : 'translate-x-full'}`}>
+        <div className="w-full h-full bg-[#f8f9fb] flex flex-col overflow-hidden">
 
-        {/* Body */}
-        <div className="flex flex-1 overflow-hidden">
-
-          {/* Left: Invoice metadata */}
-          <div className="w-72 shrink-0 border-r p-5 flex flex-col gap-4 overflow-y-auto bg-gray-50/50">
-
-            {/* Customer */}
-            <CustomerSearchInput
-              label="Bill To"
-              value={selectedCustomer}
-              onSelect={setSelectedCustomer}
-              onClear={() => setSelectedCustomer(null)}
-              placeholder="Search customer…"
-            />
-
-            {/* Issue date */}
-            <div>
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">Issue Date</label>
-              <div className="flex items-center gap-2 border rounded-lg px-3 py-2 bg-white">
-                <Calendar size={13} className="text-gray-400" />
-                <input type="date" value={issueDate} onChange={e => setIssueDate(e.target.value)}
-                  className="flex-1 text-sm outline-none text-gray-700" />
+          {/* ── Header ── */}
+          <div className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-violet-600 flex items-center justify-center shrink-0">
+                <FileText size={15} className="text-white" />
+              </div>
+              <div>
+                <h2 className="text-[15px] font-bold text-gray-900 leading-none">{isEdit ? `Edit · ${editInvoice.invoiceNumber}` : 'New Invoice'}</h2>
+                <p className="text-xs text-gray-400 mt-0.5">{isEdit ? 'Editing invoice details' : 'Invoice number assigned on save'}</p>
               </div>
             </div>
+            <div className="flex items-center gap-2">
+              <button onClick={handleClose} className="px-3.5 py-2 text-sm text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">Cancel</button>
+              <button onClick={() => handleSubmit(false)} disabled={submitting}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm border border-violet-400 text-violet-700 rounded-lg hover:bg-violet-50 transition-colors font-medium">
+                {submitting && !sendOnSave ? <Loader2 size={13} className="animate-spin" /> : <FileText size={13} />}
+                {isEdit ? 'Update Draft' : 'Save Draft'}
+              </button>
+              <button onClick={() => handleSubmit(true)} disabled={submitting}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white rounded-lg transition-colors font-medium shadow-sm">
+                {submitting && sendOnSave ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+                {isEdit ? 'Update & Send' : 'Save & Send'}
+              </button>
+            </div>
+          </div>
 
-            {/* Payment Terms */}
-            <div>
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">Payment Terms</label>
-              <select value={paymentTerms} onChange={e => setPaymentTerms(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 text-sm text-gray-700 bg-white outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer">
-                {PAYMENT_TERMS.map(t => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
-                ))}
-              </select>
-              {paymentTerms !== 'DUE_ON_RECEIPT' && (
-                <div className="mt-1.5">
-                  {paymentTerms === 'CUSTOM' ? (
-                    <div className="flex items-center gap-2 border rounded-lg px-3 py-2 bg-white">
-                      <Calendar size={13} className="text-gray-400" />
-                      <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
-                        className="flex-1 text-sm outline-none text-gray-700" />
+          {/* ── Scrollable body ── */}
+          <div className="flex-1 overflow-y-auto">
+            <div className="max-w-6xl mx-auto px-8 py-6 space-y-5">
+
+              {/* ── From / To ── */}
+              <div className="grid grid-cols-2 gap-4">
+                {/* From — static company info */}
+                <div className="bg-white rounded-xl shadow-md p-5">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">From</p>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
+                      <Building2 size={17} className="text-violet-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-gray-900">PP Pipes Products</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Outlet #{outletId}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* To — customer picker */}
+                <div className="bg-white rounded-xl shadow-md p-5">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Bill To</p>
+                  {selectedCustomer ? (
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0 text-amber-700 font-bold text-sm">
+                        {selectedCustomer.name[0]?.toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-gray-900 truncate">{selectedCustomer.name}</p>
+                        {selectedCustomer.phone && <p className="text-xs text-gray-400 mt-0.5">{selectedCustomer.phone}</p>}
+                      </div>
+                      <button onClick={() => setSelectedCustomer(null)}
+                        className="w-7 h-7 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-red-400 transition-colors shrink-0">
+                        <X size={13} />
+                      </button>
                     </div>
                   ) : (
-                    <p className="text-xs text-gray-400 pl-1">Due: <span className="font-medium text-gray-600">{dueDate}</span></p>
+                    <CustomerSearchInput
+                      label=""
+                      value={selectedCustomer}
+                      onSelect={setSelectedCustomer}
+                      onClear={() => setSelectedCustomer(null)}
+                      placeholder="Search customer by name or phone…"
+                    />
                   )}
                 </div>
-              )}
-            </div>
-
-            {/* Bill-level Discount */}
-            <div>
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">Trade / Bill Discount</label>
-              <div className="flex items-center gap-2 border rounded-lg px-3 py-2 bg-white focus-within:ring-2 focus-within:ring-primary-500">
-                <Percent size={13} className="text-gray-400" />
-                <input type="number" min="0" max="100" step="0.5" value={billDiscPct || ''}
-                  onChange={e => setBillDiscPct(parseFloat(e.target.value) || 0)}
-                  placeholder="0"
-                  className="flex-1 text-sm outline-none text-gray-700" />
-                <span className="text-xs text-gray-400">%</span>
               </div>
-              {billDiscPct > 0 && (
-                <p className="text-xs text-green-600 pl-1 mt-1">−₹{billDiscAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 })} off</p>
-              )}
-            </div>
 
-            {/* PO Number */}
-            <div>
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">PO Number</label>
-              <div className="flex items-center gap-2 border rounded-lg px-3 py-2 bg-white focus-within:ring-2 focus-within:ring-primary-500">
-                <Hash size={13} className="text-gray-400" />
-                <input value={poNumber} onChange={e => setPoNumber(e.target.value)}
-                  placeholder="Buyer's PO reference…"
-                  className="flex-1 text-sm outline-none text-gray-700 placeholder-gray-400" />
-              </div>
-            </div>
-
-            {/* Shipping */}
-            <div>
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">Freight / Shipping</label>
-              <div className="flex items-center gap-2 border rounded-lg px-3 py-2 bg-white focus-within:ring-2 focus-within:ring-primary-500">
-                <Truck size={13} className="text-gray-400" />
-                <input type="number" min="0" step="0.01" value={shippingAmt || ''}
-                  onChange={e => setShippingAmt(parseFloat(e.target.value) || 0)}
-                  placeholder="0"
-                  className="flex-1 text-sm outline-none text-gray-700" />
-                <span className="text-xs text-gray-400">₹</span>
-              </div>
-            </div>
-
-            {/* Advance / Partial Payment */}
-            <div>
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">Advance Received</label>
-              <div className="flex items-center gap-2 border rounded-lg px-3 py-2 bg-white focus-within:ring-2 focus-within:ring-primary-500">
-                <IndianRupee size={13} className="text-gray-400" />
-                <input type="number" min="0" step="0.01" value={advanceAmt || ''}
-                  onChange={e => setAdvanceAmt(parseFloat(e.target.value) || 0)}
-                  placeholder="0"
-                  className="flex-1 text-sm outline-none text-gray-700" />
-              </div>
-              {advanceAmt > 0 && grandTotal > 0 && (
-                <p className="text-xs pl-1 mt-1">
-                  {advanceAmt >= grandTotal
-                    ? <span className="text-green-600 font-medium">Fully paid</span>
-                    : <span className="text-amber-600">Balance due: ₹{(grandTotal - advanceAmt).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                  }
-                </p>
-              )}
-            </div>
-
-            {/* Notes */}
-            <div>
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">Notes</label>
-              <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3}
-                placeholder={`Payment due ${selectedTerm?.days === 0 ? 'on receipt' : `within ${selectedTerm?.days} days`}…`}
-                className="w-full border rounded-lg px-3 py-2 text-sm text-gray-700 placeholder-gray-400 outline-none focus:ring-2 focus:ring-primary-500 resize-none bg-white" />
-            </div>
-
-            {/* Terms */}
-            <div>
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">Terms & Conditions</label>
-              <textarea value={terms} onChange={e => setTerms(e.target.value)} rows={3}
-                placeholder="Late payment charges, return policy…"
-                className="w-full border rounded-lg px-3 py-2 text-sm text-gray-700 placeholder-gray-400 outline-none focus:ring-2 focus:ring-primary-500 resize-none bg-white" />
-            </div>
-          </div>
-
-          {/* Right: Line items */}
-          <div className="flex-1 p-5 flex flex-col overflow-hidden">
-
-            <ProductSearch onSelect={addProduct} />
-
-            {items.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-gray-300 gap-2">
-                <FileText size={40} className="opacity-40" />
-                <p className="text-sm">Search products above to add line items</p>
-              </div>
-            ) : (
-              <div className="flex-1 overflow-y-auto mt-3">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-[11px] text-gray-400 uppercase border-b">
-                      <th className="pb-2 text-left">Product</th>
-                      <th className="pb-2 text-center w-16">Qty</th>
-                      <th className="pb-2 text-center w-24">Unit Price</th>
-                      <th className="pb-2 text-center w-16">Disc%</th>
-                      <th className="pb-2 text-center w-16">GST%</th>
-                      <th className="pb-2 text-right w-24">Amount</th>
-                      <th className="pb-2 w-8" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {items.map(it => {
-                      const c = calcLine(it)
-                      return (
-                        <tr key={it.id} className="group">
-                          <td className="py-2 pr-2">
-                            <p className="font-medium text-gray-800 truncate max-w-[150px]">{it.productName}</p>
-                            {it.productSku && <p className="text-xs text-gray-400">{it.productSku}</p>}
-                            {it.autoDiscountLabel && it.discountPercent > 0 && (
-                              <span className="inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                <Percent size={8} />
-                                {it.autoDiscountLabel}
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-2 px-1">
-                            <input type="number" min="0.01" step="0.01" value={it.quantity}
-                              onChange={e => updateItem(it.id, 'quantity', parseFloat(e.target.value) || 0)}
-                              className="w-full text-center border rounded px-1 py-1 text-xs focus:ring-1 focus:ring-primary-500 outline-none" />
-                          </td>
-                          <td className="py-2 px-1">
-                            <input type="number" min="0" step="0.01" value={it.unitPrice}
-                              onChange={e => updateItem(it.id, 'unitPrice', parseFloat(e.target.value) || 0)}
-                              className="w-full text-center border rounded px-1 py-1 text-xs focus:ring-1 focus:ring-primary-500 outline-none" />
-                          </td>
-                          <td className="py-2 px-1">
-                            <input type="number" min="0" max="100" step="0.5" value={it.discountPercent}
-                              onChange={e => updateItem(it.id, 'discountPercent', parseFloat(e.target.value) || 0)}
-                              className="w-full text-center border rounded px-1 py-1 text-xs focus:ring-1 focus:ring-primary-500 outline-none" />
-                          </td>
-                          <td className="py-2 px-1">
-                            <input type="number" min="0" max="100" step="0.5" value={it.taxRate}
-                              onChange={e => updateItem(it.id, 'taxRate', parseFloat(e.target.value) || 0)}
-                              className="w-full text-center border rounded px-1 py-1 text-xs focus:ring-1 focus:ring-primary-500 outline-none" />
-                          </td>
-                          <td className="py-2 pl-2 text-right font-semibold text-gray-800 whitespace-nowrap">
-                            ₹{c.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                          </td>
-                          <td className="py-2 pl-1">
-                            <button type="button" onClick={() => removeItem(it.id)}
-                              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-50">
-                              <Trash2 size={13} className="text-red-400" />
-                            </button>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {/* Totals summary */}
-            {items.length > 0 && (
-              <div className="mt-3 pt-3 border-t shrink-0">
-                <div className="ml-auto w-64 space-y-1.5 text-sm">
-                  <div className="flex justify-between text-gray-500">
-                    <span>Subtotal</span>
-                    <span>₹{lineTotals.subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+              {/* ── Invoice metadata bar ── */}
+              <div className="bg-white rounded-xl shadow-md">
+                <div className="grid divide-x divide-gray-100" style={{ gridTemplateColumns: '1fr 1fr 1fr 1.4fr 1fr' }}>
+                  <div className="px-5 py-4">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Invoice No.</p>
+                    <p className="text-sm text-gray-400 italic">{isEdit ? editInvoice.invoiceNumber : 'Auto-assigned'}</p>
                   </div>
-                  {lineTotals.lineDisc > 0 && (
-                    <div className="flex justify-between text-green-600">
-                      <span>Line Discounts</span>
-                      <span>−₹{lineTotals.lineDisc.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                  <div className="px-5 py-4">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Issue Date</p>
+                    <input type="date" value={issueDate} onChange={e => setIssueDate(e.target.value)}
+                      className="w-full text-sm text-gray-800 border-0 bg-transparent p-0 focus:outline-none" />
+                  </div>
+                  <div className="px-5 py-4">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Due Date</p>
+                    <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
+                      className="w-full text-sm text-gray-800 border-0 bg-transparent p-0 focus:outline-none" />
+                  </div>
+                  <div className="px-5 py-4">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Payment Terms</p>
+                    <select value={paymentTerms} onChange={e => setPaymentTerms(e.target.value)}
+                      className="w-full text-sm text-gray-800 border-0 bg-transparent p-0 focus:outline-none appearance-none cursor-pointer">
+                      {PAYMENT_TERMS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                    </select>
+                  </div>
+                  <div className="px-5 py-4">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">PO Number</p>
+                    <input type="text" value={poNumber} onChange={e => setPoNumber(e.target.value)} placeholder="PO-001"
+                      className="w-full text-sm text-gray-800 placeholder-gray-300 border-0 bg-transparent p-0 focus:outline-none" />
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Compliance: DC / EWay / EInvoice ── */}
+              <div className="bg-blue-50 rounded-xl shadow-md px-5 py-4">
+                <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-3">Compliance Documents</p>
+                <div className="grid grid-cols-3 gap-5">
+                  <div>
+                    <p className="text-xs font-semibold text-blue-700 mb-1.5">Delivery Challan No.</p>
+                    <input type="text" value={deliveryChallanNo} onChange={e => setDeliveryChallanNo(e.target.value)} placeholder="DC-0001"
+                      className="w-full px-3 py-2 text-sm border border-blue-200 rounded-lg bg-white text-gray-800 placeholder-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-blue-700 mb-1.5">E-Way Bill No.</p>
+                    <input type="text" value={eWayBillNo} onChange={e => setEWayBillNo(e.target.value)} placeholder="331234567890"
+                      className="w-full px-3 py-2 text-sm border border-blue-200 rounded-lg bg-white text-gray-800 placeholder-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-blue-700 mb-1.5">E-Invoice No. (IRN)</p>
+                    <input type="text" value={eInvoiceNo} onChange={e => setEInvoiceNo(e.target.value)} placeholder="IRN-..."
+                      className="w-full px-3 py-2 text-sm border border-blue-200 rounded-lg bg-white text-gray-800 placeholder-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Line Items (search + table combined) ── */}
+              <div className="bg-white rounded-xl shadow-md overflow-hidden">
+                {/* Product search bar */}
+                <div className="px-5 py-4 border-b border-gray-100">
+                  <ProductSearch onSelect={addProduct} />
+                </div>
+
+                {/* Table header */}
+                <div className="grid text-[10px] font-bold text-gray-400 uppercase tracking-widest bg-gray-50 border-b border-gray-100"
+                  style={{ gridTemplateColumns: '2.5fr 100px 120px 80px 72px 116px 36px' }}>
+                  <div className="px-5 py-3">Description</div>
+                  <div className="px-3 py-3 text-right">Meters (m)</div>
+                  <div className="px-3 py-3 text-right">Price / m (₹)</div>
+                  <div className="px-3 py-3 text-right">Disc %</div>
+                  <div className="px-3 py-3 text-right">GST %</div>
+                  <div className="px-3 py-3 text-right">Net Amount</div>
+                  <div />
+                </div>
+
+                {/* Item rows */}
+                {items.length === 0 ? (
+                  <div className="py-8 text-center text-sm text-gray-400">No items yet — search a product below to add</div>
+                ) : items.map((it, idx) => {
+                  const c = calcLine(it)
+                  return (
+                    <div key={it.id}
+                      className={`grid items-center border-b border-gray-100 last:border-0 transition-colors ${idx % 2 === 1 ? 'bg-gray-50/40' : 'bg-white'} hover:bg-violet-50/20`}
+                      style={{ gridTemplateColumns: '2.5fr 100px 120px 80px 72px 116px 36px' }}>
+
+                      {/* Description */}
+                      <div className="px-5 py-3">
+                        <p className="text-sm font-semibold text-gray-900">{it.productName}</p>
+                        {it.productSku && <p className="text-[11px] text-gray-400 mt-0.5">{it.productSku}</p>}
+                        {it.autoDiscountLabel && it.discountPercent > 0 && (
+                          <span className="inline-flex items-center gap-0.5 mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <Percent size={8} /> {it.autoDiscountLabel}
+                          </span>
+                        )}
+                        {it.meters > 0 && it.unitPrice > 0 && (
+                          <p className="text-[10px] text-gray-400 mt-0.5 tabular-nums">
+                            {it.meters}m × ₹{it.unitPrice}/m · ≈ {it.quantity} pipe{it.quantity !== 1 ? 's' : ''}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Meters */}
+                      <div className="px-2 py-2.5">
+                        <input type="number" min="0.01" step="0.01" value={it.meters || ''}
+                          onChange={e => updateItem(it.id, 'meters', parseFloat(e.target.value) || 0)}
+                          className="w-full px-2 py-1.5 text-sm text-right border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300 bg-white" />
+                      </div>
+
+                      {/* Price/m */}
+                      <div className="px-2 py-2.5">
+                        <div className="relative">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-300 pointer-events-none">₹</span>
+                          <input type="number" min="0" step="0.01" value={it.unitPrice || ''}
+                            onChange={e => updateItem(it.id, 'unitPrice', parseFloat(e.target.value) || 0)}
+                            className="w-full pl-5 pr-2 py-1.5 text-sm text-right border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300 bg-white" />
+                        </div>
+                      </div>
+
+                      {/* Disc % */}
+                      <div className="px-2 py-2.5">
+                        <input type="number" min="0" max="100" step="0.5" value={it.discountPercent || ''}
+                          onChange={e => updateItem(it.id, 'discountPercent', parseFloat(e.target.value) || 0)}
+                          className="w-full px-2 py-1.5 text-sm text-right border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300 bg-white" />
+                      </div>
+
+                      {/* GST % */}
+                      <div className="px-2 py-2.5">
+                        <input type="number" min="0" max="100" step="0.5" value={it.taxRate || ''}
+                          onChange={e => updateItem(it.id, 'taxRate', parseFloat(e.target.value) || 0)}
+                          className="w-full px-2 py-1.5 text-sm text-right border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300 bg-white" />
+                      </div>
+
+                      {/* Net Amount */}
+                      <div className="px-3 py-2.5 text-right">
+                        <p className="text-sm font-bold text-gray-900 tabular-nums">₹{c.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
+                        {c.disc > 0 && <p className="text-[10px] text-emerald-600 tabular-nums">−₹{c.disc.toLocaleString('en-IN', { minimumFractionDigits: 2 })} disc</p>}
+                      </div>
+
+                      {/* Delete */}
+                      <div className="pr-2 flex items-center justify-center">
+                        <button type="button" onClick={() => removeItem(it.id)}
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
                     </div>
-                  )}
-                  {billDiscPct > 0 && (
-                    <div className="flex justify-between text-green-600">
-                      <span>Trade Discount ({billDiscPct}%)</span>
-                      <span>−₹{billDiscAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                  )
+                })}
+
+                {/* Subtotals row */}
+                {items.length > 0 && (
+                  <div className="border-t border-gray-100 bg-gray-50 px-5 py-3 flex justify-end gap-8 text-sm">
+                    <span className="text-gray-500">Subtotal: <span className="font-semibold text-gray-800 tabular-nums">₹{lineTotals.subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></span>
+                    {lineTotals.lineDisc > 0 && <span className="text-emerald-600">Discount: <span className="font-semibold tabular-nums">−₹{lineTotals.lineDisc.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></span>}
+                    <span className="text-gray-500">{formGstLabel}: <span className="font-semibold text-gray-800 tabular-nums">₹{lineTotals.tax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></span>
+                  </div>
+                )}
+              </div>
+
+              {/* ── Adjustments + Summary ── */}
+              <div className="grid grid-cols-2 gap-5">
+
+                {/* Adjustments */}
+                <div className="bg-white rounded-xl shadow-md p-5 space-y-4">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Adjustments</p>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <label className="text-xs font-medium text-gray-600 w-36 shrink-0">Bill Discount (%)</label>
+                      <input type="number" min="0" max="100" step="0.5" value={billDiscPct || ''}
+                        onChange={e => setBillDiscPct(parseFloat(e.target.value) || 0)}
+                        placeholder="0"
+                        className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-400 bg-white text-right" />
+                      {billDiscPct > 0 && <span className="text-xs text-emerald-600 font-medium whitespace-nowrap">−₹{billDiscAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>}
                     </div>
-                  )}
-                  {lineTotals.tax > 0 && (
-                    <div className="flex justify-between text-gray-500">
+                    <div className="flex items-center gap-3">
+                      <label className="text-xs font-medium text-gray-600 w-36 shrink-0">Freight (₹)</label>
+                      <input type="number" min="0" step="0.01" value={shippingAmt || ''}
+                        onChange={e => setShippingAmt(parseFloat(e.target.value) || 0)}
+                        placeholder="0.00"
+                        className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-400 bg-white text-right" />
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <label className="text-xs font-medium text-gray-600 w-36 shrink-0">Advance Received (₹)</label>
+                      <input type="number" min="0" step="0.01" value={advanceAmt || ''}
+                        onChange={e => setAdvanceAmt(parseFloat(e.target.value) || 0)}
+                        placeholder="0.00"
+                        className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-400 bg-white text-right" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Summary */}
+                <div className="bg-white rounded-xl shadow-md p-5">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Invoice Summary</p>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between text-gray-600">
+                      <span>Subtotal</span>
+                      <span className="tabular-nums font-medium">₹{lineTotals.subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    {lineTotals.lineDisc > 0 && (
+                      <div className="flex justify-between text-emerald-600">
+                        <span>Line Discounts</span>
+                        <span className="tabular-nums font-medium">−₹{lineTotals.lineDisc.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    )}
+                    {billDiscPct > 0 && (
+                      <div className="flex justify-between text-emerald-600">
+                        <span>Bill Discount ({billDiscPct}%)</span>
+                        <span className="tabular-nums font-medium">−₹{billDiscAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-gray-600">
                       <span>{formGstLabel}</span>
-                      <span>+₹{lineTotals.tax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                      <span className="tabular-nums font-medium">₹{lineTotals.tax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                     </div>
-                  )}
-                  {shippingAmt > 0 && (
-                    <div className="flex justify-between text-gray-500">
-                      <span>Freight / Shipping</span>
-                      <span>+₹{shippingAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                    {shippingAmt > 0 && (
+                      <div className="flex justify-between text-gray-600">
+                        <span>Freight</span>
+                        <span className="tabular-nums font-medium">₹{shippingAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    )}
+                    {formRoundOff !== 0 && (
+                      <div className="flex justify-between text-xs text-gray-400">
+                        <span>Round Off</span>
+                        <span>{formRoundOff > 0 ? '+' : ''}₹{formRoundOff.toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-bold text-[15px] border-t border-gray-200 pt-3 mt-1 text-gray-900">
+                      <span>Grand Total</span>
+                      <span className="tabular-nums text-violet-700">₹{roundedGrandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                     </div>
-                  )}
-                  {formRoundOff !== 0 && (
-                    <div className="flex justify-between text-gray-400 text-xs">
-                      <span>Round Off</span>
-                      <span>{formRoundOff > 0 ? '+' : ''}₹{formRoundOff.toFixed(2)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between font-bold text-gray-900 text-base pt-2 border-t mt-1">
-                    <span>Total</span>
-                    <span>₹{roundedGrandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                    {advanceAmt > 0 && (
+                      <div className="flex justify-between text-sm text-emerald-600 font-medium">
+                        <span>Advance</span>
+                        <span className="tabular-nums">−₹{advanceAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    )}
+                    {advanceAmt > 0 && advanceAmt < grandTotal && (
+                      <div className="flex justify-between text-sm font-bold text-red-500">
+                        <span>Balance Due</span>
+                        <span className="tabular-nums">₹{(grandTotal - advanceAmt).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    )}
+                    {paymentTerms !== 'DUE_ON_RECEIPT' && dueDate && (
+                      <p className="text-[11px] text-gray-400 text-right pt-1">Due on {dueDate}</p>
+                    )}
                   </div>
-                  {advanceAmt > 0 && (
-                    <div className="flex justify-between text-green-600 font-semibold">
-                      <span>Advance Received</span>
-                      <span>−₹{advanceAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                    </div>
-                  )}
-                  {advanceAmt > 0 && advanceAmt < grandTotal && (
-                    <div className="flex justify-between text-red-500 font-semibold">
-                      <span>Balance Due</span>
-                      <span>₹{(grandTotal - advanceAmt).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                    </div>
-                  )}
-                  {paymentTerms !== 'DUE_ON_RECEIPT' && (
-                    <p className="text-xs text-gray-400 text-right">Due {dueDate}</p>
-                  )}
                 </div>
               </div>
-            )}
-          </div>
-        </div>
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t bg-gray-50 flex items-center justify-between shrink-0">
-          <p className="text-xs text-gray-400">{items.length} item{items.length !== 1 ? 's' : ''}{grandTotal > 0 ? ` · ₹${grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : ''}</p>
-          <div className="flex gap-3">
-            <button onClick={onClose} disabled={submitting}
-              className="px-4 py-2 text-sm text-gray-600 border rounded-lg hover:bg-gray-100 transition-colors">
-              Cancel
-            </button>
-            <button onClick={() => handleSubmit(false)} disabled={submitting}
-              className="flex items-center gap-2 px-4 py-2 text-sm border border-primary-500 text-primary-600 rounded-lg hover:bg-primary-50 transition-colors">
-              {submitting && !sendOnSave ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
-              {isEdit ? 'Update Draft' : 'Save as Draft'}
-            </button>
-            <button onClick={() => handleSubmit(true)} disabled={submitting}
-              className="flex items-center gap-2 px-4 py-2 text-sm bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-700 hover:to-blue-700 text-white rounded-lg transition-colors">
-              {submitting && sendOnSave ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-              {isEdit ? 'Update & Send' : 'Save & Send'}
-            </button>
+              {/* ── Notes & Terms ── */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Notes</label>
+                  <textarea rows={3} value={notes} onChange={e => setNotes(e.target.value)}
+                    placeholder={`Payment due ${selectedTerm?.days === 0 ? 'on receipt' : selectedTerm?.days ? `within ${selectedTerm.days} days` : '…'}`}
+                    className="w-full px-4 py-3 text-sm rounded-xl shadow-md focus:outline-none focus:ring-2 focus:ring-violet-300 bg-white resize-none" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Terms &amp; Conditions</label>
+                  <textarea rows={3} value={terms} onChange={e => setTerms(e.target.value)}
+                    placeholder="Late payment charges, return policy…"
+                    className="w-full px-4 py-3 text-sm rounded-xl shadow-md focus:outline-none focus:ring-2 focus:ring-violet-300 bg-white resize-none" />
+                </div>
+              </div>
+
+            </div>
           </div>
+
+          {/* ── Footer ── */}
+          <div className="px-8 py-3.5 bg-white border-t border-gray-200 flex items-center justify-between shrink-0">
+            <p className="text-xs text-gray-400 tabular-nums">
+              {items.length} item{items.length !== 1 ? 's' : ''}
+              {grandTotal > 0 ? ` · Total ₹${roundedGrandTotal.toLocaleString('en-IN')}` : ''}
+            </p>
+            <div className="flex gap-2.5">
+              <button onClick={handleClose} disabled={submitting}
+                className="px-4 py-2 text-sm text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                Cancel
+              </button>
+              <button onClick={() => handleSubmit(false)} disabled={submitting}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm border border-violet-400 text-violet-700 rounded-lg hover:bg-violet-50 transition-colors font-medium">
+                {submitting && !sendOnSave ? <Loader2 size={13} className="animate-spin" /> : <FileText size={13} />}
+                {isEdit ? 'Update Draft' : 'Save Draft'}
+              </button>
+              <button onClick={() => handleSubmit(true)} disabled={submitting}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white rounded-lg transition-colors font-medium shadow-sm">
+                {submitting && sendOnSave ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+                {isEdit ? 'Update & Send' : 'Save & Send'}
+              </button>
+            </div>
+          </div>
+
         </div>
       </div>
-    </div>
+    </>
   )
 }
 
@@ -1245,16 +1443,13 @@ export default function InvoicesPage() {
   const [showCreate, setShowCreate]         = useState(false)
   const [editInvoice, setEditInvoice]       = useState<any | null>(null)
   const [collectInvoice, setCollectInvoice] = useState<any | null>(null)
-  const [datePreset, setDatePreset]         = useState<DatePreset>('month')
-  const [customFrom, setCustomFrom]         = useState('')
-  const [customTo, setCustomTo]             = useState('')
+  const [fromDate, setFromDate]             = useState(_fmtD(_startOf('month')))
+  const [toDate,   setToDate]               = useState(_fmtD(new Date()))
   const [viewId, setViewId]                 = useState<number | null>(() => {
     const id = searchParams.get('invoiceId')
     return id ? parseInt(id) : null
   })
   const PAGE_SIZE = 15
-
-  const dateRange = getDateRange(datePreset, { from: customFrom, to: customTo })
 
   // Clear the ?invoiceId param once the modal opens so the URL stays clean
   useEffect(() => {
@@ -1264,12 +1459,12 @@ export default function InvoicesPage() {
   }, [viewId])
 
   const { data, isLoading } = useQuery({
-    queryKey: ['invoices', outletId, statusTab, page, dateRange.from, dateRange.to],
+    queryKey: ['invoices', outletId, statusTab, page, fromDate, toDate],
     queryFn: async () => {
       const res = await invoiceApi.getByOutlet(outletId, {
         status: statusTab === 'ALL' ? undefined : statusTab,
-        fromDate: dateRange.from || undefined,
-        toDate:   dateRange.to   || undefined,
+        fromDate: fromDate || undefined,
+        toDate:   toDate   || undefined,
         page,
         size: PAGE_SIZE,
         sort: 'issueDate,desc',
@@ -1280,11 +1475,11 @@ export default function InvoicesPage() {
 
   // Separate large-page fetch for chart data (same filters, no pagination limit)
   const { data: chartRaw } = useQuery({
-    queryKey: ['invoices-chart', outletId, dateRange.from, dateRange.to],
+    queryKey: ['invoices-chart', outletId, fromDate, toDate],
     queryFn: async () => {
       const res = await invoiceApi.getByOutlet(outletId, {
-        fromDate: dateRange.from || undefined,
-        toDate:   dateRange.to   || undefined,
+        fromDate: fromDate || undefined,
+        toDate:   toDate   || undefined,
         page: 0,
         size: 500,
         sort: 'issueDate,asc',
@@ -1358,59 +1553,59 @@ export default function InvoicesPage() {
     return Array.from(map.entries()).map(([name, value]) => ({ name, value }))
   })()
 
-  const DATE_PRESETS: { value: DatePreset; label: string }[] = [
-    { value: 'today',     label: 'Today' },
-    { value: 'week',      label: 'This Week' },
-    { value: 'month',     label: 'This Month' },
-    { value: 'lastMonth', label: 'Last Month' },
-    { value: 'quarter',   label: 'This Quarter' },
-    { value: 'fy',        label: 'This FY' },
-    { value: 'custom',    label: 'Custom' },
-    { value: 'all',       label: 'All Time' },
-  ]
-
   return (
     <div className="p-6 space-y-4">
-      {/* ── Header ── */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Invoices</h1>
-          <p className="text-xs text-gray-500 mt-0.5">Create and track customer invoices</p>
+      {/* ── Hero Header ── */}
+      <div className="relative rounded-2xl shadow-[0_8px_40px_rgba(109,40,217,0.30)] mb-2">
+        <div className="absolute inset-0 overflow-hidden rounded-2xl">
+          <div className="absolute inset-0 bg-gradient-to-br from-violet-700 via-violet-600 to-blue-600" />
+          <div className="absolute inset-0 opacity-[0.15]"
+            style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+          <div className="absolute -top-10 -right-10 w-72 h-72 rounded-full bg-blue-400/20 blur-3xl" />
+          <div className="absolute -bottom-8 -left-8 w-56 h-56 rounded-full bg-violet-300/20 blur-2xl" />
         </div>
-        <button onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-700 hover:to-blue-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm">
-          <Plus size={15} /> New Invoice
-        </button>
-      </div>
 
-      {/* ── Date Filter ── */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <Calendar size={14} className="text-gray-400 shrink-0" />
-        <div className="flex gap-1 flex-wrap">
-          {DATE_PRESETS.map(p => (
-            <button key={p.value}
-              onClick={() => { setDatePreset(p.value); setPage(0) }}
-              className={`px-2.5 py-1 text-xs font-medium rounded-md border transition-colors ${
-                datePreset === p.value
-                  ? 'bg-gradient-to-r from-violet-500 to-blue-500 text-white border-transparent'
-                  : 'border-gray-300 text-gray-600 hover:border-gray-400'
-              }`}>
-              {p.label}
-            </button>
-          ))}
-        </div>
-        {datePreset === 'custom' && (
-          <div className="flex items-center gap-2 ml-1">
-            <input type="date" value={customFrom} onChange={e => { setCustomFrom(e.target.value); setPage(0) }}
-              className="border rounded-lg px-2 py-1.5 text-xs text-gray-700 focus:ring-2 focus:ring-primary-400 outline-none" />
-            <span className="text-gray-400 text-xs">to</span>
-            <input type="date" value={customTo} onChange={e => { setCustomTo(e.target.value); setPage(0) }}
-              className="border rounded-lg px-2 py-1.5 text-xs text-gray-700 focus:ring-2 focus:ring-primary-400 outline-none" />
+        {/* Top row */}
+        <div className="relative flex items-center justify-between px-8 py-6">
+          <div className="flex items-center gap-4">
+            <Receipt size={26} className="text-amber-300" />
+            <div>
+              <p className="text-violet-200 text-xs font-semibold tracking-widest uppercase">Sales</p>
+              <h1 className="text-white text-2xl font-bold tracking-tight">Invoices</h1>
+            </div>
           </div>
-        )}
-        {dateRange.from && dateRange.to && (
-          <span className="text-xs text-gray-400 ml-1">{dateRange.from} → {dateRange.to}</span>
-        )}
+          <div className="flex items-center gap-3">
+            <InvDateFilterDropdown
+              from={fromDate} to={toDate}
+              onChange={(f, t) => { setFromDate(f); setToDate(t); setPage(0) }}
+            />
+            <button onClick={() => setShowCreate(true)}
+              className="flex items-center gap-2 bg-white text-violet-700 hover:bg-violet-50 px-4 py-2 rounded-lg font-semibold text-sm shadow-sm transition-colors">
+              <Plus size={16} /> New Invoice
+            </button>
+          </div>
+        </div>
+
+        {/* Stat strip */}
+        <div className="relative border-t border-white/10 grid grid-cols-4 divide-x divide-white/10">
+          <div className="px-6 py-3 text-center">
+            <p className="text-white text-xl font-bold">{fmt(totalInvoiced)}</p>
+            <p className="text-violet-200 text-xs mt-0.5">Total Invoiced</p>
+          </div>
+          <div className="px-6 py-3 text-center">
+            <p className="text-emerald-300 text-xl font-bold">{fmt(totalPaid)}</p>
+            <p className="text-violet-200 text-xs mt-0.5">Amount Received</p>
+          </div>
+          <div className="px-6 py-3 text-center">
+            <p className={`text-xl font-bold ${totalOutstanding > 0 ? 'text-amber-300' : 'text-white'}`}>{fmt(totalOutstanding)}</p>
+            <p className="text-violet-200 text-xs mt-0.5">Outstanding</p>
+          </div>
+          <div className="px-6 py-3 text-center">
+            <p className={`text-xl font-bold ${overdueCount > 0 ? 'text-red-300' : 'text-white'}`}>{overdueCount}</p>
+            <p className="text-violet-200 text-xs mt-0.5">Overdue</p>
+          </div>
+        </div>
+
       </div>
 
       {/* ── Section Tabs ── */}
@@ -1429,38 +1624,6 @@ export default function InvoicesPage() {
 
       {/* ── Summary Tab ── */}
       {tab === 'summary' && (<>
-        {/* KPI Cards */}
-        <div className="grid grid-cols-4 gap-3">
-          <div className="relative overflow-hidden rounded-2xl p-4 bg-gradient-to-br from-indigo-500 via-blue-500 to-cyan-400 text-white shadow-lg">
-            <div className="absolute -right-4 -top-4 w-20 h-20 rounded-full bg-white/10" />
-            <div className="absolute -right-2 -bottom-6 w-28 h-28 rounded-full bg-white/5" />
-            <p className="text-xs font-semibold text-white/70 uppercase tracking-wide mb-1">Total Invoiced</p>
-            <p className="text-2xl font-bold truncate">{fmt(totalInvoiced)}</p>
-            <p className="text-[11px] text-white/60 mt-1">{kpiSource.length} invoice{kpiSource.length !== 1 ? 's' : ''}</p>
-          </div>
-          <div className="relative overflow-hidden rounded-2xl p-4 bg-gradient-to-br from-emerald-500 via-green-500 to-teal-400 text-white shadow-lg">
-            <div className="absolute -right-4 -top-4 w-20 h-20 rounded-full bg-white/10" />
-            <div className="absolute -right-2 -bottom-6 w-28 h-28 rounded-full bg-white/5" />
-            <p className="text-xs font-semibold text-white/70 uppercase tracking-wide mb-1">Amount Received</p>
-            <p className="text-2xl font-bold truncate">{fmt(totalPaid)}</p>
-            <p className="text-[11px] text-white/60 mt-1">{totalInvoiced > 0 ? Math.round(totalPaid / totalInvoiced * 100) : 0}% collected</p>
-          </div>
-          <div className="relative overflow-hidden rounded-2xl p-4 bg-gradient-to-br from-orange-500 via-amber-500 to-yellow-400 text-white shadow-lg">
-            <div className="absolute -right-4 -top-4 w-20 h-20 rounded-full bg-white/10" />
-            <div className="absolute -right-2 -bottom-6 w-28 h-28 rounded-full bg-white/5" />
-            <p className="text-xs font-semibold text-white/70 uppercase tracking-wide mb-1">Outstanding</p>
-            <p className="text-2xl font-bold truncate">{fmt(totalOutstanding)}</p>
-            <p className="text-[11px] text-white/60 mt-1">{totalInvoiced > 0 ? Math.round(totalOutstanding / totalInvoiced * 100) : 0}% pending</p>
-          </div>
-          <div className="relative overflow-hidden rounded-2xl p-4 bg-gradient-to-br from-red-500 via-rose-500 to-pink-400 text-white shadow-lg">
-            <div className="absolute -right-4 -top-4 w-20 h-20 rounded-full bg-white/10" />
-            <div className="absolute -right-2 -bottom-6 w-28 h-28 rounded-full bg-white/5" />
-            <p className="text-xs font-semibold text-white/70 uppercase tracking-wide mb-1">Overdue</p>
-            <p className="text-2xl font-bold">{overdueCount}</p>
-            <p className="text-[11px] text-white/60 mt-1">past due date</p>
-          </div>
-        </div>
-
         {/* Charts */}
         <div className="grid grid-cols-3 gap-3">
           <div className="col-span-2 bg-white rounded-2xl border p-4">

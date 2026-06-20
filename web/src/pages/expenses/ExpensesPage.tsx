@@ -548,126 +548,123 @@ export default function ExpensesPage() {
   const PIE_COLORS = ['#f43f5e','#6366f1','#10b981','#f59e0b','#3b82f6','#8b5cf6','#06b6d4','#ec4899']
   const PAYMENT_COLORS_HEX: Record<string, string> = { CASH: '#10b981', UPI: '#8b5cf6', BANK_TRANSFER: '#3b82f6', CARD: '#6366f1', CHEQUE: '#f59e0b', OTHER: '#94a3b8' }
 
-  return (
-    <div className="min-h-full bg-gray-50">
+  const statStrip = [
+    { label: "Today's Expenses", value: fmtCur(stats?.todayTotal ?? 0),   sub: `${stats?.todayCount ?? 0} entries` },
+    { label: 'This Month',       value: fmtCur(stats?.monthTotal ?? 0),   sub: `${stats?.monthCount ?? 0} entries` },
+    { label: 'Period Total',     value: fmtCur(stats?.allTimeTotal ?? 0), sub: `${stats?.allTimeCount ?? 0} in period` },
+    { label: 'ITC Claimable',    value: fmtCur(itcTotal),                 sub: itcTotal > 0 ? 'eligible GST' : 'no ITC', warn: itcTotal > 0 },
+    { label: 'ITC CGST',         value: itcCgst > 0 ? fmtCur(itcCgst) : '—', sub: 'central tax' },
+    { label: 'ITC SGST',         value: itcSgst > 0 ? fmtCur(itcSgst) : '—', sub: 'state tax' },
+    { label: 'ITC IGST',         value: itcIgst > 0 ? fmtCur(itcIgst) : '—', sub: 'integrated' },
+    { label: 'Categories',       value: String((stats?.byCategory ?? []).length || '—'), sub: 'expense types' },
+  ]
 
-      {/* Header */}
-      <div className="bg-white border-b border-gray-100 px-6 py-4">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-rose-50 flex items-center justify-center">
-              <Receipt size={18} className="text-rose-500" />
+  return (
+    <div className="min-h-screen bg-gray-50/60 p-6 space-y-6">
+
+      {/* ── Gradient hero header ── */}
+      <div className="relative bg-gradient-to-br from-violet-700 via-violet-600 to-blue-600 overflow-hidden rounded-2xl shadow-[0_8px_40px_rgba(109,40,217,0.30)]">
+        <div className="absolute -top-16 -right-16 w-64 h-64 bg-white/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-10 -left-10 w-48 h-48 bg-blue-400/10 rounded-full blur-2xl pointer-events-none" />
+        <div className="absolute inset-0 opacity-10 pointer-events-none"
+          style={{ backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
+
+        <div className="relative px-6 pt-5 pb-0">
+          <div className="flex flex-wrap items-center gap-4 mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-400/20 border border-amber-300/30 flex items-center justify-center">
+                <Receipt size={20} className="text-amber-300" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-white leading-tight">Expenses</h1>
+                <p className="text-xs text-white/60">Track expenses · ITC GST breakdown · Budget monitoring</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">Expenses</h1>
-              <p className="text-xs text-gray-400 mt-0.5">Track expenses · ITC eligible GST breakdown · Budget monitoring</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {/* Tabs */}
-            <div className="flex gap-1 bg-gray-100 rounded-full p-1 mr-2">
+
+            {/* Tab switcher */}
+            <div className="bg-white/10 rounded-xl p-1 backdrop-blur-sm flex gap-1">
               {([['summary', <BarChart3 size={13} />, 'Summary'], ['transactions', <List size={13} />, 'Transactions']] as const).map(([key, icon, label]) => (
                 <button key={key} onClick={() => setTab(key)}
-                  className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium transition-all ${tab === key ? 'bg-gradient-to-r from-violet-500 to-blue-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-white'}`}>
+                  className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${tab === key ? 'bg-white text-violet-700 shadow-sm' : 'text-white/70 hover:text-white hover:bg-white/10'}`}>
                   {icon}{label}
                 </button>
               ))}
             </div>
-            {outlets.length > 1 && (
-              <select value={selectedOutletId ?? ''} onChange={e => { setSelectedOutletId(Number(e.target.value)); setPage(0) }}
-                className="border border-gray-200 rounded-xl px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300">
-                {outlets.map((o: any) => <option key={o.id} value={o.id}>{o.name}</option>)}
-              </select>
-            )}
-            <button onClick={handleExport} disabled={exporting}
-              className="flex items-center gap-2 px-3 py-2 border border-gray-200 text-sm text-gray-600 font-medium rounded-xl hover:bg-gray-50 disabled:opacity-50 transition-colors">
-              {exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />} Export CSV
-            </button>
-            <button onClick={() => { setEditingExp(null); setShowForm(true) }}
-              className="flex items-center gap-2 px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm">
-              <Plus size={15} /> Add Expense
-            </button>
-          </div>
-        </div>
-      </div>
 
-      <div className="p-6 space-y-5">
-
-        {/* Budget warnings — always visible */}
-        <BudgetBanners budgetUsage={budgetUsage} />
-
-        {/* ── Summary Tab ── */}
-        {tab === 'summary' && (
-          <>
-            {/* Date filter bar */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-3 flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-semibold text-gray-400 mr-1">Period:</span>
+            {/* Date presets */}
+            <div className="flex flex-wrap items-center gap-1.5">
               {DATE_PRESETS.filter(p => p.key !== 'custom').map(p => (
                 <button key={p.key} onClick={() => applyPreset(p.key)}
-                  className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${datePreset === p.key ? 'bg-gradient-to-r from-violet-500 to-blue-500 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                  className={`px-2.5 py-1 text-xs border rounded-lg transition-colors ${datePreset === p.key ? 'bg-white/25 border-white/40 text-white font-medium' : 'bg-white/10 border-white/20 text-white/80 hover:bg-white/20 hover:text-white'}`}>
                   {p.label}
                 </button>
               ))}
               <button onClick={() => applyPreset('custom')}
-                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${datePreset === 'custom' ? 'bg-rose-500 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                className={`px-2.5 py-1 text-xs border rounded-lg transition-colors ${datePreset === 'custom' ? 'bg-white/25 border-white/40 text-white font-medium' : 'bg-white/10 border-white/20 text-white/80 hover:bg-white/20 hover:text-white'}`}>
                 Custom
               </button>
               {datePreset === 'custom' && (
                 <>
                   <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
-                    className="border border-gray-200 rounded-xl px-3 py-1.5 text-xs text-gray-700 [color-scheme:light] focus:outline-none focus:ring-2 focus:ring-rose-300" />
-                  <span className="text-xs text-gray-400">to</span>
+                    className="border border-white/25 rounded-lg px-2 py-1 text-xs bg-white/15 text-white [color-scheme:dark]" />
+                  <span className="text-white/40 text-xs">–</span>
                   <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
-                    className="border border-gray-200 rounded-xl px-3 py-1.5 text-xs text-gray-700 [color-scheme:light] focus:outline-none focus:ring-2 focus:ring-rose-300" />
+                    className="border border-white/25 rounded-lg px-2 py-1 text-xs bg-white/15 text-white [color-scheme:dark]" />
                 </>
               )}
               {datePreset && (
                 <button onClick={() => { setDatePreset(''); setFromDate(''); setToDate('') }}
-                  className="ml-1 text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1">
-                  <X size={12} /> Clear
+                  className="text-white/50 hover:text-white flex items-center gap-1 text-xs">
+                  <X size={11} />
                 </button>
               )}
-              {activeRange && (
-                <span className="ml-auto text-xs text-gray-400">
-                  {activeRange.from} → {activeRange.to}
-                </span>
+            </div>
+
+            {/* Actions */}
+            <div className="ml-auto flex items-center gap-2">
+              {outlets.length > 1 && (
+                <select value={selectedOutletId ?? ''} onChange={e => { setSelectedOutletId(Number(e.target.value)); setPage(0) }}
+                  className="border border-white/25 rounded-lg px-2.5 py-1.5 text-xs bg-white/15 text-white focus:outline-none [color-scheme:dark]">
+                  {outlets.map((o: any) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                </select>
               )}
+              <button onClick={handleExport} disabled={exporting}
+                className="flex items-center gap-1.5 bg-white/15 hover:bg-white/25 border border-white/25 text-white px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-60 transition-all">
+                {exporting ? <Loader2 size={11} className="animate-spin" /> : <Download size={11} />} Export CSV
+              </button>
+              <button onClick={() => { setEditingExp(null); setShowForm(true) }}
+                className="flex items-center gap-1.5 bg-amber-400 hover:bg-amber-300 active:scale-95 text-amber-900 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-sm">
+                <Plus size={13} /> Add Expense
+              </button>
             </div>
+          </div>
+        </div>
 
-            {/* KPI cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {kpiCards.map((c, i) => (
-                <div key={i} className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-shadow">
-                  <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${c.gradient} flex items-center justify-center text-white shrink-0 shadow-sm`}>
-                    {c.icon}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs text-gray-500 font-medium">{c.label}</p>
-                    <p className="text-xl font-bold text-gray-900">{c.value}</p>
-                    <p className="text-[11px] text-gray-400 truncate">{c.sub}</p>
-                  </div>
-                </div>
-              ))}
+        {/* Stats strip */}
+        <div className="relative grid grid-cols-8 divide-x divide-white/10 border-t border-white/10 mt-2">
+          {statStrip.map((s, i) => (
+            <div key={i} className="px-3 py-2.5 text-center">
+              <p className={`text-sm font-bold leading-tight ${(s as any).warn ? 'text-amber-300' : 'text-white'}`}>{s.value}</p>
+              <p className="text-[10px] text-white/50 mt-0.5 truncate">{s.label}</p>
+              {s.sub && <p className="text-[9px] text-white/35 truncate">{s.sub}</p>}
             </div>
+          ))}
+        </div>
+      </div>
 
-            {/* ITC breakdown */}
-            {itcTotal > 0 && (
-              <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-5 py-3 flex items-center gap-3">
-                <Info size={14} className="text-emerald-600 flex-shrink-0" />
-                <p className="text-xs text-emerald-800">
-                  <span className="font-bold">Total ITC claimable:</span>
-                  {' '}CGST <span className="font-semibold">{fmtCur(itcCgst)}</span>
-                  {' '}+ SGST <span className="font-semibold">{fmtCur(itcSgst)}</span>
-                  {' '}+ IGST <span className="font-semibold">{fmtCur(itcIgst)}</span>
-                  {' '}= <span className="font-bold">{fmtCur(itcTotal)}</span>
-                </p>
-              </div>
-            )}
+      {/* Budget warnings */}
+      <BudgetBanners budgetUsage={budgetUsage} />
 
+      {/* ── Summary Tab ── */}
+      {tab === 'summary' && (
+        <>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
               {/* Category breakdown bar chart */}
-              <div className="bg-white rounded-2xl shadow-lg p-5">
-                <h2 className="text-sm font-semibold text-gray-900 mb-4">Spend by Category</h2>
+              <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+                <div className="px-5 py-3 bg-gradient-to-r from-violet-400 to-blue-400">
+                  <h2 className="text-sm font-semibold text-white">Spend by Category</h2>
+                </div>
+                <div className="p-5">
                 {!stats ? (
                   <div className="flex items-center justify-center h-48"><Loader2 size={20} className="animate-spin text-gray-300" /></div>
                 ) : (stats.byCategory ?? []).length === 0 ? (
@@ -687,18 +684,20 @@ export default function ExpensesPage() {
                     </BarChart>
                   </ResponsiveContainer>
                 )}
+                </div>
               </div>
 
               {/* Payment mode pie */}
-              <div className="bg-white rounded-2xl shadow-lg p-5">
-                <h2 className="text-sm font-semibold text-gray-900 mb-4">
-                  Payment Mode Breakdown
+              <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+                <div className="flex items-center justify-between px-5 py-3 bg-gradient-to-r from-violet-400 to-blue-400">
+                  <h2 className="text-sm font-semibold text-white">Payment Mode Breakdown</h2>
                   {stats?.byPaymentMode?.length > 0 && (
-                    <span className="ml-2 text-xs font-normal text-gray-400">
+                    <span className="text-xs text-blue-100">
                       Total: {fmtCur((stats.byPaymentMode ?? []).reduce((s: number, d: any) => s + d.total, 0))}
                     </span>
                   )}
-                </h2>
+                </div>
+                <div className="p-5">
                 {!stats ? (
                   <div className="flex items-center justify-center h-52"><Loader2 size={24} className="animate-spin text-gray-300" /></div>
                 ) : (stats.byPaymentMode ?? []).length === 0 ? (
@@ -745,13 +744,14 @@ export default function ExpensesPage() {
                     </PieChart>
                   </ResponsiveContainer>
                 )}
+                </div>
               </div>
             </div>
 
             {/* Category detail table */}
             <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-              <div className="px-5 py-3.5 border-b border-gray-100 bg-gray-50">
-                <h2 className="text-sm font-semibold text-gray-900">Category Summary</h2>
+              <div className="px-5 py-3.5 bg-gradient-to-r from-violet-400 to-blue-400">
+                <h2 className="text-sm font-semibold text-white">Category Summary</h2>
               </div>
               <table className="w-full">
                 <thead className="bg-gray-50 text-[11px] text-gray-500 uppercase tracking-wide">
@@ -796,8 +796,8 @@ export default function ExpensesPage() {
             {/* Budget usage */}
             {budgetUsage.length > 0 && (
               <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-                <div className="px-5 py-3.5 border-b border-gray-100 bg-gray-50">
-                  <h2 className="text-sm font-semibold text-gray-900">Budget vs Actual (This Month)</h2>
+                <div className="px-5 py-3.5 bg-gradient-to-r from-violet-400 to-blue-400">
+                  <h2 className="text-sm font-semibold text-white">Budget vs Actual (This Month)</h2>
                 </div>
                 <div className="p-5 space-y-4">
                   {budgetUsage.map((b: any) => {
@@ -882,8 +882,8 @@ export default function ExpensesPage() {
 
             {/* Table */}
             <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-              <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between bg-gray-50">
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+              <div className="px-5 py-3 bg-gradient-to-r from-violet-400 to-blue-400 flex items-center justify-between">
+                <p className="text-sm font-semibold text-white">
                   {totalElements > 0 ? `${totalElements} expense${totalElements !== 1 ? 's' : ''}` : 'Expenses'}
                 </p>
               </div>
@@ -1008,7 +1008,6 @@ export default function ExpensesPage() {
         </div>
           </>
         )}
-      </div>
 
       {showForm && effectiveOutletId && (
         <ExpenseFormModal

@@ -10,7 +10,7 @@ type ProductVariant struct {
 	ID                int              `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
 	ProductID         int              `gorm:"column:product_id" json:"productId"`
 	Name              string           `gorm:"column:name" json:"name"`
-	SKU               *string          `gorm:"uniqueIndex;column:sku" json:"sku"`
+	SKU               *string          `gorm:"uniqueIndex;size:191;column:sku" json:"sku"`
 	Barcode           *string          `gorm:"column:barcode" json:"barcode"`
 	Attribute1Name    *string          `gorm:"column:attribute1_name" json:"attribute1Name"`
 	Attribute1Value   *string          `gorm:"column:attribute1_value" json:"attribute1Value"`
