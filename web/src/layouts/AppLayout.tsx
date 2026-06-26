@@ -42,7 +42,7 @@ function isPathActive(current: string, path: string): boolean {
 }
 
 const navEntries: NavEntry[] = [
-  { path: '/pos',       icon: <ShoppingCart size={18} />,    label: 'POS' },
+  { path: '/pos',       icon: <ShoppingCart size={18} />,    label: 'POS', disabled: true },
   { path: '/dashboard', icon: <LayoutDashboard size={18} />, label: 'Dashboard' },
   { path: '/business',  icon: <Briefcase size={18} />,       label: 'Business' },
   {
