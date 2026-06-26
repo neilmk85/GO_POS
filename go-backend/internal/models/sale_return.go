@@ -10,6 +10,7 @@ type SaleReturn struct {
 	ID           int              `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
 	ReturnNumber string           `gorm:"uniqueIndex;size:191;column:return_number" json:"returnNumber"`
 	OutletID     int              `gorm:"column:outlet_id" json:"outletId"`
+	CustomerID   *int             `gorm:"column:customer_id" json:"customerId"`
 	CustomerName *string          `gorm:"column:customer_name;size:255" json:"customerName"`
 	RefNo        *string          `gorm:"column:ref_no;size:255" json:"refNo"`
 	ReturnDate   *time.Time       `gorm:"column:return_date" json:"returnDate"`
@@ -20,7 +21,8 @@ type SaleReturn struct {
 	CreatedAt    time.Time        `gorm:"column:created_at;autoCreateTime" json:"createdAt"`
 	UpdatedAt    time.Time        `gorm:"column:updated_at;autoUpdateTime" json:"updatedAt"`
 
-	Items []SaleReturnItem `gorm:"foreignKey:SaleReturnID" json:"items,omitempty"`
+	Customer *Customer        `gorm:"foreignKey:CustomerID" json:"customer,omitempty"`
+	Items    []SaleReturnItem `gorm:"foreignKey:SaleReturnID" json:"items,omitempty"`
 }
 
 func (SaleReturn) TableName() string { return "sale_returns" }

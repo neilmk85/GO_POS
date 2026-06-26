@@ -16,6 +16,12 @@ function fmtMT(val: number, decimals = 3): string {
   return `${val.toLocaleString('en-IN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })} MT`
 }
 
+function fmtKg(mt: number): string {
+  if (!mt && mt !== 0) return '—'
+  const kg = mt * 1000
+  return `${kg.toLocaleString('en-IN', { maximumFractionDigits: 0 })} kg`
+}
+
 function pct(part: number, whole: number): number {
   if (!whole || whole <= 0) return 0
   return Math.min(100, Math.max(0, (part / whole) * 100))
@@ -68,16 +74,19 @@ function SiloCard({ stat, accent, stageLabel, StageIcon }: SiloCardProps) {
         <div className="px-4 py-3 text-center">
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Filled</p>
           <p className="text-sm font-extrabold text-gray-800 tabular-nums">{fmtMT(filled)}</p>
+          <p className="text-[10px] text-gray-400 tabular-nums mt-0.5">{fmtKg(filled)}</p>
         </div>
         <div className="px-4 py-3 text-center">
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Consumed</p>
           <p className="text-sm font-extrabold text-orange-600 tabular-nums">{fmtMT(consumed)}</p>
+          <p className="text-[10px] text-gray-400 tabular-nums mt-0.5">{fmtKg(consumed)}</p>
         </div>
         <div className="px-4 py-3 text-center">
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Balance</p>
           <p className={`text-sm font-extrabold tabular-nums ${isShort ? 'text-red-600' : 'text-emerald-600'}`}>
             {isShort ? '−' : ''}{fmtMT(Math.abs(balance))}
           </p>
+          <p className="text-[10px] text-gray-400 tabular-nums mt-0.5">{isShort ? '−' : ''}{fmtKg(Math.abs(balance))}</p>
         </div>
       </div>
 
@@ -140,7 +149,7 @@ function FillForm({ onSaved }: { onSaved: () => void }) {
   return (
     <div className="bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.07)] ring-1 ring-gray-100 overflow-hidden">
       {/* Header */}
-      <div className="relative overflow-hidden flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-teal-600 to-emerald-500">
+      <div className="relative overflow-hidden flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-teal-400 to-emerald-300">
         <div className="pointer-events-none absolute inset-0 opacity-[0.07]"
           style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '18px 18px' }} />
         <div className="relative w-8 h-8 rounded-xl bg-white/15 border border-white/25 flex items-center justify-center">
@@ -186,7 +195,7 @@ function FillForm({ onSaved }: { onSaved: () => void }) {
                 value={quantityMt}
                 onChange={e => setQuantityMt(e.target.value)}
                 placeholder="e.g. 10.5"
-                className={inputCls}
+                className={`${inputCls} pr-10 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
               />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 pointer-events-none">MT</span>
             </div>
@@ -334,9 +343,9 @@ export default function SiloPage() {
   }
 
   const siloAccents = [
-    { from: 'from-blue-600',   to: 'to-cyan-500',   ring: 'ring-blue-100',   bar: 'bg-blue-400',   badge: 'bg-blue-500/30 text-blue-100'   },
-    { from: 'from-indigo-600', to: 'to-blue-500',   ring: 'ring-indigo-100', bar: 'bg-indigo-400', badge: 'bg-indigo-500/30 text-indigo-100' },
-    { from: 'from-violet-600', to: 'to-purple-500', ring: 'ring-violet-100', bar: 'bg-violet-400', badge: 'bg-violet-500/30 text-violet-100' },
+    { from: 'from-blue-400',   to: 'to-cyan-300',   ring: 'ring-blue-100',   bar: 'bg-blue-300',   badge: 'bg-blue-400/30 text-blue-50'   },
+    { from: 'from-indigo-400', to: 'to-blue-300',   ring: 'ring-indigo-100', bar: 'bg-indigo-300', badge: 'bg-indigo-400/30 text-indigo-50' },
+    { from: 'from-violet-400', to: 'to-purple-300', ring: 'ring-violet-100', bar: 'bg-violet-300', badge: 'bg-violet-400/30 text-violet-50' },
   ]
   const stageIcons  = [RotateCw, RotateCw, Paintbrush]
   const stageLabels = ['Spinning (Silo 1)', 'Spinning (Silo 2)', 'Coating (Silo 3)']

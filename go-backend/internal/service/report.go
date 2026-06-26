@@ -716,25 +716,35 @@ type OutstandingReceivable struct {
 }
 
 func (rs *ReportService) OutstandingReceivable(outletId int) ([]OutstandingReceivable, error) {
-	var customers []models.Customer
+	type orRow struct {
+		ID             int
+		Name           string
+		Phone          *string
+		Email          *string
+		OutstandingDue decimal.Decimal
+	}
+	var rows []orRow
 	if err := rs.db.Raw(`
-		SELECT DISTINCT c.id, c.name, c.phone, c.email, c.outstanding_due
+		SELECT c.id, c.name, c.phone, c.email,
+		       SUM(i.total_amount - i.paid_amount) AS outstanding_due
 		FROM customers c
-		INNER JOIN orders o ON c.id = o.customer_id
-		WHERE c.outstanding_due > 0 AND o.outlet_id = ?
-		ORDER BY c.outstanding_due DESC
-	`, outletId).Scan(&customers).Error; err != nil {
+		JOIN invoices i ON i.customer_id = c.id
+		WHERE i.outlet_id = ? AND i.status IN ('SENT', 'PARTIAL', 'OVERDUE')
+		GROUP BY c.id, c.name, c.phone, c.email
+		HAVING SUM(i.total_amount - i.paid_amount) > 0
+		ORDER BY outstanding_due DESC
+	`, outletId).Scan(&rows).Error; err != nil {
 		return nil, err
 	}
 
-	result := make([]OutstandingReceivable, 0, len(customers))
-	for _, c := range customers {
+	result := make([]OutstandingReceivable, 0, len(rows))
+	for _, r := range rows {
 		result = append(result, OutstandingReceivable{
-			ID:             c.ID,
-			Name:           c.Name,
-			Phone:          c.Phone,
-			Email:          c.Email,
-			OutstandingDue: c.OutstandingDue,
+			ID:             r.ID,
+			Name:           r.Name,
+			Phone:          r.Phone,
+			Email:          r.Email,
+			OutstandingDue: r.OutstandingDue,
 		})
 	}
 
@@ -1065,9 +1075,77 @@ func (rs *ReportService) DebtorsLedger(outletId int) ([]DebtorLedgerRow, error) 
 		})
 	}
 
+	// Subtract unapplied credit notes from each customer's outstanding balance
+	type cnSummary struct {
+		CustomerID     int             `gorm:"column:customer_id"`
+		TotalRemaining decimal.Decimal `gorm:"column:total_remaining"`
+	}
+	var creditNotes []cnSummary
+	rs.db.Raw(`
+		SELECT customer_id, SUM(remaining_amount) AS total_remaining
+		FROM credit_notes
+		WHERE outlet_id = ? AND status IN ('ACTIVE', 'PARTIAL')
+		GROUP BY customer_id
+	`, outletId).Scan(&creditNotes)
+
+	for _, cn := range creditNotes {
+		if party, ok := partyMap[cn.CustomerID]; ok {
+			reduction := cn.TotalRemaining
+			party.Outstanding = party.Outstanding.Sub(reduction)
+			if party.Outstanding.LessThan(decimal.Zero) {
+				party.Outstanding = decimal.Zero
+			}
+			// Reduce Current bucket first, then oldest buckets
+			if party.Current.GreaterThan(decimal.Zero) {
+				take := decimal.Min(reduction, party.Current)
+				party.Current = party.Current.Sub(take)
+				reduction = reduction.Sub(take)
+			}
+			if reduction.GreaterThan(decimal.Zero) && party.Days1_30.GreaterThan(decimal.Zero) {
+				take := decimal.Min(reduction, party.Days1_30)
+				party.Days1_30 = party.Days1_30.Sub(take)
+				reduction = reduction.Sub(take)
+			}
+		}
+	}
+
+	// Subtract sale returns linked to a customer
+	type srSummary struct {
+		CustomerID  int             `gorm:"column:customer_id"`
+		ReturnTotal decimal.Decimal `gorm:"column:return_total"`
+	}
+	var saleReturns []srSummary
+	rs.db.Raw(`
+		SELECT customer_id, SUM(total_amount) AS return_total
+		FROM sale_returns
+		WHERE outlet_id = ? AND customer_id IS NOT NULL
+		GROUP BY customer_id
+	`, outletId).Scan(&saleReturns)
+
+	for _, sr := range saleReturns {
+		if party, ok := partyMap[sr.CustomerID]; ok {
+			reduction := sr.ReturnTotal
+			party.Outstanding = party.Outstanding.Sub(reduction)
+			if party.Outstanding.LessThan(decimal.Zero) {
+				party.Outstanding = decimal.Zero
+			}
+			if party.Current.GreaterThan(decimal.Zero) {
+				take := decimal.Min(reduction, party.Current)
+				party.Current = party.Current.Sub(take)
+				reduction = reduction.Sub(take)
+			}
+			if reduction.GreaterThan(decimal.Zero) && party.Days1_30.GreaterThan(decimal.Zero) {
+				take := decimal.Min(reduction, party.Days1_30)
+				party.Days1_30 = party.Days1_30.Sub(take)
+			}
+		}
+	}
+
 	result := make([]DebtorLedgerRow, 0, len(partyMap))
 	for _, party := range partyMap {
-		result = append(result, *party)
+		if party.Outstanding.GreaterThan(decimal.Zero) {
+			result = append(result, *party)
+		}
 	}
 
 	// Sort by outstanding descending
@@ -1228,9 +1306,76 @@ func (rs *ReportService) CreditorsLedger(outletId int) ([]CreditorLedgerRow, err
 		})
 	}
 
+	// Subtract unapplied vendor credits from each supplier's outstanding
+	type vcSummary struct {
+		SupplierID     int             `gorm:"column:supplier_id"`
+		TotalRemaining decimal.Decimal `gorm:"column:total_remaining"`
+	}
+	var vendorCredits []vcSummary
+	rs.db.Raw(`
+		SELECT supplier_id, SUM(remaining_amount) AS total_remaining
+		FROM vendor_credits
+		WHERE outlet_id = ? AND status IN ('OPEN', 'PARTIAL')
+		GROUP BY supplier_id
+	`, outletId).Scan(&vendorCredits)
+
+	for _, vc := range vendorCredits {
+		if party, ok := partyMap[vc.SupplierID]; ok {
+			reduction := vc.TotalRemaining
+			party.Outstanding = party.Outstanding.Sub(reduction)
+			if party.Outstanding.LessThan(decimal.Zero) {
+				party.Outstanding = decimal.Zero
+			}
+			if party.Current.GreaterThan(decimal.Zero) {
+				take := decimal.Min(reduction, party.Current)
+				party.Current = party.Current.Sub(take)
+				reduction = reduction.Sub(take)
+			}
+			if reduction.GreaterThan(decimal.Zero) && party.Days1_30.GreaterThan(decimal.Zero) {
+				take := decimal.Min(reduction, party.Days1_30)
+				party.Days1_30 = party.Days1_30.Sub(take)
+			}
+		}
+	}
+
+	// Subtract purchase return totals (via purchase_orders JOIN) per supplier
+	type prSummary struct {
+		SupplierID  int             `gorm:"column:supplier_id"`
+		ReturnTotal decimal.Decimal `gorm:"column:return_total"`
+	}
+	var purchaseReturns []prSummary
+	rs.db.Raw(`
+		SELECT po.supplier_id, SUM(pr.total_amount) AS return_total
+		FROM purchase_returns pr
+		JOIN purchase_orders po ON po.id = pr.purchase_order_id
+		WHERE pr.outlet_id = ?
+		GROUP BY po.supplier_id
+	`, outletId).Scan(&purchaseReturns)
+
+	for _, pr := range purchaseReturns {
+		if party, ok := partyMap[pr.SupplierID]; ok {
+			reduction := pr.ReturnTotal
+			party.Outstanding = party.Outstanding.Sub(reduction)
+			if party.Outstanding.LessThan(decimal.Zero) {
+				party.Outstanding = decimal.Zero
+			}
+			if party.Current.GreaterThan(decimal.Zero) {
+				take := decimal.Min(reduction, party.Current)
+				party.Current = party.Current.Sub(take)
+				reduction = reduction.Sub(take)
+			}
+			if reduction.GreaterThan(decimal.Zero) && party.Days1_30.GreaterThan(decimal.Zero) {
+				take := decimal.Min(reduction, party.Days1_30)
+				party.Days1_30 = party.Days1_30.Sub(take)
+			}
+		}
+	}
+
 	result := make([]CreditorLedgerRow, 0, len(partyMap))
 	for _, party := range partyMap {
-		result = append(result, *party)
+		if party.Outstanding.GreaterThan(decimal.Zero) {
+			result = append(result, *party)
+		}
 	}
 
 	// Sort by outstanding descending

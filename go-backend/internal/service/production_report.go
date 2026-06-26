@@ -223,3 +223,166 @@ func (s *ProductionReportService) GetMachineUtilization(fromDate, toDate string,
 	err := s.db.Raw(query, args...).Scan(&rows).Error
 	return rows, err
 }
+
+// ── Contractor Cost Report ────────────────────────────────────────────────────
+// Returns fabrication and coating contractor costs per production order.
+
+type ContractorCostRow struct {
+	PONumber            string          `gorm:"column:po_number"             json:"poNumber"`
+	PipeConfig          string          `gorm:"column:pipe_config"           json:"pipeConfig"`
+	DiameterMM          int             `gorm:"column:diameter_mm"           json:"diameterMm"`
+	PressureClass       string          `gorm:"column:pressure_class"        json:"pressureClass"`
+	FabPipesCompleted   int             `gorm:"column:fab_pipes_completed"   json:"fabPipesCompleted"`
+	FabKgPerPipe        decimal.Decimal `gorm:"column:fab_kg_per_pipe"       json:"fabKgPerPipe"`
+	FabRateKg           decimal.Decimal `gorm:"column:fab_rate_kg"           json:"fabRateKg"`
+	FabCost             decimal.Decimal `gorm:"column:fab_cost"              json:"fabCost"`
+	CoatPipesCompleted  int             `gorm:"column:coat_pipes_completed"  json:"coatPipesCompleted"`
+	CoatRatePerPipe     decimal.Decimal `gorm:"column:coat_rate_per_pipe"    json:"coatRatePerPipe"`
+	CoatCost            decimal.Decimal `gorm:"column:coat_cost"             json:"coatCost"`
+	TotalContractorCost decimal.Decimal `gorm:"column:total_contractor_cost" json:"totalContractorCost"`
+}
+
+func (s *ProductionReportService) GetContractorCostReport(fromDate, toDate string, outletID *int) ([]ContractorCostRow, error) {
+	query := `
+		SELECT
+			po.po_number,
+			pc.name                                           AS pipe_config,
+			pc.diameter_mm,
+			pc.pressure_class,
+			COALESCE(fab.pipes_completed, 0)                  AS fab_pipes_completed,
+			COALESCE(fab_kg.kg_per_pipe, 0)                   AS fab_kg_per_pipe,
+			COALESCE(rc.fabrication_rate_kg, 0)               AS fab_rate_kg,
+			COALESCE(fab.pipes_completed, 0)
+				* COALESCE(fab_kg.kg_per_pipe, 0)
+				* COALESCE(rc.fabrication_rate_kg, 0)         AS fab_cost,
+			COALESCE(coat.pipes_completed, 0)                 AS coat_pipes_completed,
+			COALESCE(ccr.rate_per_pipe, 0)                    AS coat_rate_per_pipe,
+			COALESCE(coat.pipes_completed, 0)
+				* COALESCE(ccr.rate_per_pipe, 0)              AS coat_cost,
+			COALESCE(fab.pipes_completed, 0)
+				* COALESCE(fab_kg.kg_per_pipe, 0)
+				* COALESCE(rc.fabrication_rate_kg, 0)
+			+ COALESCE(coat.pipes_completed, 0)
+				* COALESCE(ccr.rate_per_pipe, 0)              AS total_contractor_cost
+		FROM production_orders po
+		JOIN pipe_configs pc ON pc.id = po.pipe_config_id
+		LEFT JOIN (
+			SELECT production_order_id, SUM(pipes_completed) AS pipes_completed
+			FROM production_entries
+			WHERE stage_type = 'FABRICATION'`
+
+	args := []interface{}{}
+	if fromDate != "" {
+		query += " AND DATE(entry_date) >= ?"
+		args = append(args, fromDate)
+	}
+	if toDate != "" {
+		query += " AND DATE(entry_date) <= ?"
+		args = append(args, toDate)
+	}
+	query += `
+			GROUP BY production_order_id
+		) fab ON fab.production_order_id = po.id
+		LEFT JOIN (
+			SELECT production_order_id, SUM(pipes_completed) AS pipes_completed
+			FROM production_entries
+			WHERE stage_type = 'COATING'`
+	if fromDate != "" {
+		query += " AND DATE(entry_date) >= ?"
+		args = append(args, fromDate)
+	}
+	if toDate != "" {
+		query += " AND DATE(entry_date) <= ?"
+		args = append(args, toDate)
+	}
+	query += `
+			GROUP BY production_order_id
+		) coat ON coat.production_order_id = po.id
+		LEFT JOIN (
+			SELECT pipe_config_id, SUM(quantity_per_pipe) AS kg_per_pipe
+			FROM pipe_config_materials
+			WHERE stage_type = 'FABRICATION'
+			GROUP BY pipe_config_id
+		) fab_kg ON fab_kg.pipe_config_id = po.pipe_config_id
+		LEFT JOIN biz_rate_config rc ON rc.id = 1
+		LEFT JOIN coating_contractor_rates ccr ON ccr.diameter_mm = pc.diameter_mm
+		WHERE 1=1`
+
+	if outletID != nil {
+		query += " AND po.outlet_id = ?"
+		args = append(args, *outletID)
+	}
+	query += " ORDER BY po.created_at DESC"
+
+	var rows []ContractorCostRow
+	err := s.db.Raw(query, args...).Scan(&rows).Error
+	return rows, err
+}
+
+// ── Spinning Bed Cost Report ──────────────────────────────────────────────────
+// Returns spinning contractor cost per production order, inferred from the
+// demoulding bed_type entry for the same order.
+
+type SpinningCostRow struct {
+	PONumber           string          `gorm:"column:po_number"            json:"poNumber"`
+	PipeConfig         string          `gorm:"column:pipe_config"          json:"pipeConfig"`
+	DiameterMM         int             `gorm:"column:diameter_mm"          json:"diameterMm"`
+	PressureClass      string          `gorm:"column:pressure_class"       json:"pressureClass"`
+	BedSize            string          `gorm:"column:bed_size"             json:"bedSize"`
+	SpinPipesCompleted int             `gorm:"column:spin_pipes_completed" json:"spinPipesCompleted"`
+	RatePerPipe        decimal.Decimal `gorm:"column:rate_per_pipe"        json:"ratePerPipe"`
+	SpinCost           decimal.Decimal `gorm:"column:spin_cost"            json:"spinCost"`
+}
+
+func (s *ProductionReportService) GetSpinningCostReport(fromDate, toDate string, outletID *int) ([]SpinningCostRow, error) {
+	query := `
+		SELECT
+			po.po_number,
+			pc.name                                      AS pipe_config,
+			pc.diameter_mm,
+			pc.pressure_class,
+			COALESCE(dem.bed_type, 'UNKNOWN')            AS bed_size,
+			COALESCE(spin.pipes_completed, 0)            AS spin_pipes_completed,
+			COALESCE(sbr.rate_per_pipe, 0)               AS rate_per_pipe,
+			COALESCE(spin.pipes_completed, 0)
+				* COALESCE(sbr.rate_per_pipe, 0)         AS spin_cost
+		FROM production_orders po
+		JOIN pipe_configs pc ON pc.id = po.pipe_config_id
+		LEFT JOIN (
+			SELECT production_order_id, SUM(pipes_completed) AS pipes_completed
+			FROM production_entries
+			WHERE stage_type = 'SPINNING'`
+
+	args := []interface{}{}
+	if fromDate != "" {
+		query += " AND DATE(entry_date) >= ?"
+		args = append(args, fromDate)
+	}
+	if toDate != "" {
+		query += " AND DATE(entry_date) <= ?"
+		args = append(args, toDate)
+	}
+	query += `
+			GROUP BY production_order_id
+		) spin ON spin.production_order_id = po.id
+		LEFT JOIN (
+			SELECT production_order_id, bed_type
+			FROM production_entries
+			WHERE stage_type = 'DEMOULDING' AND bed_type IS NOT NULL
+			GROUP BY production_order_id, bed_type
+		) dem ON dem.production_order_id = po.id
+		LEFT JOIN spinning_bed_rates sbr
+			ON sbr.bed_size    = COALESCE(dem.bed_type, 'UNKNOWN')
+			AND sbr.diameter_mm = pc.diameter_mm
+		WHERE COALESCE(spin.pipes_completed, 0) > 0`
+
+	if outletID != nil {
+		query += " AND po.outlet_id = ?"
+		args = append(args, *outletID)
+	}
+	query += " ORDER BY po.created_at DESC"
+
+	var rows []SpinningCostRow
+	err := s.db.Raw(query, args...).Scan(&rows).Error
+	return rows, err
+}

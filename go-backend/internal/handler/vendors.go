@@ -78,7 +78,13 @@ func (vh *VendorHandler) GetAll(w http.ResponseWriter, r *http.Request) {
 		activePtr = &a
 	}
 
-	vendors, total, err := vh.service.GetAll(page, size, searchPtr, activePtr)
+	vendorType := r.URL.Query().Get("vendorType")
+	var vendorTypePtr *string
+	if vendorType != "" {
+		vendorTypePtr = &vendorType
+	}
+
+	vendors, total, err := vh.service.GetAll(page, size, searchPtr, activePtr, vendorTypePtr)
 	if err != nil {
 		handleError(w, err)
 		return

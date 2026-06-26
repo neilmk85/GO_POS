@@ -26,8 +26,8 @@ const STATUS_CFG: Record<string, { label: string; bg: string; text: string; dot:
 function StatusBadge({ status }: { status: string }) {
   const c = STATUS_CFG[status] ?? STATUS_CFG.DRAFT
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${c.bg} ${c.text}`}>
-      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${c.dot}`} />
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold text-gray-700">
+      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${c.dot}`} />
       {c.label}
     </span>
   )
@@ -307,6 +307,16 @@ export default function ProductionOrdersPage() {
       }).then(r => r.data),
   })
 
+  const { data: summariesData } = useQuery({
+    queryKey: ['production-orders-summaries'],
+    queryFn: () => productionOrderApi.getSummaries().then(r => r.data.data ?? []),
+  })
+  const summaries: any[] = summariesData ?? []
+  const activeSummaries  = summaries.filter((s: any) => s.status !== 'CANCELLED')
+  const totalPlannedPipes    = activeSummaries.reduce((acc: number, s: any) => acc + (s.plannedQty ?? 0), 0)
+  const totalFinishedPipes   = activeSummaries.reduce((acc: number, s: any) => acc + (s.finishedPipes ?? 0), 0)
+  const totalRemainingPipes  = totalPlannedPipes - totalFinishedPipes
+
   const allOrders: any[] = data?.data?.content ?? data?.data ?? []
 
   const filtered = allOrders.filter((o: any) => {
@@ -384,22 +394,48 @@ export default function ProductionOrdersPage() {
         </div>
 
         {/* Stat strip */}
-        <div className="relative border-t border-white/10 grid grid-cols-7 divide-x divide-white/10">
+        <div className="relative border-t border-white/10 grid grid-cols-9 divide-x divide-white/10">
           {[
-            { label: 'Total Orders',     value: total,       sub: hasDateFilter ? 'in date range' : 'all time', warn: false },
-            { label: 'Planned',          value: planned,     sub: 'awaiting start',   warn: false },
-            { label: 'In Progress',      value: inProgress,  sub: 'currently active', warn: inProgress > 0 },
-            { label: 'On Hold',          value: onHold,      sub: 'paused orders',    warn: onHold > 0, accent: onHold > 0 ? 'text-orange-300' : undefined },
-            { label: 'Completed',        value: completed,   sub: 'finished',         warn: false },
-            { label: 'From Sales Order', value: fromSOCount, sub: 'linked to SO',     warn: false, accent: 'text-violet-300' },
-            { label: 'Direct',           value: directCount, sub: 'standalone',       warn: false, accent: 'text-blue-200' },
+            { label: 'Total Orders',     value: total,         sub: hasDateFilter ? 'in date range' : 'all time' },
+            { label: 'Planned',          value: planned,       sub: 'awaiting start'    },
+            { label: 'In Progress',      value: inProgress,    sub: 'currently active', warn: inProgress > 0 },
+            { label: 'On Hold',          value: onHold,        sub: 'paused orders',    accent: onHold > 0 ? 'text-orange-300' : undefined },
+            { label: 'Completed',        value: completed,     sub: 'finished'          },
+            { label: 'From Sales Order', value: fromSOCount,   sub: 'linked to SO',     accent: 'text-violet-300' },
+            { label: 'Direct',           value: directCount,   sub: 'standalone',       accent: 'text-blue-200'  },
           ].map(s => (
-            <div key={s.label} className="px-5 py-3.5">
-              <p className={`text-xl font-extrabold tabular-nums leading-none ${s.warn ? 'text-amber-300' : (s as any).accent ?? 'text-white'}`}>{s.value}</p>
+            <div key={s.label} className="px-4 py-3.5">
+              <p className={`text-xl font-extrabold tabular-nums leading-none ${(s as any).warn ? 'text-amber-300' : (s as any).accent ?? 'text-white'}`}>{s.value}</p>
               <p className="text-xs text-blue-200 mt-0.5">{s.label}</p>
               <p className="text-[10px] text-white/40 mt-0.5">{s.sub}</p>
             </div>
           ))}
+
+          {/* Pipes Completed */}
+          <div className="px-4 py-3">
+            <p className="text-[10px] font-semibold text-green-300 uppercase tracking-widest mb-1">Pipes Completed</p>
+            <div className="flex items-baseline gap-2">
+              <span className="text-xl font-extrabold tabular-nums text-green-300 leading-none">{totalFinishedPipes.toLocaleString()}</span>
+              <span className="text-xs font-semibold text-white/50">pipes</span>
+            </div>
+            <div className="flex items-baseline gap-2 mt-1">
+              <span className="text-base font-bold tabular-nums text-green-200 leading-none">{(totalFinishedPipes * 5.25).toFixed(1)}</span>
+              <span className="text-xs font-semibold text-white/50">meters</span>
+            </div>
+          </div>
+
+          {/* Pipes Remaining */}
+          <div className="px-4 py-3">
+            <p className="text-[10px] font-semibold text-amber-300 uppercase tracking-widest mb-1">Pipes Remaining</p>
+            <div className="flex items-baseline gap-2">
+              <span className={`text-xl font-extrabold tabular-nums leading-none ${totalRemainingPipes > 0 ? 'text-amber-200' : 'text-green-300'}`}>{totalRemainingPipes.toLocaleString()}</span>
+              <span className="text-xs font-semibold text-white/50">pipes</span>
+            </div>
+            <div className="flex items-baseline gap-2 mt-1">
+              <span className={`text-base font-bold tabular-nums leading-none ${totalRemainingPipes > 0 ? 'text-amber-100' : 'text-green-200'}`}>{(totalRemainingPipes * 5.25).toFixed(1)}</span>
+              <span className="text-xs font-semibold text-white/50">meters</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -574,21 +610,7 @@ export default function ProductionOrdersPage() {
                   </td>
 
                   <td className="px-6 py-3.5">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-violet-50 flex items-center justify-center flex-shrink-0">
-                        <Package size={13} className="text-violet-500" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-800">{o.pipeConfig?.name ?? `Config #${o.pipeConfigId}`}</p>
-                        {(o.pipeConfig?.diameterMm || o.pipeConfig?.pressureClass) && (
-                          <p className="text-[11px] text-gray-400 mt-0.5">
-                            {o.pipeConfig?.diameterMm ? `${o.pipeConfig.diameterMm}mm` : ''}
-                            {o.pipeConfig?.diameterMm && o.pipeConfig?.pressureClass ? ' · ' : ''}
-                            {o.pipeConfig?.pressureClass ?? ''}
-                          </p>
-                        )}
-                      </div>
-                    </div>
+                    <p className="font-medium text-gray-800">{o.pipeConfig?.name ?? `Config #${o.pipeConfigId}`}</p>
                   </td>
 
                   <td className="px-6 py-3.5 text-center">
@@ -605,7 +627,7 @@ export default function ProductionOrdersPage() {
 
                   <td className="px-6 py-3.5 text-center">
                     {o.plannedEndDate ? (
-                      <span className="text-xs font-semibold text-orange-600">
+                      <span className="text-xs font-semibold text-gray-700">
                         {format(new Date(o.plannedEndDate), 'dd MMM yyyy')}
                       </span>
                     ) : (
@@ -615,7 +637,7 @@ export default function ProductionOrdersPage() {
 
                   <td className="px-6 py-3.5">
                     {o.salesOrder ? (
-                      <span className="text-xs font-semibold text-violet-600">{o.salesOrder.soNumber}</span>
+                      <span className="text-xs font-semibold text-gray-700">{o.salesOrder.soNumber}</span>
                     ) : (
                       <span className="text-xs text-gray-300">—</span>
                     )}

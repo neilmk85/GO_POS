@@ -83,6 +83,12 @@ func Setup(db *gorm.DB, cfg *config.Config, wsHub *websocket.Hub) http.Handler {
 	reportService := service.NewReportService(db)
 	reportHandler := handler.NewReportHandler(reportService)
 
+	dayBookService := service.NewDayBookService(db)
+	dayBookHandler := handler.NewDayBookHandler(dayBookService)
+
+	stockStatementService := service.NewStockStatementService(db)
+	stockStatementHandler := handler.NewStockStatementHandler(stockStatementService)
+
 	inventoryService := service.NewInventoryService(db)
 	inventoryHandler := handler.NewInventoryHandler(inventoryService)
 
@@ -1555,6 +1561,10 @@ func Setup(db *gorm.DB, cfg *config.Config, wsHub *websocket.Hub) http.Handler {
 		tdsHandler.GetReport,
 		middleware.Authenticate(db),
 	))
+	mux.HandleFunc("GET /api/reports/tds-inward", middleware.Chain(
+		tdsHandler.GetReceivableReport,
+		middleware.Authenticate(db),
+	))
 
 	// Legacy / alternate route names (kept for compatibility)
 	mux.HandleFunc("GET /api/reports/sales-by-payment", middleware.Chain(
@@ -1563,6 +1573,16 @@ func Setup(db *gorm.DB, cfg *config.Config, wsHub *websocket.Hub) http.Handler {
 	))
 	mux.HandleFunc("GET /api/reports/daily-sales", middleware.Chain(
 		reportHandler.DailyTrend,
+		middleware.Authenticate(db),
+	))
+
+	mux.HandleFunc("GET /api/reports/daybook", middleware.Chain(
+		dayBookHandler.GetEntries,
+		middleware.Authenticate(db),
+	))
+
+	mux.HandleFunc("GET /api/reports/stock-statement", middleware.Chain(
+		stockStatementHandler.GetStatement,
 		middleware.Authenticate(db),
 	))
 
@@ -1761,6 +1781,14 @@ func Setup(db *gorm.DB, cfg *config.Config, wsHub *websocket.Hub) http.Handler {
 		productionReportHandler.MachineUtilization,
 		middleware.Authenticate(db),
 	))
+	mux.HandleFunc("GET /api/production/reports/contractor-costs", middleware.Chain(
+		productionReportHandler.ContractorCosts,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/production/reports/spinning-costs", middleware.Chain(
+		productionReportHandler.SpinningCosts,
+		middleware.Authenticate(db),
+	))
 
 	// ==================== PRODUCTION — ENTRIES ====================
 	// NOTE: static sub-paths must be registered before /{id}
@@ -1786,7 +1814,8 @@ func Setup(db *gorm.DB, cfg *config.Config, wsHub *websocket.Hub) http.Handler {
 	))
 
 	// ==================== BUSINESS PAGES ====================
-	businessHandler := handler.NewBusinessHandler(db, cfg.UploadDir, int64(cfg.MaxFileSize))
+	pipePurchaseService := service.NewPipePurchaseService(db)
+	businessHandler := handler.NewBusinessHandler(db, cfg.UploadDir, int64(cfg.MaxFileSize), pipePurchaseService)
 
 	// Cement Bags
 	mux.HandleFunc("GET /api/business/cement-bags", middleware.Chain(businessHandler.ListCementBags, middleware.Authenticate(db)))
@@ -1854,6 +1883,12 @@ func Setup(db *gorm.DB, cfg *config.Config, wsHub *websocket.Hub) http.Handler {
 	mux.HandleFunc("PUT /api/business/conversions/{id}", middleware.Chain(businessHandler.UpdateConversion, middleware.Authenticate(db)))
 	mux.HandleFunc("DELETE /api/business/conversions/{id}", middleware.Chain(businessHandler.DeleteConversion, middleware.Authenticate(db)))
 
+	// Cuttings
+	mux.HandleFunc("GET /api/business/cuttings", middleware.Chain(businessHandler.ListCuttings, middleware.Authenticate(db)))
+	mux.HandleFunc("POST /api/business/cuttings", middleware.Chain(businessHandler.CreateCutting, middleware.Authenticate(db)))
+	mux.HandleFunc("PUT /api/business/cuttings/{id}", middleware.Chain(businessHandler.UpdateCutting, middleware.Authenticate(db)))
+	mux.HandleFunc("DELETE /api/business/cuttings/{id}", middleware.Chain(businessHandler.DeleteCutting, middleware.Authenticate(db)))
+
 	// Discards
 	mux.HandleFunc("GET /api/business/discards", middleware.Chain(businessHandler.ListDiscards, middleware.Authenticate(db)))
 	mux.HandleFunc("POST /api/business/discards", middleware.Chain(businessHandler.CreateDiscard, middleware.Authenticate(db)))
@@ -1883,9 +1918,21 @@ func Setup(db *gorm.DB, cfg *config.Config, wsHub *websocket.Hub) http.Handler {
 	mux.HandleFunc("PUT /api/business/labour/{id}", middleware.Chain(businessHandler.UpdateLabour, middleware.Authenticate(db)))
 	mux.HandleFunc("DELETE /api/business/labour/{id}", middleware.Chain(businessHandler.DeleteLabour, middleware.Authenticate(db)))
 
+	// Third-Party Pipe Purchases
+	mux.HandleFunc("GET /api/business/pipe-purchases", middleware.Chain(businessHandler.ListPipePurchases, middleware.Authenticate(db)))
+	mux.HandleFunc("POST /api/business/pipe-purchases", middleware.Chain(businessHandler.CreatePipePurchase, middleware.Authenticate(db)))
+	mux.HandleFunc("PUT /api/business/pipe-purchases/{id}", middleware.Chain(businessHandler.UpdatePipePurchase, middleware.Authenticate(db)))
+	mux.HandleFunc("DELETE /api/business/pipe-purchases/{id}", middleware.Chain(businessHandler.DeletePipePurchase, middleware.Authenticate(db)))
+
 	// Business rate config (singleton)
 	mux.HandleFunc("GET /api/business/rate-config", middleware.Chain(businessHandler.GetBusinessRateConfig, middleware.Authenticate(db)))
 	mux.HandleFunc("PUT /api/business/rate-config", middleware.Chain(businessHandler.UpdateBusinessRateConfig, middleware.Authenticate(db)))
+	mux.HandleFunc("GET /api/business/coating-rates", middleware.Chain(businessHandler.GetCoatingRates, middleware.Authenticate(db)))
+	mux.HandleFunc("PUT /api/business/coating-rates", middleware.Chain(businessHandler.UpsertCoatingRates, middleware.Authenticate(db)))
+	mux.HandleFunc("GET /api/business/spinning-rates", middleware.Chain(businessHandler.GetSpinningRates, middleware.Authenticate(db)))
+	mux.HandleFunc("PUT /api/business/spinning-rates", middleware.Chain(businessHandler.UpsertSpinningRates, middleware.Authenticate(db)))
+	mux.HandleFunc("GET /api/business/process-contractors", middleware.Chain(businessHandler.GetProcessContractors, middleware.Authenticate(db)))
+	mux.HandleFunc("PUT /api/business/process-contractors", middleware.Chain(businessHandler.UpsertProcessContractor, middleware.Authenticate(db)))
 
 	// ==================== USER PREFERENCES ====================
 	mux.HandleFunc("GET /api/users/preferences", middleware.Chain(
@@ -1916,6 +1963,22 @@ func Setup(db *gorm.DB, cfg *config.Config, wsHub *websocket.Hub) http.Handler {
 	))
 	mux.HandleFunc("DELETE /api/tds/sections/{id}", middleware.Chain(
 		tdsHandler.DeleteSection,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("GET /api/tds/receivables", middleware.Chain(
+		tdsHandler.ListReceivables,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("POST /api/tds/receivables", middleware.Chain(
+		tdsHandler.CreateReceivable,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("PUT /api/tds/receivables/{id}", middleware.Chain(
+		tdsHandler.UpdateReceivable,
+		middleware.Authenticate(db),
+	))
+	mux.HandleFunc("DELETE /api/tds/receivables/{id}", middleware.Chain(
+		tdsHandler.DeleteReceivable,
 		middleware.Authenticate(db),
 	))
 

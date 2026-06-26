@@ -104,7 +104,35 @@ func (s *CostSheetService) ComputeForOrder(productionOrderID int) (*models.CostS
 		}
 	}
 
-	totalCost := materialCost.Add(machineCost).Add(overheadCost)
+	// ── Labour (fabrication contractor) cost ─────────────────────────────────
+	var labourCost decimal.Decimal
+	var rateConfig models.BusinessRateConfig
+	if s.db.First(&rateConfig, 1).Error == nil && rateConfig.FabricationRateKg != "" {
+		rate, err := decimal.NewFromString(rateConfig.FabricationRateKg)
+		if err == nil && rate.GreaterThan(decimal.Zero) {
+			var fabRow struct{ Total int }
+			s.db.Raw(`
+				SELECT COALESCE(SUM(pipes_completed), 0) as total
+				FROM production_entries
+				WHERE production_order_id = ? AND stage_type = 'FABRICATION'
+			`, productionOrderID).Scan(&fabRow)
+
+			if fabRow.Total > 0 {
+				var kgRow struct{ TotalKg decimal.Decimal }
+				s.db.Raw(`
+					SELECT COALESCE(SUM(pcm.quantity_per_pipe), 0) as total_kg
+					FROM pipe_config_materials pcm
+					WHERE pcm.pipe_config_id = ? AND pcm.stage_type = 'FABRICATION'
+				`, order.PipeConfigID).Scan(&kgRow)
+
+				labourCost = kgRow.TotalKg.
+					Mul(decimal.NewFromInt(int64(fabRow.Total))).
+					Mul(rate)
+			}
+		}
+	}
+
+	totalCost := materialCost.Add(labourCost).Add(machineCost).Add(overheadCost)
 
 	var costPerPipe decimal.Decimal
 	if finalCompleted > 0 {
@@ -124,6 +152,7 @@ func (s *CostSheetService) ComputeForOrder(productionOrderID int) (*models.CostS
 		tx.Where("production_order_id = ?", productionOrderID).First(&cs)
 		cs.ProductionOrderID = productionOrderID
 		cs.TotalMaterialCost = materialCost
+		cs.TotalLaborCost = labourCost
 		cs.TotalMachineCost = machineCost
 		cs.TotalOverheadCost = overheadCost
 		cs.TotalCost = totalCost
@@ -148,6 +177,14 @@ func (s *CostSheetService) ComputeForOrder(productionOrderID int) (*models.CostS
 				CostType:    models.CostTypeMaterial,
 				Description: "Raw material consumptions",
 				Amount:      materialCost,
+			})
+		}
+		if labourCost.GreaterThan(decimal.Zero) {
+			tx.Create(&models.CostSheetLine{
+				CostSheetID: cs.ID,
+				CostType:    models.CostTypeLabor,
+				Description: fmt.Sprintf("Fabrication contractor (₹%s/kg)", rateConfig.FabricationRateKg),
+				Amount:      labourCost,
 			})
 		}
 		if machineCost.GreaterThan(decimal.Zero) {

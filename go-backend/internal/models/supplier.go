@@ -16,6 +16,7 @@ type Supplier struct {
 	PAN           *string         `gorm:"column:pan" json:"pan"`
 	PaymentTerms  *int            `gorm:"column:payment_terms" json:"paymentTerms"`
 	TDSSectionID  *int            `gorm:"column:tds_section_id" json:"tdsSectionId"`
+	VendorType    *string         `gorm:"column:vendor_type;size:50" json:"vendorType"`
 	Notes         *string         `gorm:"column:notes;type:text" json:"notes"`
 	Active        bool            `gorm:"column:is_active;default:true" json:"active"`
 	CreatedAt     time.Time       `gorm:"column:created_at;autoCreateTime" json:"createdAt"`

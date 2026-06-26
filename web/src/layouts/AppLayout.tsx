@@ -7,7 +7,7 @@ import {
   Building2, PackageCheck, Receipt, CreditCard, FileX,
   Wallet, RotateCcw, Truck, Trophy, UserCog, LineChart, ArrowRight, Activity,
   Factory, ClipboardList, PenLine, Settings2, Layers, Cpu, DollarSign, BarChart2,
-  LayoutDashboard, Briefcase, FileBarChart2, ClipboardCheck,
+  LayoutDashboard, Briefcase, FileBarChart2, ClipboardCheck, BookOpen, PackageSearch, Hash, Wrench, HardHat,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { useQuery } from '@tanstack/react-query'
@@ -102,6 +102,7 @@ const navEntries: NavEntry[] = [
     ],
   },
   { path: '/business/loading', icon: <Truck size={18} />, label: 'Loading' },
+  { path: '/business/pipe-purchases', icon: <Package size={18} />, label: 'Pipe Purchases', highlight: true },
   { path: '/transfers',   icon: <ArrowLeftRight size={18} />, label: 'Site Stock Transfers' },
   {
     key: 'hr',
@@ -119,11 +120,17 @@ const navEntries: NavEntry[] = [
     label: 'Reports',
     roles: ['ADMIN', 'SUPER_ADMIN', 'MANAGER', 'ACCOUNTANT'],
     children: [
+      { path: '/reports/daybook',          icon: <BookOpen size={14} />,      label: 'Day Book' },
+      { path: '/reports/stock-statement',  icon: <PackageSearch size={14} />, label: 'Stock Statement' },
       { path: '/reports',           icon: <BarChart3 size={14} />,   label: 'Overview' },
       { path: '/reports/sales',     icon: <LineChart size={14} />,   label: 'Sales' },
       { path: '/reports/purchases', icon: <ShoppingBag size={14} />, label: 'Purchases' },
       { path: '/reports/inventory', icon: <Boxes size={14} />,       label: 'Inventory' },
       { path: '/reports/gst',       icon: <FileText size={14} />,    label: 'GST Reports' },
+      { path: '/reports/hsn',         icon: <Hash size={14} />,        label: 'HSN Reports' },
+      { path: '/reports/maintenance', icon: <Wrench size={14} />,      label: 'Maintenance Report' },
+      { path: '/reports/labour',      icon: <HardHat size={14} />,     label: 'Labour Report' },
+      { path: '/reports/vehicles',    icon: <Truck size={14} />,       label: 'Vehicles Report' },
       { path: '/reports/payments',  icon: <CreditCard size={14} />,  label: 'Payments' },
       { path: '/reports/debtors',   icon: <Users size={14} />,       label: 'Debtors' },
       { path: '/reports/creditors', icon: <Building2 size={14} />,   label: 'Creditors' },

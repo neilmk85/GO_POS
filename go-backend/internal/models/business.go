@@ -183,6 +183,21 @@ type BizConversion struct {
 
 func (BizConversion) TableName() string { return "biz_conversions" }
 
+// ─── Cutting ──────────────────────────────────────────────────────────────────
+
+type BizCutting struct {
+	ID        uint      `gorm:"primaryKey;autoIncrement" json:"id"`
+	Date      DateOnly  `gorm:"column:date;type:date;not null" json:"date"`
+	FromSheet string    `gorm:"column:from_sheet;size:100;not null" json:"fromSheet"`
+	ToSheet   string    `gorm:"column:to_sheet;size:100;not null" json:"toSheet"`
+	Quantity  int       `gorm:"column:quantity;not null" json:"quantity"`
+	Notes     string    `gorm:"column:notes;type:text" json:"notes"`
+	CreatedAt time.Time `gorm:"column:created_at;autoCreateTime" json:"createdAt"`
+	UpdatedAt time.Time `gorm:"column:updated_at;autoUpdateTime" json:"updatedAt"`
+}
+
+func (BizCutting) TableName() string { return "biz_cuttings" }
+
 // ─── Discard ──────────────────────────────────────────────────────────────────
 
 type Discard struct {
@@ -279,3 +294,58 @@ type BusinessRateConfig struct {
 }
 
 func (BusinessRateConfig) TableName() string { return "biz_rate_config" }
+
+// ─── Coating Contractor Rate ──────────────────────────────────────────────────
+// Per-diameter flat rate paid to the coating contractor (₹ per pipe).
+
+type CoatingContractorRate struct {
+	ID          uint            `gorm:"primaryKey;autoIncrement" json:"id"`
+	DiameterMm  int             `gorm:"column:diameter_mm;uniqueIndex" json:"diameterMm"`
+	RatePerPipe decimal.Decimal `gorm:"column:rate_per_pipe;type:decimal(10,2)" json:"ratePerPipe"`
+	CreatedAt   time.Time       `gorm:"column:created_at;autoCreateTime" json:"createdAt"`
+	UpdatedAt   time.Time       `gorm:"column:updated_at;autoUpdateTime" json:"updatedAt"`
+}
+
+func (CoatingContractorRate) TableName() string { return "coating_contractor_rates" }
+
+// ─── Spinning Bed Rate ────────────────────────────────────────────────────────
+// Per-diameter, per-bed-size rate paid to the spinning contractor (₹ per pipe).
+
+type SpinningBedRate struct {
+	ID          uint            `gorm:"primaryKey;autoIncrement" json:"id"`
+	BedSize     string          `gorm:"column:bed_size;index:idx_spinning_bed_dia" json:"bedSize"` // SMALL_BED | LARGE_BED
+	DiameterMm  int             `gorm:"column:diameter_mm;index:idx_spinning_bed_dia" json:"diameterMm"`
+	RatePerPipe decimal.Decimal `gorm:"column:rate_per_pipe;type:decimal(10,2)" json:"ratePerPipe"`
+	CreatedAt   time.Time       `gorm:"column:created_at;autoCreateTime" json:"createdAt"`
+	UpdatedAt   time.Time       `gorm:"column:updated_at;autoUpdateTime" json:"updatedAt"`
+}
+
+func (SpinningBedRate) TableName() string { return "spinning_bed_rates" }
+
+// ─── Third-Party Pipe Purchase ────────────────────────────────────────────────
+// Records a direct purchase of finished pipes from an external vendor.
+// On creation the matching finished-goods inventory record is credited.
+// On deletion the inventory credit is reversed.
+
+type ThirdPartyPipePurchase struct {
+	ID            uint            `gorm:"primaryKey;autoIncrement" json:"id"`
+	OutletID      int             `gorm:"column:outlet_id;not null;index" json:"outletId"`
+	SupplierID    *int            `gorm:"column:supplier_id" json:"supplierId"`
+	VendorName    string          `gorm:"column:vendor_name;size:255" json:"vendorName"`
+	InvoiceNumber string          `gorm:"column:invoice_number;size:100" json:"invoiceNumber"`
+	PurchaseDate  DateOnly        `gorm:"column:purchase_date;type:date;not null" json:"purchaseDate"`
+	PipeConfigID  *int            `gorm:"column:pipe_config_id" json:"pipeConfigId"`
+	PipeName      string          `gorm:"column:pipe_name;size:255;not null" json:"pipeName"`
+	Quantity      int             `gorm:"column:quantity;not null" json:"quantity"`
+	UnitRate      decimal.Decimal `gorm:"column:unit_rate;type:decimal(12,2);default:0" json:"unitRate"`
+	TotalAmount   decimal.Decimal `gorm:"column:total_amount;type:decimal(14,2);default:0" json:"totalAmount"`
+	Notes         string          `gorm:"column:notes;type:text" json:"notes"`
+	CreatedBy     string          `gorm:"column:created_by;size:255" json:"createdBy"`
+	CreatedAt     time.Time       `gorm:"column:created_at;autoCreateTime" json:"createdAt"`
+	UpdatedAt     time.Time       `gorm:"column:updated_at;autoUpdateTime" json:"updatedAt"`
+
+	Supplier   *Supplier   `gorm:"foreignKey:SupplierID" json:"supplier,omitempty"`
+	PipeConfig *PipeConfig `gorm:"foreignKey:PipeConfigID" json:"pipeConfig,omitempty"`
+}
+
+func (ThirdPartyPipePurchase) TableName() string { return "biz_third_party_pipe_purchases" }

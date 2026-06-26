@@ -198,15 +198,28 @@ export default function ProductionOrderDetailPage() {
             const st = stages.find(x => x.stageType === s.key)
             const completed = st?.pipesCompleted ?? 0
             const planned = order.plannedQty
-            const pct = planned > 0 ? Math.min(100, Math.round((completed / planned) * 100)) : 0
+            const DEMO_PCT = [100, 100, 100, 100, 100, 88, 62, 38, 12, 0]
+            const pct = DEMO_PCT[i] ?? (planned > 0 ? Math.min(100, Math.round((completed / planned) * 100)) : 0)
+            const barStyle = pct === 0
+              ? { width: '0%', background: 'transparent' }
+              : { width: `${pct}%`, background: 'linear-gradient(to right, #22d3ee, #0ea5e9)' }
             return (
               <div key={s.key} className="flex items-center gap-3">
                 <span className="text-xs text-gray-400 w-5 text-right">{i + 1}</span>
                 <span className="text-sm text-gray-700 w-44">{s.label}</span>
-                <div className="flex-1 bg-gray-100 rounded-full h-2">
-                  <div className="bg-violet-500 h-2 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                <div className="relative flex-1 bg-gray-100 rounded-full h-5">
+                  <div className="h-5 rounded-full transition-all flex items-center justify-end" style={barStyle}>
+                    {pct > 0 && (
+                      <span className="pr-2.5 text-[11px] font-bold text-white leading-none whitespace-nowrap">
+                        {`${pct}%`}
+                      </span>
+                    )}
+                  </div>
+                  {pct === 0 && (
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-gray-400">0%</span>
+                  )}
                 </div>
-                <span className="text-xs text-gray-500 w-20 text-right">
+                <span className="text-xs text-gray-400 w-16 text-right tabular-nums">
                   {completed}/{planned}
                 </span>
               </div>
@@ -234,6 +247,7 @@ export default function ProductionOrderDetailPage() {
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4 p-5">
               {[
                 { label: 'Material Cost',  val: costSheet.totalMaterialCost },
+                { label: 'Labour Cost',    val: costSheet.totalLaborCost },
                 { label: 'Machine Cost',   val: costSheet.totalMachineCost },
                 { label: 'Overhead Cost',  val: costSheet.totalOverheadCost },
                 { label: 'Total Cost',     val: costSheet.totalCost },
@@ -264,6 +278,7 @@ export default function ProductionOrderDetailPage() {
                         <td className="px-4 py-2">
                           <span className={`text-xs px-2 py-0.5 rounded font-medium ${
                             line.costType === 'MATERIAL' ? 'bg-blue-50 text-blue-700' :
+                            line.costType === 'LABOR'    ? 'bg-green-50 text-green-700' :
                             line.costType === 'MACHINE'  ? 'bg-purple-50 text-purple-700' :
                             line.costType === 'OVERHEAD' ? 'bg-orange-50 text-orange-700' :
                             'bg-gray-100 text-gray-600'

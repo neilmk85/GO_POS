@@ -273,7 +273,7 @@ export default function PurchaseReturnsPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl border overflow-hidden">
+      <div className="bg-white rounded-xl overflow-hidden" style={{ boxShadow: '0 4px 24px -4px rgba(0,0,0,0.14), 0 2px 8px -2px rgba(0,0,0,0.08)' }}>
         <table className="w-full">
           <thead>
             <tr className="bg-gradient-to-r from-violet-50 to-blue-50 border-y border-violet-100">

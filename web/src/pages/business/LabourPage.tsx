@@ -310,7 +310,7 @@ function OTForm({
         <div className="flex items-center gap-3">
           <button onClick={onClose} className="px-4 py-2 text-sm font-semibold text-gray-500 hover:text-gray-700 transition">Cancel</button>
           <button onClick={handleSave}
-            className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white px-5 py-2 rounded-xl font-semibold text-sm shadow-md shadow-amber-200 transition-all">
+            className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-400 to-orange-400 hover:from-amber-600 hover:to-orange-600 text-white px-5 py-2 rounded-xl font-semibold text-sm shadow-md shadow-amber-200 transition-all">
             <Clock size={14} />
             Save OT
           </button>
@@ -337,7 +337,7 @@ function OvertimeModal({ entry, onSave, onClose }: {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-amber-500 to-orange-500">
+        <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-amber-400 to-orange-400">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
               <Clock size={16} className="text-white" />
@@ -442,7 +442,7 @@ function AddOTModal({ onSave, onClose }: {
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-amber-500 to-orange-500">
+        <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-amber-400 to-orange-400">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
               <Clock size={16} className="text-white" />
@@ -565,7 +565,7 @@ function AddOTModal({ onSave, onClose }: {
             Cancel
           </button>
           <button onClick={handleSave}
-            className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white px-5 py-2 rounded-xl font-semibold text-sm shadow-md shadow-amber-200 transition-all">
+            className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-400 to-orange-400 hover:from-amber-600 hover:to-orange-600 text-white px-5 py-2 rounded-xl font-semibold text-sm shadow-md shadow-amber-200 transition-all">
             <Clock size={14} />
             Save OT
           </button>

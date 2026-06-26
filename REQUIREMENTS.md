@@ -63,8 +63,8 @@ The Site project is integrated directly into the PP Pipes Products web app (`/we
 
 ---
 
-## REQ-003 · TDS (Tax Deducted at Source)
-**Pages:** `/reports/tds`, `/settings` → TDS Sections tab
+## REQ-003 · TDS Outward (Tax Deducted at Source on Vendor Payments)
+**Pages:** `/reports/tds` → "TDS Outward" tab, `/settings` → TDS Sections tab
 **Status:** Implemented
 
 - **TDS Sections master** — configurable via Settings → TDS Sections tab:
@@ -80,12 +80,91 @@ The Site project is integrated directly into the PP Pipes Products web app (`/we
 - **TDS Payable in Ledger** (`/reports/ledger`):
   - A "TDS Payable" GL account auto-appears in the ledger when any TDS has been deducted in the selected period.
 
-- **TDS Report** (`/reports/tds`):
+- **TDS Outward Report** (`/reports/tds` → TDS Outward tab):
   - Date range filter with presets.
   - Summary cards: Total Base Amount, Total TDS Deducted, Sections count, Parties count.
   - **By Section view**: section code, description, rate, transaction count, base amount, TDS deducted, deposited, pending.
   - **By Party view**: vendor name, PAN, section, transaction count, base amount, TDS deducted, deposited, pending.
   - Pending amounts highlighted in red.
+
+---
+
+## REQ-005 · TDS Inward (TDS Deducted by Customers on Our Invoices)
+**Page:** `/reports/tds` → "TDS Inward" tab
+**Status:** Implemented
+
+When a large customer (Tata Projects, NHAI, etc.) pays us, they deduct TDS from the invoice amount and deposit it on our behalf to the government. We need to track these so we can claim the credit in our ITR via Form 26AS.
+
+- **Model:** `tds_receivables` table — stores each instance where a customer deducted TDS on our invoice:
+  - Customer name, Invoice number, TDS Section, Payment date, Base amount, TDS rate, TDS amount.
+  - Financial year (auto-computed from payment date).
+  - Status: `PENDING` (deducted but not yet reflected in 26AS) → `RECEIVED` (confirmed in Form 26AS/Form 16A).
+  - Received date — date when credit was confirmed in 26AS.
+
+- **TDS Inward UI** (`/reports/tds` → TDS Inward tab):
+  - **Summary cards**: Total Base, Total TDS Inward, Received in 26AS, Pending (not yet reflected).
+  - **Add Entry** form: Customer Name, Invoice No., TDS Section (from shared master), Payment Date, Base Amount, TDS Rate (auto-fills from section), TDS Amount (auto-computed).
+  - **Receivables table**: lists all entries with date, customer, invoice, section badge, base, TDS, status badge (Pending/Received), notes, and inline actions.
+    - "Mark as Received" (✓) button for PENDING entries — sets status to RECEIVED and records today as received date.
+    - Delete button with confirmation.
+  - **By Customer Summary**: grouped table showing total base, TDS, received, pending per customer+section.
+
+- **Backend:** Routes: `GET/POST /api/tds/receivables`, `PUT /api/tds/receivables/{id}`, `DELETE /api/tds/receivables/{id}`, `GET /api/reports/tds-inward`.
+  - Report endpoint groups by section and customer, returns totals for received vs pending.
+  - Shared TDS Sections master with TDS Outward.
+
+---
+
+## REQ-006 · Third-Party Pipe Purchase
+**Page:** `/business/pipe-purchases`
+**Status:** Implemented
+
+Pipes are sometimes purchased directly from external vendors instead of being manufactured in-house. These purchases must be tracked separately and credited to finished-goods inventory, but must **not** affect raw material consumption or contractor payments.
+
+### Critical Business Rules
+> ⚠️ **DO NOT reduce raw material (cement, steel, aggregate) inventory** when recording a third-party pipe purchase. These pipes arrive ready-made — no production process is involved.
+>
+> ⚠️ **DO NOT create contractor payment records** for third-party pipe purchases. Contractor payments are tied exclusively to the manufacturing process (spinning, coating, etc.). Third-party purchases are vendor invoices, not contractor work.
+>
+> ✅ **Only credit `inventory.quantity_on_hand`** for the matching `FINISHED_PIPE` product. The pipe enters the same finished-goods pool as manufactured pipes and can be dispatched and invoiced normally.
+
+### Data Captured Per Purchase
+- **Vendor** — free-text name (with optional link to the vendor master)
+- **Pipe Type** — free-text name snapshot (with optional link to pipe config master)
+- **Invoice Number** — vendor invoice reference
+- **Purchase Date**
+- **Quantity** (pieces)
+- **Unit Rate** (₹) — auto-computes Total Amount = qty × rate
+- **Outlet** — inventory is outlet-scoped (`UNIQUE(product_id, outlet_id)`)
+- **Notes**
+
+### Inventory Behaviour
+- **On create:** `inventory.quantity_on_hand += quantity` for the FINISHED_PIPE product matching the pipe name.
+  - If the FINISHED_PIPE product doesn't exist yet, it is created automatically (same logic as `creditFinishedGoodsInventory` in production).
+- **On delete:** `inventory.quantity_on_hand -= quantity` (reversal). The record is removed and the inventory credit is unwound.
+- **On update qty:** delta applied — credit if increased, debit if decreased.
+- **On update pipe name:** old pipe's inventory is fully reversed; new pipe's inventory is fully credited.
+
+### Purchase Log (separate tracking)
+All third-party pipe purchases are stored in `biz_third_party_pipe_purchases` and displayed in a dedicated log that clearly shows:
+- Which pipe was purchased
+- How many pieces
+- From which vendor
+- On which date
+- Invoice number and amount paid
+
+### UI
+- **Page:** `/business/pipe-purchases` — nav: "Pipe Purchases" (Package icon, highlighted)
+- **Summary cards:** Total Purchases, Total Qty (pcs), Total Value (₹), Pipe Types count, Vendors count
+- **Purchase Log table:** Date | Vendor | Invoice No. | Pipe Type | Qty | Unit Rate | Total Amount | Notes | Delete
+- **Purchases by Vendor panel:** Groups purchases by vendor → shows each pipe type, qty, and amount per vendor
+- **Date range filter** with presets (Today / Last 7d / Last 30d / This Month)
+- **Delete with confirmation** — toast confirms "Purchase deleted and inventory reversed"
+
+### Backend
+- **Table:** `biz_third_party_pipe_purchases`
+- **Routes:** `GET/POST /api/business/pipe-purchases`, `PUT/DELETE /api/business/pipe-purchases/{id}`
+- **Service:** `PipePurchaseService` with `creditInventory` / `debitInventory` helpers (replicates production's `creditFinishedGoodsInventory` logic without touching material consumption or contractor tables)
 
 ---
 

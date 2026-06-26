@@ -371,6 +371,10 @@ func Migrate(db *gorm.DB) error {
 		slog.Error("[Database] Failed to migrate BizConversion", "error", err)
 		return err
 	}
+	if err := db.AutoMigrate(&models.BizCutting{}); err != nil {
+		slog.Error("[Database] Failed to migrate BizCutting", "error", err)
+		return err
+	}
 	if err := db.AutoMigrate(&models.Discard{}); err != nil {
 		slog.Error("[Database] Failed to migrate Discard", "error", err)
 		return err
@@ -393,6 +397,27 @@ func Migrate(db *gorm.DB) error {
 	}
 	if err := db.AutoMigrate(&models.BusinessRateConfig{}); err != nil {
 		slog.Error("[Database] Failed to migrate BusinessRateConfig", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.CoatingContractorRate{}); err != nil {
+		slog.Error("[Database] Failed to migrate CoatingContractorRate", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.SpinningBedRate{}); err != nil {
+		slog.Error("[Database] Failed to migrate SpinningBedRate", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.ProcessContractorAssignment{}); err != nil {
+		slog.Error("[Database] Failed to migrate ProcessContractorAssignment", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.ThirdPartyPipePurchase{}); err != nil {
+		slog.Error("[Database] Failed to migrate ThirdPartyPipePurchase", "error", err)
+		return err
+	}
+	// Add vendor_type column to suppliers
+	if err := db.AutoMigrate(&models.Supplier{}); err != nil {
+		slog.Error("[Database] Failed to migrate Supplier (vendor_type)", "error", err)
 		return err
 	}
 
@@ -421,6 +446,10 @@ func Migrate(db *gorm.DB) error {
 	}
 	if err := db.AutoMigrate(&models.TDSDeduction{}); err != nil {
 		slog.Error("[Database] Failed to migrate TDSDeduction", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.TDSReceivable{}); err != nil {
+		slog.Error("[Database] Failed to migrate TDSReceivable", "error", err)
 		return err
 	}
 	// Add TDS columns to existing tables
@@ -512,6 +541,21 @@ func Migrate(db *gorm.DB) error {
 	if err := db.AutoMigrate(&models.MaterialReceipt{}); err != nil {
 		slog.Error("[Database] Failed to migrate MaterialReceipt", "error", err)
 		return err
+	}
+
+	// Phase 22: Purchasable cement products
+	for _, p := range []struct{ name, uom string }{{"Cement", "MT"}, {"Cement Bags", "nos"}} {
+		var existing models.Product
+		if db.Where("name = ? AND item_type = ?", p.name, "RAW_MATERIAL").First(&existing).Error != nil {
+			db.Create(&models.Product{
+				Name:          p.name,
+				ItemType:      "RAW_MATERIAL",
+				UnitOfMeasure: p.uom,
+				TrackInventory: true,
+				Active:        true,
+				ProductType:   "PHYSICAL",
+			})
+		}
 	}
 
 	slog.Info("[Database] Migrations completed successfully")

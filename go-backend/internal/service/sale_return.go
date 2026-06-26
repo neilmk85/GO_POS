@@ -69,6 +69,10 @@ func (s *SaleReturnService) Create(data map[string]interface{}) (*models.SaleRet
 		Items:        items,
 	}
 
+	if v, ok := data["customerId"].(float64); ok && v > 0 {
+		id := int(v)
+		ret.CustomerID = &id
+	}
 	if v, ok := data["customerName"].(string); ok && v != "" {
 		ret.CustomerName = &v
 	}

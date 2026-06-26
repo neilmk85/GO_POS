@@ -98,6 +98,8 @@ export default function SalesOrderDetailPage() {
   const pipeItems    = (so?.items ?? []).filter((i: any) => i.pipeConfigId)
   const convertedCnt = pipeItems.filter((i: any) => i.productionOrderId).length
   const pendingCnt   = pipeItems.length - convertedCnt
+  const totalPipes   = pipeItems.reduce((sum: number, i: any) => sum + Number(i.quantity), 0)
+  const totalMeters  = +(totalPipes * 5.25).toFixed(2)
 
   async function handleConvertItem(itemId: number) {
     setConvertingItem(itemId)
@@ -208,6 +210,25 @@ export default function SalesOrderDetailPage() {
                     className={`h-full rounded-full transition-all ${convertedCnt === pipeItems.length ? 'bg-green-500' : 'bg-amber-500'}`}
                     style={{ width: pipeItems.length > 0 ? `${(convertedCnt / pipeItems.length) * 100}%` : '0%' }}
                   />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Master PO Summary */}
+          {pipeItems.length > 0 && (
+            <div className="rounded-xl border border-blue-100 bg-blue-50 px-6 py-4">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-blue-500">
+                Sales Order Summary
+              </p>
+              <div className="grid grid-cols-2 divide-x divide-blue-100">
+                <div className="pr-6 text-center">
+                  <p className="text-3xl font-bold text-gray-900 tabular-nums">{totalPipes.toLocaleString()}</p>
+                  <p className="mt-1 text-xs text-gray-500">Total Number of Pipes</p>
+                </div>
+                <div className="pl-6 text-center">
+                  <p className="text-3xl font-bold text-gray-900 tabular-nums">{totalMeters.toLocaleString()}</p>
+                  <p className="mt-1 text-xs text-gray-500">Total Length in Meters</p>
                 </div>
               </div>
             </div>

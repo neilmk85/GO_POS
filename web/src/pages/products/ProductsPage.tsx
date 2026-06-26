@@ -69,7 +69,7 @@ export default function ProductsPage() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['products'] }); toast.success('Product deleted') },
   })
 
-  const products: Product[] = data?.content || []
+  const products: Product[] = (data?.content || []).filter((p: Product) => p.active)
   const filtered = products.filter(p => {
     const matchesSearch =
       p.name.toLowerCase().includes(search.toLowerCase()) ||

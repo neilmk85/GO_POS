@@ -14,6 +14,7 @@ type PipeConfig struct {
 	DiameterMM    int     `gorm:"column:diameter_mm" json:"diameterMm"`
 	PressureClass string  `gorm:"column:pressure_class" json:"pressureClass"` // e.g. "10kg"
 	Description   *string `gorm:"column:description" json:"description"`
+	LengthM       float64 `gorm:"column:length_m;type:decimal(5,2);default:5.25" json:"lengthM"`
 	Active        bool    `gorm:"column:is_active;default:true" json:"active"`
 
 	CreatedAt time.Time `gorm:"column:created_at;autoCreateTime" json:"createdAt"`

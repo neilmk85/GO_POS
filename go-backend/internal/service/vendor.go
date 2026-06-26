@@ -20,7 +20,7 @@ func NewVendorService(db *gorm.DB) *VendorService {
 }
 
 // GetAll returns paginated list of vendors with optional filtering
-func (vs *VendorService) GetAll(page, size int, search *string, active *bool) (vendors []models.Supplier, total int64, err error) {
+func (vs *VendorService) GetAll(page, size int, search *string, active *bool, vendorType *string) (vendors []models.Supplier, total int64, err error) {
 	query := vs.db
 
 	if search != nil && *search != "" {
@@ -31,6 +31,10 @@ func (vs *VendorService) GetAll(page, size int, search *string, active *bool) (v
 
 	if active != nil {
 		query = query.Where("is_active = ?", *active)
+	}
+
+	if vendorType != nil && *vendorType != "" {
+		query = query.Where("vendor_type = ?", *vendorType)
 	}
 
 	if err := query.Model(&models.Supplier{}).Count(&total).Error; err != nil {

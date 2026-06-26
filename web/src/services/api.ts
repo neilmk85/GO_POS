@@ -372,7 +372,7 @@ export const siteReportsApi = {
 
 // Vendors
 export const vendorApi = {
-  getAll: (params?: { page?: number; size?: number; search?: string; active?: boolean }) =>
+  getAll: (params?: { page?: number; size?: number; search?: string; active?: boolean; vendorType?: string }) =>
     api.get<ApiResponse<any>>('/vendors', { params }),
   getById: (id: number) => api.get<ApiResponse<any>>(`/vendors/${id}`),
   create: (data: any) => api.post<ApiResponse<any>>('/vendors', data),
@@ -482,6 +482,12 @@ export const reportApi = {
     api.get<ApiResponse<any>>('/reports/ledger-detail', { params: { outletId, from, to, partyType, partyId } }),
   getTDSReport: (outletId: number, from: string, to: string) =>
     api.get<ApiResponse<any>>('/reports/tds', { params: { outletId, from, to } }),
+  getTDSInwardReport: (outletId: number, from: string, to: string) =>
+    api.get<ApiResponse<any>>('/reports/tds-inward', { params: { outletId, from, to } }),
+  getDayBook: (outletId: number, from: string, to: string) =>
+    api.get<ApiResponse<any>>('/reports/daybook', { params: { outletId, from, to } }),
+  getStockStatement: (outletId: number, from: string, to: string) =>
+    api.get<ApiResponse<any>>('/reports/stock-statement', { params: { outletId, from, to } }),
 }
 
 export const tdsApi = {
@@ -489,6 +495,12 @@ export const tdsApi = {
   createSection: (data: any) => api.post<ApiResponse<any>>('/tds/sections', data),
   updateSection: (id: number, data: any) => api.put<ApiResponse<any>>(`/tds/sections/${id}`, data),
   deleteSection: (id: number) => api.delete<ApiResponse<any>>(`/tds/sections/${id}`),
+  listReceivables: (outletId: number, from: string, to: string) =>
+    api.get<ApiResponse<any[]>>('/tds/receivables', { params: { outletId, from, to } }),
+  createReceivable: (data: any) => api.post<ApiResponse<any>>('/tds/receivables', data),
+  updateReceivable: (id: number, data: any) => api.put<ApiResponse<any>>(`/tds/receivables/${id}`, data),
+  deleteReceivable: (id: number, outletId: number) =>
+    api.delete<ApiResponse<any>>(`/tds/receivables/${id}`, { params: { outletId } }),
 }
 
 // Product Images
@@ -848,6 +860,10 @@ export const productionReportApi = {
     api.get<ApiResponse<any>>('/production/reports/material-consumption', { params }),
   machineUtilization: (params?: { fromDate?: string; toDate?: string; outletId?: number }) =>
     api.get<ApiResponse<any>>('/production/reports/machine-utilization', { params }),
+  contractorCosts: (params?: { fromDate?: string; toDate?: string; outletId?: number }) =>
+    api.get<ApiResponse<any>>('/production/reports/contractor-costs', { params }),
+  spinningCosts: (params?: { fromDate?: string; toDate?: string; outletId?: number }) =>
+    api.get<ApiResponse<any>>('/production/reports/spinning-costs', { params }),
 }
 
 export const pdiApi = {

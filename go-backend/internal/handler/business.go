@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/nilesh/pos-backend/internal/models"
+	"github.com/nilesh/pos-backend/internal/service"
 	"github.com/nilesh/pos-backend/internal/util"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
@@ -19,13 +20,14 @@ import (
 
 // BusinessHandler handles CRUD for all business-page models.
 type BusinessHandler struct {
-	db          *gorm.DB
-	uploadsDir  string
-	maxFileSize int64
+	db              *gorm.DB
+	uploadsDir      string
+	maxFileSize     int64
+	pipePurchaseSvc *service.PipePurchaseService
 }
 
-func NewBusinessHandler(db *gorm.DB, uploadsDir string, maxFileSize int64) *BusinessHandler {
-	return &BusinessHandler{db: db, uploadsDir: uploadsDir, maxFileSize: maxFileSize}
+func NewBusinessHandler(db *gorm.DB, uploadsDir string, maxFileSize int64, svc *service.PipePurchaseService) *BusinessHandler {
+	return &BusinessHandler{db: db, uploadsDir: uploadsDir, maxFileSize: maxFileSize, pipePurchaseSvc: svc}
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -811,6 +813,75 @@ func (h *BusinessHandler) DeleteConversion(w http.ResponseWriter, r *http.Reques
 	util.SendSuccess(w, "Entry deleted", nil)
 }
 
+// ─── Cutting ──────────────────────────────────────────────────────────────────
+
+func (h *BusinessHandler) ListCuttings(w http.ResponseWriter, r *http.Request) {
+	var rows []models.BizCutting
+	q := applyDateRange(h.db.Order("date DESC, id DESC"), r)
+	if err := q.Find(&rows).Error; err != nil {
+		util.SendError(w, http.StatusInternalServerError, "Failed to fetch cuttings")
+		return
+	}
+	util.SendSuccess(w, "Cuttings retrieved", rows)
+}
+
+func (h *BusinessHandler) CreateCutting(w http.ResponseWriter, r *http.Request) {
+	var row models.BizCutting
+	if err := json.NewDecoder(r.Body).Decode(&row); err != nil {
+		util.SendError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	if row.FromSheet == "" || row.ToSheet == "" {
+		util.SendError(w, http.StatusBadRequest, "From sheet and To sheet are required")
+		return
+	}
+	if row.Quantity <= 0 {
+		util.SendError(w, http.StatusBadRequest, "Quantity must be greater than 0")
+		return
+	}
+	if err := h.db.Create(&row).Error; err != nil {
+		util.SendError(w, http.StatusInternalServerError, "Failed to create cutting entry")
+		return
+	}
+	util.SendSuccess(w, "Cutting entry created", row)
+}
+
+func (h *BusinessHandler) UpdateCutting(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		util.SendError(w, http.StatusBadRequest, "Invalid id")
+		return
+	}
+	var row models.BizCutting
+	if err := h.db.First(&row, id).Error; err != nil {
+		util.SendError(w, http.StatusNotFound, "Entry not found")
+		return
+	}
+	if err := json.NewDecoder(r.Body).Decode(&row); err != nil {
+		util.SendError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	row.ID = id
+	if err := h.db.Save(&row).Error; err != nil {
+		util.SendError(w, http.StatusInternalServerError, "Failed to update entry")
+		return
+	}
+	util.SendSuccess(w, "Entry updated", row)
+}
+
+func (h *BusinessHandler) DeleteCutting(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		util.SendError(w, http.StatusBadRequest, "Invalid id")
+		return
+	}
+	if err := h.db.Delete(&models.BizCutting{}, id).Error; err != nil {
+		util.SendError(w, http.StatusInternalServerError, "Failed to delete entry")
+		return
+	}
+	util.SendSuccess(w, "Entry deleted", nil)
+}
+
 // ─── Discard ──────────────────────────────────────────────────────────────────
 
 func (h *BusinessHandler) ListDiscards(w http.ResponseWriter, r *http.Request) {
@@ -1260,6 +1331,127 @@ func (h *BusinessHandler) UpdateBusinessRateConfig(w http.ResponseWriter, r *htt
 	util.SendSuccess(w, "Business rate config saved", existing)
 }
 
+// ─── Coating Contractor Rates ─────────────────────────────────────────────────
+
+// GetCoatingRates returns all per-diameter coating contractor rates.
+func (h *BusinessHandler) GetCoatingRates(w http.ResponseWriter, r *http.Request) {
+	var rates []models.CoatingContractorRate
+	h.db.Order("diameter_mm ASC").Find(&rates)
+	util.SendSuccess(w, "Coating rates fetched", rates)
+}
+
+// UpsertCoatingRates bulk-upserts coating rates. Body: [{diameterMm, ratePerPipe}].
+func (h *BusinessHandler) UpsertCoatingRates(w http.ResponseWriter, r *http.Request) {
+	var input []models.CoatingContractorRate
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		util.SendError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	for i := range input {
+		var existing models.CoatingContractorRate
+		res := h.db.Where("diameter_mm = ?", input[i].DiameterMm).First(&existing)
+		if res.Error != nil {
+			if err := h.db.Create(&input[i]).Error; err != nil {
+				util.SendError(w, http.StatusInternalServerError, "Failed to save coating rate")
+				return
+			}
+		} else {
+			existing.RatePerPipe = input[i].RatePerPipe
+			if err := h.db.Save(&existing).Error; err != nil {
+				util.SendError(w, http.StatusInternalServerError, "Failed to save coating rate")
+				return
+			}
+		}
+	}
+	var rates []models.CoatingContractorRate
+	h.db.Order("diameter_mm ASC").Find(&rates)
+	util.SendSuccess(w, "Coating rates saved", rates)
+}
+
+// ─── Spinning Bed Rates ───────────────────────────────────────────────────────
+
+// GetSpinningRates returns all spinning bed rates ordered by bed_size, diameter_mm.
+func (h *BusinessHandler) GetSpinningRates(w http.ResponseWriter, r *http.Request) {
+	var rates []models.SpinningBedRate
+	h.db.Order("bed_size ASC, diameter_mm ASC").Find(&rates)
+	util.SendSuccess(w, "Spinning rates fetched", rates)
+}
+
+// UpsertSpinningRates bulk-upserts spinning rates. Body: [{bedSize, diameterMm, ratePerPipe}].
+func (h *BusinessHandler) UpsertSpinningRates(w http.ResponseWriter, r *http.Request) {
+	var input []models.SpinningBedRate
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		util.SendError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	for i := range input {
+		var existing models.SpinningBedRate
+		res := h.db.Where("bed_size = ? AND diameter_mm = ?", input[i].BedSize, input[i].DiameterMm).First(&existing)
+		if res.Error != nil {
+			if err := h.db.Create(&input[i]).Error; err != nil {
+				util.SendError(w, http.StatusInternalServerError, "Failed to save spinning rate")
+				return
+			}
+		} else {
+			existing.RatePerPipe = input[i].RatePerPipe
+			if err := h.db.Save(&existing).Error; err != nil {
+				util.SendError(w, http.StatusInternalServerError, "Failed to save spinning rate")
+				return
+			}
+		}
+	}
+	var rates []models.SpinningBedRate
+	h.db.Order("bed_size ASC, diameter_mm ASC").Find(&rates)
+	util.SendSuccess(w, "Spinning rates saved", rates)
+}
+
+// ─── Process Contractor Assignments ──────────────────────────────────────────
+
+// GetProcessContractors returns all process→contractor assignments with supplier info.
+func (h *BusinessHandler) GetProcessContractors(w http.ResponseWriter, r *http.Request) {
+	var assignments []models.ProcessContractorAssignment
+	if err := h.db.Preload("Supplier").Find(&assignments).Error; err != nil {
+		util.SendError(w, http.StatusInternalServerError, "Failed to fetch process contractors")
+		return
+	}
+	util.SendSuccess(w, "Process contractors retrieved", assignments)
+}
+
+// UpsertProcessContractor saves (create or update) a process→contractor mapping.
+// Body: { processType: string, supplierId: int }
+func (h *BusinessHandler) UpsertProcessContractor(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		ProcessType string `json:"processType"`
+		SupplierID  int    `json:"supplierId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		util.SendError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	if body.ProcessType == "" || body.SupplierID == 0 {
+		util.SendError(w, http.StatusBadRequest, "processType and supplierId are required")
+		return
+	}
+
+	var a models.ProcessContractorAssignment
+	err := h.db.Where("process_type = ?", body.ProcessType).First(&a).Error
+	if err != nil {
+		a = models.ProcessContractorAssignment{ProcessType: body.ProcessType, SupplierID: body.SupplierID}
+		if err := h.db.Create(&a).Error; err != nil {
+			util.SendError(w, http.StatusInternalServerError, "Failed to create assignment")
+			return
+		}
+	} else {
+		if err := h.db.Model(&a).Update("supplier_id", body.SupplierID).Error; err != nil {
+			util.SendError(w, http.StatusInternalServerError, "Failed to update assignment")
+			return
+		}
+	}
+
+	h.db.Preload("Supplier").First(&a, a.ID)
+	util.SendSuccess(w, "Process contractor saved", a)
+}
+
 // ─── Challan Photo ────────────────────────────────────────────────────────────
 
 // UploadChallanPhoto POST /api/business/loading-records/{id}/challan-photo
@@ -1347,4 +1539,80 @@ func (h *BusinessHandler) DeleteChallanPhoto(w http.ResponseWriter, r *http.Requ
 	}
 	rec.ChallanPhotoURL = nil
 	util.SendSuccess(w, "Challan photo removed", rec)
+}
+
+// ─── Third-Party Pipe Purchases ───────────────────────────────────────────────
+
+func (h *BusinessHandler) ListPipePurchases(w http.ResponseWriter, r *http.Request) {
+	outletID, err := strconv.Atoi(r.URL.Query().Get("outletId"))
+	if err != nil || outletID == 0 {
+		util.SendError(w, http.StatusBadRequest, "outletId is required")
+		return
+	}
+	from := r.URL.Query().Get("from")
+	to := r.URL.Query().Get("to")
+	records, err := h.pipePurchaseSvc.List(outletID, from, to)
+	if err != nil {
+		util.SendError(w, http.StatusInternalServerError, "Failed to fetch pipe purchases")
+		return
+	}
+	util.SendSuccess(w, "Pipe purchases fetched", records)
+}
+
+func (h *BusinessHandler) CreatePipePurchase(w http.ResponseWriter, r *http.Request) {
+	var req models.ThirdPartyPipePurchase
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		util.SendError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	if req.OutletID == 0 {
+		util.SendError(w, http.StatusBadRequest, "outletId is required")
+		return
+	}
+	if req.PipeName == "" {
+		util.SendError(w, http.StatusBadRequest, "pipeName is required")
+		return
+	}
+	if req.Quantity <= 0 {
+		util.SendError(w, http.StatusBadRequest, "quantity must be greater than zero")
+		return
+	}
+	record, err := h.pipePurchaseSvc.Create(req)
+	if err != nil {
+		util.SendError(w, http.StatusInternalServerError, "Failed to create pipe purchase")
+		return
+	}
+	util.SendSuccess(w, "Pipe purchase recorded and inventory updated", record)
+}
+
+func (h *BusinessHandler) UpdatePipePurchase(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		util.SendError(w, http.StatusBadRequest, "Invalid id")
+		return
+	}
+	var req models.ThirdPartyPipePurchase
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		util.SendError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	record, err := h.pipePurchaseSvc.Update(id, req)
+	if err != nil {
+		util.SendError(w, http.StatusInternalServerError, "Failed to update pipe purchase")
+		return
+	}
+	util.SendSuccess(w, "Pipe purchase updated", record)
+}
+
+func (h *BusinessHandler) DeletePipePurchase(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		util.SendError(w, http.StatusBadRequest, "Invalid id")
+		return
+	}
+	if err := h.pipePurchaseSvc.Delete(id); err != nil {
+		util.SendError(w, http.StatusInternalServerError, "Failed to delete pipe purchase")
+		return
+	}
+	util.SendSuccess(w, "Pipe purchase deleted and inventory reversed", nil)
 }

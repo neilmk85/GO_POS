@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
 import { ArrowLeft, Save } from 'lucide-react'
-import { productionOrderApi, pipeConfigApi, outletApi, salesOrderApi } from '@/services/api'
+import { productionOrderApi, pipeConfigApi } from '@/services/api'
 import { useAuthStore } from '@/store/authStore'
 
 export default function CreateProductionOrderPage() {
@@ -13,9 +13,7 @@ export default function CreateProductionOrderPage() {
 
   const { register, handleSubmit, formState: { errors } } = useForm({
     defaultValues: {
-      salesOrderId: '',
       pipeConfigId: '',
-      outletId: '',
       plannedQty: '',
       plannedStartDate: '',
       plannedEndDate: '',
@@ -26,18 +24,6 @@ export default function CreateProductionOrderPage() {
   const { data: configsData } = useQuery({
     queryKey: ['pipe-configs-active'],
     queryFn: () => pipeConfigApi.getAll({ active: true, size: 200 }).then(r => r.data.data?.content ?? []),
-  })
-
-  const { data: outletsData } = useQuery({
-    queryKey: ['outlets'],
-    queryFn: () => outletApi.getAll().then(r => r.data.data ?? []),
-  })
-
-  const { data: salesOrdersData } = useQuery({
-    queryKey: ['sales-orders-for-po', outletId],
-    queryFn: () => salesOrderApi.getAll({ outletId: outletId ?? 1, size: 200 })
-      .then(r => (r.data.data?.content ?? r.data.data ?? [])
-        .filter((o: any) => !['CANCELLED', 'DELIVERED', 'INVOICED'].includes(o.status))),
   })
 
   const createMut = useMutation({
@@ -52,10 +38,9 @@ export default function CreateProductionOrderPage() {
 
   const onSubmit = handleSubmit((data) => {
     createMut.mutate({
-      salesOrderId:    data.salesOrderId ? Number(data.salesOrderId) : undefined,
-      pipeConfigId:    Number(data.pipeConfigId),
-      outletId:        Number(data.outletId),
-      plannedQty:      Number(data.plannedQty),
+      pipeConfigId:     Number(data.pipeConfigId),
+      outletId:         outletId ?? 1,
+      plannedQty:       Number(data.plannedQty),
       plannedStartDate: data.plannedStartDate || undefined,
       plannedEndDate:   data.plannedEndDate   || undefined,
       notes:            data.notes            || undefined,
@@ -73,25 +58,6 @@ export default function CreateProductionOrderPage() {
 
       <form onSubmit={onSubmit} className="bg-white rounded-xl border p-6 space-y-5">
 
-        {/* Sales Order — optional */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Sales Order
-            <span className="ml-2 text-xs font-normal text-gray-400">(optional — leave blank to produce for stock)</span>
-          </label>
-          <select
-            {...register('salesOrderId')}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
-          >
-            <option value="">— No Sales Order (Stock Production) —</option>
-            {(salesOrdersData ?? []).map((o: any) => (
-              <option key={o.id} value={o.id}>
-                {o.soNumber} — {o.customer?.name ?? 'Walk-in'} ({o.status})
-              </option>
-            ))}
-          </select>
-        </div>
-
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Pipe Configuration *</label>
           <select
@@ -104,19 +70,6 @@ export default function CreateProductionOrderPage() {
             ))}
           </select>
           {errors.pipeConfigId && <p className="text-red-500 text-xs mt-1">{errors.pipeConfigId.message}</p>}
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Outlet *</label>
-          <select
-            {...register('outletId', { required: 'Required' })}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
-          >
-            {(outletsData ?? []).map((o: any) => (
-              <option key={o.id} value={o.id}>{o.name}</option>
-            ))}
-          </select>
-          {errors.outletId && <p className="text-red-500 text-xs mt-1">{errors.outletId.message}</p>}
         </div>
 
         <div>

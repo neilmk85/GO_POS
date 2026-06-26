@@ -24,7 +24,7 @@ const STATUS_CFG: Record<string, { label: string; bg: string; text: string; dot:
 function StatusBadge({ status }: { status: string }) {
   const c = STATUS_CFG[status] ?? STATUS_CFG.DRAFT
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${c.bg} ${c.text}`}>
+    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${c.text}`}>
       <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${c.dot}`} />
       {c.label}
     </span>
@@ -69,6 +69,9 @@ export default function SalesOrdersPage() {
   const inProduction = allOrders.filter((o: any) => o.status === 'IN_PRODUCTION').length
   const confirmed    = allOrders.filter((o: any) => o.status === 'CONFIRMED').length
   const delivered    = allOrders.filter((o: any) => ['DELIVERED','INVOICED'].includes(o.status)).length
+  const totalPipes   = allOrders.reduce((sum: number, o: any) =>
+    sum + (o.items ?? []).filter((i: any) => i.pipeConfigId).reduce((s: number, i: any) => s + Number(i.quantity), 0), 0)
+  const totalMeters  = +(totalPipes * 5.25).toFixed(2)
 
   return (
     <div className="min-h-full bg-gray-50/60 p-6 space-y-6">
@@ -104,15 +107,17 @@ export default function SalesOrdersPage() {
         </div>
 
         {/* Stat strip */}
-        <div className="relative border-t border-white/10 grid grid-cols-4 divide-x divide-white/10">
+        <div className="relative border-t border-white/10 grid grid-cols-6 divide-x divide-white/10">
           {[
-            { label: 'Total Orders',   value: total,        sub: 'all time'            },
-            { label: 'Confirmed',      value: confirmed,    sub: 'awaiting production' },
-            { label: 'In Production',  value: inProduction, sub: 'currently active',   warn: inProduction > 0 },
-            { label: 'Delivered',      value: delivered,    sub: 'completed & invoiced' },
+            { label: 'Total Orders',   value: total,                          sub: 'all time'             },
+            { label: 'Confirmed',      value: confirmed,                      sub: 'awaiting production'  },
+            { label: 'In Production',  value: inProduction,                   sub: 'currently active',    warn: inProduction > 0 },
+            { label: 'Delivered',      value: delivered,                      sub: 'completed & invoiced' },
+            { label: 'Total Pipes',    value: totalPipes.toLocaleString(),    sub: 'across all orders',   highlight: true },
+            { label: 'Total Meters',   value: totalMeters.toLocaleString(),   sub: 'pipe length (m)',     highlight: true },
           ].map(s => (
-            <div key={s.label} className="px-6 py-3.5">
-              <p className={`text-xl font-extrabold tabular-nums leading-none ${(s as any).warn ? 'text-amber-300' : 'text-white'}`}>{s.value}</p>
+            <div key={s.label} className="px-5 py-3.5">
+              <p className={`text-xl font-extrabold tabular-nums leading-none ${(s as any).warn ? 'text-amber-300' : (s as any).highlight ? 'text-amber-200' : 'text-white'}`}>{s.value}</p>
               <p className="text-xs text-blue-200 mt-0.5">{s.label}</p>
               <p className="text-[10px] text-white/40 mt-0.5">{s.sub}</p>
             </div>
@@ -187,13 +192,13 @@ export default function SalesOrdersPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-slate-50 border-y border-slate-200">
-              <th className="px-6 py-3 text-left   text-[11px] font-bold text-slate-500 uppercase tracking-widest">SO Number</th>
-              <th className="px-6 py-3 text-left   text-[11px] font-bold text-slate-500 uppercase tracking-widest">Customer</th>
-              <th className="px-6 py-3 text-center text-[11px] font-bold text-slate-500 uppercase tracking-widest">Pipe Items</th>
-              <th className="px-6 py-3 text-center text-[11px] font-bold text-slate-500 uppercase tracking-widest">Status</th>
-              <th className="px-6 py-3 text-center text-[11px] font-bold text-slate-500 uppercase tracking-widest">Order Date</th>
-              <th className="px-6 py-3 text-center text-[11px] font-bold text-slate-500 uppercase tracking-widest">Required By</th>
-              <th className="px-6 py-3 text-right  text-[11px] font-bold text-slate-500 uppercase tracking-widest">Amount</th>
+              <th className="px-6 py-3 text-left   text-[11px] font-bold text-slate-400 uppercase tracking-widest">SO Number</th>
+              <th className="px-6 py-3 text-left   text-[11px] font-bold text-slate-400 uppercase tracking-widest">Customer</th>
+              <th className="px-6 py-3 text-center text-[11px] font-bold text-slate-400 uppercase tracking-widest">Pipe Items</th>
+              <th className="px-6 py-3 text-center text-[11px] font-bold text-slate-400 uppercase tracking-widest">Status</th>
+              <th className="px-6 py-3 text-center text-[11px] font-bold text-slate-400 uppercase tracking-widest">Order Date</th>
+              <th className="px-6 py-3 text-center text-[11px] font-bold text-slate-400 uppercase tracking-widest">Required By</th>
+              <th className="px-6 py-3 text-right  text-[11px] font-bold text-slate-400 uppercase tracking-widest">Amount</th>
               <th className="px-5 py-3"></th>
             </tr>
           </thead>
@@ -229,12 +234,7 @@ export default function SalesOrdersPage() {
                       {o.customerPoNumber && <p className="text-[11px] text-gray-400 mt-0.5">Ref: {o.customerPoNumber}</p>}
                     </td>
                     <td className="px-6 py-3.5">
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
-                          <User size={13} className="text-slate-500" />
-                        </div>
-                        <span className="font-medium text-gray-800">{o.customer?.name ?? '—'}</span>
-                      </div>
+                      <span className="font-medium text-gray-800">{o.customer?.name ?? '—'}</span>
                     </td>
                     <td className="px-6 py-3.5 text-center">
                       {pipeItems.length > 0 ? (

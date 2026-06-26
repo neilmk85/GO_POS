@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Search, RotateCcw, X, Loader2, Plus, Trash2 } from 'lucide-react'
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subWeeks, subMonths, startOfQuarter, endOfQuarter, subQuarters } from 'date-fns'
 import toast from 'react-hot-toast'
-import { saleReturnApi } from '@/services/api'
+import { saleReturnApi, customerApi } from '@/services/api'
 import { useAuthStore } from '@/store/authStore'
 
 const REFUND_METHODS = ['CASH', 'CARD', 'UPI', 'CREDIT_NOTE']
@@ -14,7 +14,10 @@ interface ReturnItem { productName: string; quantity: string; unitPrice: string 
 
 function ProcessReturnModal({ onClose, outletId }: { onClose: () => void; outletId: number }) {
   const qc = useQueryClient()
+  const [customerId, setCustomerId] = useState<number | null>(null)
   const [customerName, setCustomerName] = useState('')
+  const [customerSearch, setCustomerSearch] = useState('')
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false)
   const [refNo, setRefNo] = useState('')
   const [returnDate, setReturnDate] = useState(new Date().toISOString().split('T')[0])
   const [reason, setReason] = useState('')
@@ -22,12 +25,32 @@ function ProcessReturnModal({ onClose, outletId }: { onClose: () => void; outlet
   const [items, setItems] = useState<ReturnItem[]>([{ productName: '', quantity: '', unitPrice: '' }])
   const [submitting, setSubmitting] = useState(false)
 
+  const { data: customerSearchData } = useQuery({
+    queryKey: ['customers-search', customerSearch],
+    queryFn: () => customerApi.search(customerSearch),
+    enabled: customerSearch.length >= 2,
+  })
+  const customerResults: any[] = (customerSearchData as any)?.data ?? []
+
   const total = items.reduce((s, i) => s + (parseFloat(i.quantity) || 0) * (parseFloat(i.unitPrice) || 0), 0)
 
   function addItem() { setItems(p => [...p, { productName: '', quantity: '', unitPrice: '' }]) }
   function removeItem(i: number) { setItems(p => p.filter((_, idx) => idx !== i)) }
   function updateItem(i: number, f: keyof ReturnItem, v: string) {
     setItems(p => p.map((item, idx) => idx === i ? { ...item, [f]: v } : item))
+  }
+
+  function selectCustomer(c: any) {
+    setCustomerId(c.id)
+    setCustomerName(c.name)
+    setCustomerSearch(c.name)
+    setShowCustomerDropdown(false)
+  }
+
+  function clearCustomer() {
+    setCustomerId(null)
+    setCustomerName('')
+    setCustomerSearch('')
   }
 
   async function handleSubmit() {
@@ -38,6 +61,7 @@ function ProcessReturnModal({ onClose, outletId }: { onClose: () => void; outlet
     try {
       await saleReturnApi.create({
         outletId,
+        customerId: customerId ?? undefined,
         customerName: customerName || undefined,
         refNo: refNo || undefined,
         returnDate,
@@ -70,11 +94,36 @@ function ProcessReturnModal({ onClose, outletId }: { onClose: () => void; outlet
         <div className="overflow-y-auto p-6 space-y-4">
           {/* Row 1: Customer + Ref No */}
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-1">Customer Name</label>
-              <input value={customerName} onChange={e => setCustomerName(e.target.value)}
-                placeholder="Customer name (optional)"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-200 focus:border-violet-400 focus:outline-none" />
+            <div className="relative">
+              <label className="block text-xs font-semibold text-gray-500 mb-1">Customer</label>
+              {customerId ? (
+                <div className="flex items-center gap-2 border border-violet-300 bg-violet-50 rounded-lg px-3 py-2 text-sm">
+                  <span className="flex-1 font-medium text-violet-800">{customerName}</span>
+                  <button type="button" onClick={clearCustomer}><X size={14} className="text-violet-400 hover:text-violet-700" /></button>
+                </div>
+              ) : (
+                <>
+                  <input
+                    value={customerSearch}
+                    onChange={e => { setCustomerSearch(e.target.value); setShowCustomerDropdown(true) }}
+                    onFocus={() => setShowCustomerDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowCustomerDropdown(false), 150)}
+                    placeholder="Search customer (optional)"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-violet-200 focus:border-violet-400 focus:outline-none"
+                  />
+                  {showCustomerDropdown && customerResults.length > 0 && (
+                    <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                      {customerResults.map((c: any) => (
+                        <button key={c.id} type="button" onMouseDown={() => selectCustomer(c)}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-violet-50 hover:text-violet-700">
+                          <span className="font-medium">{c.name}</span>
+                          {c.phone && <span className="text-gray-400 ml-2 text-xs">{c.phone}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-500 mb-1">Original Bill / Invoice No.</label>

@@ -239,7 +239,87 @@ func Seed(db *gorm.DB) error {
 	}
 	slog.Info("[Database] Expense categories seeded successfully")
 
+	// 6. Seed raw materials master list
+	if err := seedRawMaterials(db); err != nil {
+		return err
+	}
+
 	slog.Info("[Database] All seed data inserted successfully")
+	return nil
+}
+
+func seedRawMaterials(db *gorm.DB) error {
+	type rm struct {
+		name string
+		uom  string
+	}
+	materials := []rm{
+		// Steel sheets (one per pipe diameter)
+		{"1.6MM SHEET 350", "kg"},
+		{"1.6MM SHEET 400", "kg"},
+		{"1.6MM SHEET 450", "kg"},
+		{"1.6MM SHEET 500", "kg"},
+		{"1.6MM SHEET 600", "kg"},
+		{"1.6MM SHEET 700", "kg"},
+		{"1.6MM SHEET 800", "kg"},
+		{"1.6MM SHEET 900", "kg"},
+		{"1.6MM SHEET 1000", "kg"},
+		{"1.6MM SHEET 1100", "kg"},
+		{"1.6MM SHEET 1200", "kg"},
+		{"1.6MM SHEET 1300", "kg"},
+		{"1.6MM SHEET 1400", "kg"},
+		{"1.6MM SHEET 1500", "kg"},
+		{"1.6MM SHEET 1600", "kg"},
+		{"1.6MM SHEET 1700", "kg"},
+		{"1.6MM SHEET 1800", "kg"},
+		{"1.6MM SHEET 1900", "kg"},
+		{"1.6MM SHEET 2000", "kg"},
+		{"1.6MM SHEET 2100", "kg"},
+		{"1.6MM SHEET 2200", "kg"},
+		// Steel / metal
+		{"BACK-SHEET", "kg"},
+		{"MS FLAT 6 MM", "kg"},
+		{"MS FLAT 8 MM", "kg"},
+		{"MS FLAT 10 MM", "kg"},
+		{"MS FLAT 12 MM", "kg"},
+		{"4MM WINDING WIRE", "kg"},
+		// Aggregates
+		{"10MM METAL", "kg"},
+		{"20MM METAL", "kg"},
+		{"CRUSHED SAND", "kg"},
+		{"PLASTER SAND", "kg"},
+		{"DUST", "kg"},
+		// Cement (production-only — not purchasable)
+		{"Silo CEMENT", "kg"},
+		{"EXTRA CEMENT", "kg"},
+		{"LOOSE CEMENT", "kg"},
+		// Purchasable cement products
+		{"Cement", "MT"},
+		{"Cement Bags", "nos"},
+		// Other
+		{"CHEMICAL", "ltr"},
+	}
+
+	for _, m := range materials {
+		var existing models.Product
+		result := db.Where("name = ? AND item_type = ?", m.name, "RAW_MATERIAL").First(&existing)
+		if result.Error == gorm.ErrRecordNotFound {
+			product := models.Product{
+				Name:           m.name,
+				ItemType:       "RAW_MATERIAL",
+				UnitOfMeasure:  m.uom,
+				TrackInventory: true,
+				Active:         true,
+			}
+			if err := db.Create(&product).Error; err != nil {
+				slog.Error("[Database] Failed to seed raw material", "name", m.name, "error", err)
+				return err
+			}
+		} else if result.Error != nil {
+			return result.Error
+		}
+	}
+	slog.Info("[Database] Raw materials seeded successfully")
 	return nil
 }
 

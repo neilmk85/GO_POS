@@ -14,6 +14,12 @@ import PaymentReportPage from '@/pages/reports/PaymentReportPage'
 import CreditorsReportPage from '@/pages/reports/CreditorsReportPage'
 import LedgerReportPage from '@/pages/reports/LedgerReportPage'
 import TDSReportPage from '@/pages/reports/TDSReportPage'
+import DayBookPage from '@/pages/reports/DayBookPage'
+import StockStatementPage from '@/pages/reports/StockStatementPage'
+import HSNReportPage from '@/pages/reports/HSNReportPage'
+import MaintenanceReportPage from '@/pages/reports/MaintenanceReportPage'
+import LabourReportPage from '@/pages/reports/LabourReportPage'
+import VehiclesReportPage from '@/pages/reports/VehiclesReportPage'
 import ProductsPage from '@/pages/products/ProductsPage'
 import ProductForm from '@/pages/products/ProductForm'
 import ProductViewPage from '@/pages/products/ProductViewPage'
@@ -69,6 +75,7 @@ import ExtraVehiclesPage from '@/pages/business/ExtraVehiclesPage'
 import SiloExtractionPage from '@/pages/business/SiloExtractionPage'
 import TestingLabPage from '@/pages/business/TestingLabPage'
 import ConversionPage from '@/pages/business/ConversionPage'
+import CuttingPage from '@/pages/business/CuttingPage'
 import DiscardPage from '@/pages/business/DiscardPage'
 import PDIPage from '@/pages/business/PDIPage'
 import LoadingPage from '@/pages/business/LoadingPage'
@@ -76,6 +83,7 @@ import LoadingRecordDetailPage from '@/pages/business/LoadingRecordDetailPage'
 import DiameterHeatmapPage from '@/pages/business/DiameterHeatmapPage'
 import TransportReportPage from '@/pages/business/TransportReportPage'
 import LabourPage from '@/pages/business/LabourPage'
+import ThirdPartyPipePurchasePage from '@/pages/business/ThirdPartyPipePurchasePage'
 import BusinessSettingsPage from '@/pages/business/BusinessSettingsPage'
 import SitePage from '@/pages/site/SitePage'
 import SitesPage from '@/pages/site/SitesPage'
@@ -93,6 +101,7 @@ import ProgressReportPage from '@/pages/site/reports/ProgressReportPage'
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 0 } }
 })
+
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
@@ -120,6 +129,7 @@ export default function App() {
           <Route path="/business/silo-extraction" element={<ProtectedRoute><SiloExtractionPage /></ProtectedRoute>} />
           <Route path="/business/testing-lab" element={<ProtectedRoute><TestingLabPage /></ProtectedRoute>} />
           <Route path="/business/conversion" element={<ProtectedRoute><ConversionPage /></ProtectedRoute>} />
+          <Route path="/business/cutting" element={<ProtectedRoute><CuttingPage /></ProtectedRoute>} />
           <Route path="/business/discard" element={<ProtectedRoute><DiscardPage /></ProtectedRoute>} />
           <Route path="/business/pdi" element={<ProtectedRoute><PDIPage /></ProtectedRoute>} />
           <Route path="/business/loading" element={<ProtectedRoute><LoadingPage /></ProtectedRoute>} />
@@ -127,6 +137,7 @@ export default function App() {
           <Route path="/business/loading/:id" element={<ProtectedRoute><LoadingRecordDetailPage /></ProtectedRoute>} />
           <Route path="/business/transport-report" element={<ProtectedRoute><TransportReportPage /></ProtectedRoute>} />
           <Route path="/business/labour" element={<ProtectedRoute><LabourPage /></ProtectedRoute>} />
+          <Route path="/business/pipe-purchases" element={<ProtectedRoute><ThirdPartyPipePurchasePage /></ProtectedRoute>} />
           <Route path="/business/settings" element={<ProtectedRoute><BusinessSettingsPage /></ProtectedRoute>} />
           <Route path="/business/pccp" element={<Navigate to="/production/entry" replace />} />
           <Route path="/business/:section" element={<ProtectedRoute><BusinessPage /></ProtectedRoute>} />
@@ -165,6 +176,12 @@ export default function App() {
           <Route path="/reports/creditors" element={<ProtectedRoute><CreditorsReportPage /></ProtectedRoute>} />
           <Route path="/reports/ledger" element={<ProtectedRoute><LedgerReportPage /></ProtectedRoute>} />
           <Route path="/reports/tds" element={<ProtectedRoute><TDSReportPage /></ProtectedRoute>} />
+          <Route path="/reports/daybook" element={<ProtectedRoute><DayBookPage /></ProtectedRoute>} />
+          <Route path="/reports/stock-statement" element={<ProtectedRoute><StockStatementPage /></ProtectedRoute>} />
+          <Route path="/reports/hsn" element={<ProtectedRoute><HSNReportPage /></ProtectedRoute>} />
+          <Route path="/reports/maintenance" element={<ProtectedRoute><MaintenanceReportPage /></ProtectedRoute>} />
+          <Route path="/reports/labour" element={<ProtectedRoute><LabourReportPage /></ProtectedRoute>} />
+          <Route path="/reports/vehicles" element={<ProtectedRoute><VehiclesReportPage /></ProtectedRoute>} />
           <Route path="/reports/transport" element={<ProtectedRoute><TransportReportPage /></ProtectedRoute>} />
           <Route path="/settings/*" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
           <Route path="/purchases/direct" element={<ProtectedRoute><DirectPurchasePage /></ProtectedRoute>} />

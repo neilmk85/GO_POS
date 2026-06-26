@@ -1,0 +1,592 @@
+import { useState, useMemo, useEffect, useRef } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { format } from 'date-fns'
+import { BookOpen, TrendingUp, TrendingDown, Minus, Download, ChevronDown, ChevronUp, Calendar, X } from 'lucide-react'
+import { reportApi } from '@/services/api'
+import { useAuthStore } from '@/store/authStore'
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type VoucherType =
+  | 'INVOICE' | 'PAYMENT_RECEIVED'
+  | 'PURCHASE_BILL' | 'VENDOR_PAYMENT'
+  | 'EXPENSE' | 'CREDIT_NOTE'
+  | 'SALE_RETURN' | 'PURCHASE_RETURN' | 'VENDOR_CREDIT'
+
+interface Entry {
+  date: string
+  createdAt: string
+  voucherType: VoucherType
+  voucherNo: string
+  party: string
+  narration: string
+  debit: string
+  credit: string
+  status: string
+  refId: number
+}
+
+// ─── Config ───────────────────────────────────────────────────────────────────
+
+const VOUCHER_META: Record<VoucherType, { label: string; color: string; dot: string; category: 'sales' | 'purchase' | 'expense' | 'adjustment' }> = {
+  INVOICE:          { label: 'Invoice',          color: 'bg-blue-100 text-blue-700 border-blue-200',    dot: 'bg-blue-500',    category: 'sales' },
+  PAYMENT_RECEIVED: { label: 'Payment Received', color: 'bg-emerald-100 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500', category: 'sales' },
+  CREDIT_NOTE:      { label: 'Credit Note',      color: 'bg-amber-100 text-amber-700 border-amber-200',   dot: 'bg-amber-500',   category: 'adjustment' },
+  SALE_RETURN:      { label: 'Sale Return',       color: 'bg-orange-100 text-orange-700 border-orange-200', dot: 'bg-orange-500',  category: 'adjustment' },
+  PURCHASE_BILL:    { label: 'Purchase Bill',     color: 'bg-rose-100 text-rose-700 border-rose-200',     dot: 'bg-rose-500',    category: 'purchase' },
+  VENDOR_PAYMENT:   { label: 'Vendor Payment',   color: 'bg-red-100 text-red-700 border-red-200',       dot: 'bg-red-500',     category: 'purchase' },
+  EXPENSE:          { label: 'Expense',           color: 'bg-purple-100 text-purple-700 border-purple-200', dot: 'bg-purple-500', category: 'expense' },
+  PURCHASE_RETURN:  { label: 'Purchase Return',  color: 'bg-teal-100 text-teal-700 border-teal-200',    dot: 'bg-teal-500',    category: 'adjustment' },
+  VENDOR_CREDIT:    { label: 'Vendor Credit',    color: 'bg-cyan-100 text-cyan-700 border-cyan-200',    dot: 'bg-cyan-500',    category: 'adjustment' },
+}
+
+const ALL_TYPES = Object.keys(VOUCHER_META) as VoucherType[]
+
+// ─── Date Range Picker ────────────────────────────────────────────────────────
+
+function isoDate(d: Date) { return d.toISOString().split('T')[0] }
+
+function startOf(unit: 'week' | 'month' | 'quarter' | 'year', d = new Date()) {
+  const r = new Date(d)
+  if (unit === 'week') { const day = r.getDay() || 7; r.setDate(r.getDate() - day + 1) }
+  else if (unit === 'month') r.setDate(1)
+  else if (unit === 'quarter') r.setMonth(Math.floor(r.getMonth() / 3) * 3, 1)
+  else r.setMonth(0, 1)
+  r.setHours(0, 0, 0, 0)
+  return r
+}
+
+type PresetKey = 'today' | 'yesterday' | 'this_week' | 'last_week' | 'this_month' | 'last_month' | 'this_quarter' | 'this_year'
+
+const PRESETS: { key: PresetKey; label: string }[] = [
+  { key: 'today',        label: 'Today' },
+  { key: 'yesterday',    label: 'Yesterday' },
+  { key: 'this_week',    label: 'This Week' },
+  { key: 'last_week',    label: 'Last Week' },
+  { key: 'this_month',   label: 'This Month' },
+  { key: 'last_month',   label: 'Last Month' },
+  { key: 'this_quarter', label: 'This Quarter' },
+  { key: 'this_year',    label: 'This Year' },
+]
+
+function resolvePreset(key: PresetKey): { from: string; to: string } {
+  const today = new Date(); const to = isoDate(today)
+  switch (key) {
+    case 'today':        return { from: to, to }
+    case 'yesterday': { const y = new Date(today); y.setDate(y.getDate() - 1); const d = isoDate(y); return { from: d, to: d } }
+    case 'this_week':    return { from: isoDate(startOf('week')), to }
+    case 'last_week': { const end = new Date(startOf('week')); end.setDate(end.getDate() - 1); const start = new Date(end); start.setDate(start.getDate() - 6); return { from: isoDate(start), to: isoDate(end) } }
+    case 'this_month':   return { from: isoDate(startOf('month')), to }
+    case 'last_month': { const end = new Date(startOf('month')); end.setDate(end.getDate() - 1); return { from: isoDate(startOf('month', end)), to: isoDate(end) } }
+    case 'this_quarter': return { from: isoDate(startOf('quarter')), to }
+    case 'this_year':    return { from: isoDate(startOf('year')), to }
+  }
+}
+
+function DateRangePicker({ fromDate, toDate, onChange }: {
+  fromDate: string; toDate: string; onChange: (f: string, t: string) => void
+}) {
+  const [open, setOpen]             = useState(false)
+  const [preset, setPreset]         = useState<PresetKey | ''>('')
+  const [customFrom, setCustomFrom] = useState(fromDate)
+  const [customTo, setCustomTo]     = useState(toDate)
+  const [pos, setPos]               = useState({ top: 0, right: 0 })
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const ref    = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const h = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node) &&
+          btnRef.current && !btnRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  function handleOpen() {
+    if (btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect()
+      setPos({ top: r.bottom + 8, right: window.innerWidth - r.right })
+    }
+    setOpen(v => !v)
+  }
+
+  function selectPreset(key: PresetKey) {
+    setPreset(key)
+    const { from, to } = resolvePreset(key)
+    setCustomFrom(from); setCustomTo(to)
+    onChange(from, to); setOpen(false)
+  }
+
+  function applyCustom() { onChange(customFrom, customTo); setOpen(false) }
+  function clear() { setPreset(''); setCustomFrom(''); setCustomTo(''); onChange('', '') }
+
+  const hasDate = fromDate || toDate
+  const activeLabel = preset
+    ? PRESETS.find(p => p.key === preset)?.label
+    : hasDate ? `${fromDate || '…'} → ${toDate || '…'}` : null
+
+  return (
+    <div className="relative">
+      <button
+        ref={btnRef}
+        onClick={handleOpen}
+        className={`inline-flex items-center gap-2 px-3.5 py-2 text-sm font-medium rounded-xl border transition-all ${
+          hasDate
+            ? 'bg-white/20 border-white/40 text-white backdrop-blur-sm'
+            : 'bg-white/10 border-white/20 text-white/90 hover:bg-white/20 hover:border-white/40 backdrop-blur-sm'
+        }`}
+      >
+        <Calendar size={14} />
+        <span>{activeLabel ?? 'Filter by Date'}</span>
+        {hasDate
+          ? <X size={13} onClick={e => { e.stopPropagation(); clear() }} className="ml-1 opacity-70 hover:opacity-100" />
+          : <ChevronDown size={13} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+        }
+      </button>
+
+      {open && (
+        <div ref={ref} style={{ position: 'fixed', top: pos.top, right: pos.right, zIndex: 9999 }} className="bg-white rounded-2xl shadow-xl border border-gray-100 w-72">
+          <div className="p-2">
+            {PRESETS.map(p => (
+              <button key={p.key} onClick={() => selectPreset(p.key)}
+                className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-colors ${
+                  preset === p.key ? 'bg-violet-50 text-violet-700 font-medium' : 'text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                {p.label}
+                {preset === p.key && (
+                  <span className="float-right text-xs text-violet-400 tabular-nums">{fromDate} → {toDate}</span>
+                )}
+              </button>
+            ))}
+          </div>
+          <div className="border-t border-gray-100 mx-3" />
+          <div className="p-3 space-y-2">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Custom Range</p>
+            <div className="grid grid-cols-2 gap-2">
+              {([['From', customFrom, setCustomFrom], ['To', customTo, setCustomTo]] as const).map(([lbl, val, set]) => (
+                <div key={lbl}>
+                  <label className="text-xs text-gray-500 mb-0.5 block">{lbl}</label>
+                  <input type="date" value={val}
+                    onChange={e => { set(e.target.value); setPreset('') }}
+                    className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-400"
+                  />
+                </div>
+              ))}
+            </div>
+            <button onClick={applyCustom} disabled={!customFrom && !customTo}
+              className="w-full py-1.5 text-sm font-medium bg-gradient-to-r from-violet-600 to-blue-600 text-white rounded-lg disabled:opacity-40 hover:from-violet-700 hover:to-blue-700">
+              Apply Range
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function fmt(n: string | number): string {
+  const v = typeof n === 'string' ? parseFloat(n) : n
+  if (!v || isNaN(v)) return '—'
+  return '₹' + v.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function fmtPlain(n: string | number): string {
+  const v = typeof n === 'string' ? parseFloat(n) : n
+  if (!v || isNaN(v)) return '0.00'
+  return v.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function parseAmt(s: string): number { return parseFloat(s) || 0 }
+
+// ─── Summary Card ─────────────────────────────────────────────────────────────
+
+function SummaryCard({ label, value, sub, icon, accent }: {
+  label: string; value: string; sub?: string
+  icon: React.ReactNode; accent: string
+}) {
+  return (
+    <div className={`rounded-2xl p-5 border bg-white shadow-sm flex items-start gap-4 ${accent}`}>
+      <div className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center bg-white/60 shadow-inner">
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <p className="text-xs font-semibold uppercase tracking-wide opacity-70 mb-0.5">{label}</p>
+        <p className="text-xl font-bold truncate">{value}</p>
+        {sub && <p className="text-xs opacity-60 mt-0.5">{sub}</p>}
+      </div>
+    </div>
+  )
+}
+
+// ─── Voucher Badge ────────────────────────────────────────────────────────────
+
+function VoucherBadge({ type }: { type: VoucherType }) {
+  const meta = VOUCHER_META[type] ?? { label: type, color: 'bg-gray-100 text-gray-600 border-gray-200', dot: 'bg-gray-400' }
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-xs font-semibold whitespace-nowrap ${meta.color}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />
+      {meta.label}
+    </span>
+  )
+}
+
+// ─── Day Group ────────────────────────────────────────────────────────────────
+
+function DayGroup({ date, entries }: { date: string; entries: Entry[] }) {
+  const [open, setOpen] = useState(true)
+  const dayDebit  = entries.reduce((s, e) => s + parseAmt(e.debit), 0)
+  const dayCredit = entries.reduce((s, e) => s + parseAmt(e.credit), 0)
+
+  const displayDate = (() => {
+    try {
+      return format(new Date(date + 'T00:00:00'), 'EEEE, d MMMM yyyy')
+    } catch { return date }
+  })()
+
+  return (
+    <div className="mb-4">
+      {/* Day header */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl mb-0.5 hover:bg-gray-100 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          {open ? <ChevronUp size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
+          <span className="text-sm font-semibold text-gray-700">{displayDate}</span>
+          <span className="text-xs text-gray-400 font-medium">{entries.length} {entries.length === 1 ? 'entry' : 'entries'}</span>
+        </div>
+        <div className="flex items-center gap-6 text-xs font-semibold">
+          {dayDebit > 0 && (
+            <span className="text-emerald-600">
+              Dr ₹{fmtPlain(dayDebit)}
+            </span>
+          )}
+          {dayCredit > 0 && (
+            <span className="text-rose-500">
+              Cr ₹{fmtPlain(dayCredit)}
+            </span>
+          )}
+        </div>
+      </button>
+
+      {/* Entries */}
+      {open && (
+        <div className="border border-gray-200 rounded-xl overflow-hidden">
+          <table className="w-full text-sm">
+            <tbody className="divide-y divide-gray-100">
+              {entries.map((e, i) => (
+                <tr key={i} className="hover:bg-gray-50/70 transition-colors group">
+                  <td className="px-4 py-3 w-28 shrink-0">
+                    <span className="text-xs text-gray-400 font-mono">
+                      {(() => {
+                        try { return format(new Date(e.createdAt), 'hh:mm a') }
+                        catch { return '—' }
+                      })()}
+                    </span>
+                  </td>
+                  <td className="px-3 py-3 w-44">
+                    <VoucherBadge type={e.voucherType} />
+                  </td>
+                  <td className="px-3 py-3 w-36">
+                    <span className="text-xs font-mono text-gray-500 group-hover:text-violet-600 transition-colors">
+                      {e.voucherNo}
+                    </span>
+                  </td>
+                  <td className="px-3 py-3 w-44">
+                    <span className="text-sm font-semibold text-gray-800 truncate block max-w-[160px]" title={e.party}>
+                      {e.party}
+                    </span>
+                  </td>
+                  <td className="px-3 py-3">
+                    <span className="text-xs text-gray-500 truncate block max-w-xs" title={e.narration}>
+                      {e.narration}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 w-36 text-right">
+                    {parseAmt(e.debit) > 0 ? (
+                      <span className="text-sm font-semibold text-emerald-600">
+                        ₹{fmtPlain(e.debit)}
+                      </span>
+                    ) : (
+                      <span className="text-gray-200">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 w-36 text-right">
+                    {parseAmt(e.credit) > 0 ? (
+                      <span className="text-sm font-semibold text-rose-500">
+                        ₹{fmtPlain(e.credit)}
+                      </span>
+                    ) : (
+                      <span className="text-gray-200">—</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
+
+export default function DayBookPage() {
+  const { outletId } = useAuthStore()
+  const [from, setFrom] = useState(isoDate(new Date()))
+  const [to,   setTo]   = useState(isoDate(new Date()))
+  const [activeTypes, setActiveTypes] = useState<Set<VoucherType>>(new Set(ALL_TYPES))
+  const [search, setSearch] = useState('')
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['daybook', outletId, from, to],
+    queryFn: () => reportApi.getDayBook(outletId!, from, to),
+    enabled: !!outletId,
+  })
+
+  const allEntries: Entry[] = (data as any)?.data?.data ?? []
+
+  // Apply filters
+  const filtered = useMemo(() => {
+    return allEntries.filter(e => {
+      if (!activeTypes.has(e.voucherType)) return false
+      if (search.trim()) {
+        const q = search.toLowerCase()
+        return e.party.toLowerCase().includes(q)
+          || e.voucherNo.toLowerCase().includes(q)
+          || e.narration.toLowerCase().includes(q)
+      }
+      return true
+    })
+  }, [allEntries, activeTypes, search])
+
+  // Group by date
+  const grouped = useMemo(() => {
+    const map = new Map<string, Entry[]>()
+    for (const e of filtered) {
+      if (!map.has(e.date)) map.set(e.date, [])
+      map.get(e.date)!.push(e)
+    }
+    return Array.from(map.entries()).sort((a, b) => b[0].localeCompare(a[0]))
+  }, [filtered])
+
+  // Summary totals
+  const totalDebit  = filtered.reduce((s, e) => s + parseAmt(e.debit), 0)
+  const totalCredit = filtered.reduce((s, e) => s + parseAmt(e.credit), 0)
+  const netFlow     = totalDebit - totalCredit
+
+  // Toggle voucher type filter
+  function toggleType(t: VoucherType) {
+    setActiveTypes(prev => {
+      const next = new Set(prev)
+      if (next.has(t)) { next.delete(t) } else { next.add(t) }
+      return next
+    })
+  }
+
+  function toggleAll() {
+    if (activeTypes.size === ALL_TYPES.length) {
+      setActiveTypes(new Set())
+    } else {
+      setActiveTypes(new Set(ALL_TYPES))
+    }
+  }
+
+  // CSV export
+  function exportCSV() {
+    const rows = [
+      ['Date', 'Time', 'Voucher Type', 'Voucher No', 'Party', 'Narration', 'Debit (₹)', 'Credit (₹)', 'Status'],
+      ...filtered.map(e => [
+        e.date,
+        (() => { try { return format(new Date(e.createdAt), 'hh:mm a') } catch { return '' } })(),
+        VOUCHER_META[e.voucherType]?.label ?? e.voucherType,
+        e.voucherNo,
+        e.party,
+        e.narration,
+        parseAmt(e.debit) > 0 ? fmtPlain(e.debit) : '',
+        parseAmt(e.credit) > 0 ? fmtPlain(e.credit) : '',
+        e.status,
+      ])
+    ]
+    const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `daybook-${from}-to-${to}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+
+      {/* ── Hero header ── */}
+      <div className="bg-gradient-to-br from-violet-700 via-violet-600 to-indigo-600 px-6 pt-8 pb-6">
+        <div>
+
+          {/* Title row */}
+          <div className="flex items-start justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center">
+                <BookOpen size={20} className="text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white tracking-tight">Day Book</h1>
+                <p className="text-violet-200 text-sm mt-0.5">Complete chronological transaction log</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <DateRangePicker fromDate={from} toDate={to} onChange={(f, t) => { setFrom(f); setTo(t) }} />
+              <button
+                onClick={exportCSV}
+                className="flex items-center gap-2 px-4 py-2 bg-white/15 hover:bg-white/25 backdrop-blur border border-white/20 text-white text-sm font-semibold rounded-xl transition-all"
+              >
+                <Download size={15} />
+                Export CSV
+              </button>
+            </div>
+          </div>
+
+          {/* Summary cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-2">
+            <div className="bg-white/15 backdrop-blur rounded-2xl border border-white/20 p-4">
+              <p className="text-white/60 text-xs font-semibold uppercase tracking-wide mb-1">Total Debit (Dr)</p>
+              <p className="text-white text-xl font-bold">₹{fmtPlain(totalDebit)}</p>
+              <p className="text-white/50 text-xs mt-1">Sales & receivables</p>
+            </div>
+            <div className="bg-white/15 backdrop-blur rounded-2xl border border-white/20 p-4">
+              <p className="text-white/60 text-xs font-semibold uppercase tracking-wide mb-1">Total Credit (Cr)</p>
+              <p className="text-white text-xl font-bold">₹{fmtPlain(totalCredit)}</p>
+              <p className="text-white/50 text-xs mt-1">Purchases & payments</p>
+            </div>
+            <div className="bg-white/15 backdrop-blur rounded-2xl border border-white/20 p-4">
+              <p className="text-white/60 text-xs font-semibold uppercase tracking-wide mb-1">Net Position</p>
+              <p className={`text-xl font-bold ${netFlow >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
+                {netFlow >= 0 ? '+' : ''}₹{fmtPlain(Math.abs(netFlow))}
+              </p>
+              <p className="text-white/50 text-xs mt-1">{netFlow >= 0 ? 'Dr > Cr' : 'Cr > Dr'}</p>
+            </div>
+            <div className="bg-white/15 backdrop-blur rounded-2xl border border-white/20 p-4">
+              <p className="text-white/60 text-xs font-semibold uppercase tracking-wide mb-1">Entries</p>
+              <p className="text-white text-xl font-bold">{filtered.length}</p>
+              <p className="text-white/50 text-xs mt-1">across {grouped.length} day{grouped.length !== 1 ? 's' : ''}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Filters + Table ── */}
+      <div className="px-6 py-6">
+
+        {/* Filter bar */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 mb-5">
+          <div className="flex flex-wrap items-center gap-3">
+
+            {/* Search */}
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search party, voucher no, narration…"
+              className="border border-gray-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-violet-200 focus:border-violet-400 focus:outline-none w-72"
+            />
+
+            <div className="h-5 w-px bg-gray-200" />
+
+            {/* All toggle */}
+            <button
+              onClick={toggleAll}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                activeTypes.size === ALL_TYPES.length
+                  ? 'bg-gray-800 text-white border-gray-800'
+                  : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400'
+              }`}
+            >
+              All
+            </button>
+
+            {/* Type chips */}
+            {ALL_TYPES.map(t => {
+              const meta = VOUCHER_META[t]
+              const active = activeTypes.has(t)
+              return (
+                <button
+                  key={t}
+                  onClick={() => toggleType(t)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                    active ? `${meta.color} shadow-sm` : 'bg-white text-gray-400 border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  {active && <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />}
+                  {meta.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Table header */}
+        <div className="grid grid-cols-[112px_176px_144px_176px_1fr_144px_144px] px-4 py-2 mb-2">
+          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Time</span>
+          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Type</span>
+          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Voucher No.</span>
+          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Party</span>
+          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Narration</span>
+          <span className="text-xs font-semibold text-emerald-500 uppercase tracking-wide text-right">Debit (Dr)</span>
+          <span className="text-xs font-semibold text-rose-400 uppercase tracking-wide text-right">Credit (Cr)</span>
+        </div>
+
+        {/* Loading */}
+        {isLoading && (
+          <div className="flex items-center justify-center py-24 text-gray-400">
+            <div className="w-8 h-8 border-2 border-violet-200 border-t-violet-500 rounded-full animate-spin mr-3" />
+            Loading entries…
+          </div>
+        )}
+
+        {/* Empty */}
+        {!isLoading && filtered.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-24 text-gray-400">
+            <BookOpen size={40} className="mb-3 opacity-30" />
+            <p className="font-semibold text-gray-500">No transactions found</p>
+            <p className="text-sm mt-1">Try a different date range or clear the filters</p>
+          </div>
+        )}
+
+        {/* Day groups */}
+        {!isLoading && grouped.map(([date, entries]) => (
+          <DayGroup key={date} date={date} entries={entries} />
+        ))}
+
+        {/* Grand totals */}
+        {!isLoading && filtered.length > 0 && (
+          <div className="mt-4 border-t-2 border-gray-200 pt-4">
+            <div className="grid grid-cols-[112px_176px_144px_176px_1fr_144px_144px] px-4 py-3 bg-gray-50 rounded-xl border border-gray-200">
+              <div className="col-span-5 flex items-center gap-2">
+                <span className="text-sm font-bold text-gray-700">Grand Total</span>
+                <span className="text-xs text-gray-400">({filtered.length} entries)</span>
+              </div>
+              <div className="text-right">
+                <span className="text-sm font-bold text-emerald-600">₹{fmtPlain(totalDebit)}</span>
+              </div>
+              <div className="text-right">
+                <span className="text-sm font-bold text-rose-500">₹{fmtPlain(totalCredit)}</span>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-3 mt-3 px-4">
+              <span className="text-xs text-gray-500">Net (Dr − Cr):</span>
+              <span className={`text-base font-bold ${netFlow >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                {netFlow >= 0 ? '+' : '−'}₹{fmtPlain(Math.abs(netFlow))}
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

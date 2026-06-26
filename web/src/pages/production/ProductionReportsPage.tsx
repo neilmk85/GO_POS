@@ -1,8 +1,14 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { BarChart3, Package, Layers, Download, Calendar, TrendingUp, ChevronDown } from 'lucide-react'
+import { BarChart3, Package, Layers, Download, Calendar, TrendingUp, ChevronDown, Hammer, UserCheck, BarChart2 } from 'lucide-react'
 import { subDays } from 'date-fns'
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip,
+  Legend, ResponsiveContainer, Cell,
+} from 'recharts'
 import { productionReportApi, pipeConfigApi, productApi } from '@/services/api'
+import { processContractorApi, type ProcessContractorAssignment } from '@/services/businessApi'
 import { PROD_STAGES } from '@/types'
 
 // ── date helpers ───────────────────────────────────────────────────────────────
@@ -246,6 +252,7 @@ function makeMaterialDummy(_products?: any[]) {
 // ── Tab 1: Stage Summary ──────────────────────────────────────────────────────
 
 function StageSummaryTab({ from, to }: { from: string; to: string }) {
+  const [showChart, setShowChart] = useState(false)
   const { data: apiData, isLoading: apiLoading } = useQuery({
     queryKey: ['prod-report-stage', from, to],
     queryFn: () => productionReportApi.stageSummary({
@@ -272,8 +279,43 @@ function StageSummaryTab({ from, to }: { from: string; to: string }) {
     return acc
   }, {})
 
+  // Chart data: one bar per production order showing completed vs rejected across all stages
+  const chartData = useMemo(() => {
+    const map: Record<string, { order: string; completed: number; rejected: number }> = {}
+    rows.forEach((r: any) => {
+      if (!map[r.poNumber]) map[r.poNumber] = { order: r.poNumber, completed: 0, rejected: 0 }
+      map[r.poNumber].completed += Number(r.pipesCompleted)
+      map[r.poNumber].rejected  += Number(r.pipesRejected)
+    })
+    return Object.values(map)
+  }, [rows])
+
   return (
     <div className="space-y-4">
+      {rows.length > 0 && (
+        <div className="flex justify-end">
+          <button onClick={() => setShowChart(v => !v)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition">
+            <BarChart2 size={13} />{showChart ? 'Hide Chart' : 'Show Chart'}
+          </button>
+        </div>
+      )}
+      {showChart && chartData.length > 0 && (
+        <div className="bg-gray-50 rounded-xl border border-gray-100 p-4">
+          <p className="text-xs font-semibold text-gray-500 mb-3">Completed vs Rejected by Production Order</p>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 40 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="order" tick={{ fontSize: 10 }} angle={-35} textAnchor="end" interval={0} />
+              <YAxis tick={{ fontSize: 11 }} />
+              <RTooltip />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Bar dataKey="completed" name="Completed" fill="#10b981" radius={[3,3,0,0]} />
+              <Bar dataKey="rejected"  name="Rejected"  fill="#ef4444" radius={[3,3,0,0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
       {isLoading ? <LoadingTable /> : rows.length === 0 ? (
         <div className="text-center py-12 text-gray-400">No data for selected range</div>
       ) : (
@@ -328,6 +370,7 @@ function StageSummaryTab({ from, to }: { from: string; to: string }) {
 // ── Tab 2: Cost Summary ───────────────────────────────────────────────────────
 
 function CostSummaryTab({ from, to }: { from: string; to: string }) {
+  const [showChart, setShowChart] = useState(false)
   const { data: apiData, isLoading: apiLoading } = useQuery({
     queryKey: ['prod-report-cost', from, to],
     queryFn: () => productionReportApi.costSummary({
@@ -362,6 +405,34 @@ function CostSummaryTab({ from, to }: { from: string; to: string }) {
 
   return (
     <div className="space-y-4">
+      {rows.length > 0 && (
+        <div className="flex justify-end">
+          <button onClick={() => setShowChart(v => !v)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition">
+            <BarChart2 size={13} />{showChart ? 'Hide Chart' : 'Show Chart'}
+          </button>
+        </div>
+      )}
+      {showChart && rows.length > 0 && (
+        <div className="bg-gray-50 rounded-xl border border-gray-100 p-4">
+          <p className="text-xs font-semibold text-gray-500 mb-3">Cost Breakdown by Pipe Config (₹)</p>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={rows.map((r: any) => ({
+              name: r.pipeConfig?.length > 20 ? r.pipeConfig.slice(0, 20) + '…' : r.pipeConfig,
+              Material: Math.round(Number(r.materialCost)),
+              Overhead: Math.round(Number(r.overheadCost)),
+            }))} margin={{ top: 4, right: 16, left: 20, bottom: 40 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-35} textAnchor="end" interval={0} />
+              <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `₹${(v/1000).toFixed(0)}k`} />
+              <RTooltip formatter={(v: any) => `₹${Number(v).toLocaleString('en-IN')}`} />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Bar dataKey="Material" fill="#8b5cf6" radius={[3,3,0,0]} />
+              <Bar dataKey="Overhead" fill="#c4b5fd" radius={[3,3,0,0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
       {isLoading ? <LoadingTable /> : rows.length === 0 ? (
         <div className="text-center py-12 text-gray-400">No data for selected range</div>
       ) : (
@@ -433,6 +504,7 @@ function CostSummaryTab({ from, to }: { from: string; to: string }) {
 // ── Tab 3: Material Consumption ───────────────────────────────────────────────
 
 function MaterialConsumptionTab({ from, to }: { from: string; to: string }) {
+  const [showChart, setShowChart] = useState(false)
   const { data: apiData, isLoading: apiLoading } = useQuery({
     queryKey: ['prod-report-material', from, to],
     queryFn: () => productionReportApi.materialConsumption({
@@ -454,8 +526,39 @@ function MaterialConsumptionTab({ from, to }: { from: string; to: string }) {
 
   const totalCost = rows.reduce((s: number, r: any) => s + Number(r.totalCost), 0)
 
+  const top10 = useMemo(() =>
+    [...rows].sort((a: any, b: any) => Number(b.totalCost) - Number(a.totalCost)).slice(0, 10)
+  , [rows])
+
   return (
     <div className="space-y-4">
+      {rows.length > 0 && (
+        <div className="flex justify-end">
+          <button onClick={() => setShowChart(v => !v)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition">
+            <BarChart2 size={13} />{showChart ? 'Hide Chart' : 'Show Chart'}
+          </button>
+        </div>
+      )}
+      {showChart && top10.length > 0 && (
+        <div className="bg-gray-50 rounded-xl border border-gray-100 p-4">
+          <p className="text-xs font-semibold text-gray-500 mb-3">Top 10 Materials by Cost (₹)</p>
+          <ResponsiveContainer width="100%" height={Math.max(180, top10.length * 32)}>
+            <BarChart layout="vertical"
+              data={top10.map((r: any) => ({
+                name: r.materialName?.length > 22 ? r.materialName.slice(0, 22) + '…' : r.materialName,
+                cost: Math.round(Number(r.totalCost)),
+              }))}
+              margin={{ top: 4, right: 40, left: 140, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+              <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => `₹${(v/1000).toFixed(0)}k`} />
+              <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={135} />
+              <RTooltip formatter={(v: any) => [`₹${Number(v).toLocaleString('en-IN')}`, 'Cost']} />
+              <Bar dataKey="cost" name="Total Cost" fill="#10b981" radius={[0,4,4,0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
       {isLoading ? <LoadingTable /> : rows.length === 0 ? (
         <div className="text-center py-12 text-gray-400">No data for selected range</div>
       ) : (
@@ -497,26 +600,290 @@ function MaterialConsumptionTab({ from, to }: { from: string; to: string }) {
   )
 }
 
+// ── Tab 4: Contractor Costs ───────────────────────────────────────────────────
+
+const BED_LABEL: Record<string, string> = {
+  SMALL_BED: 'Small Bed',
+  LARGE_BED: 'Large Bed',
+  UNKNOWN:   'Unknown',
+}
+
+type ProcessFilter = 'all' | 'FABRICATION' | 'SPINNING' | 'COATING'
+
+interface ContractorCostsTabProps {
+  from: string
+  to: string
+  processFilter: ProcessFilter
+  contractorFilter: number | 'all'
+  contractorOptions: { supplierId: number; name: string; process: string }[]
+  assignmentByProcess: Record<string, ProcessContractorAssignment>
+}
+
+function ContractorCostsTab({ from, to, processFilter, contractorFilter, contractorOptions, assignmentByProcess }: ContractorCostsTabProps) {
+  const params = { fromDate: from || undefined, toDate: to || undefined }
+
+  const { data, isLoading }      = useQuery({
+    queryKey: ['prod-report-contractor', from, to],
+    queryFn: () => productionReportApi.contractorCosts(params).then(r => r.data.data as any[]),
+  })
+  const { data: spinData, isLoading: spinLoading } = useQuery({
+    queryKey: ['prod-report-spinning', from, to],
+    queryFn: () => productionReportApi.spinningCosts(params).then(r => r.data.data as any[]),
+  })
+
+  const rows     = data     ?? []
+  const spinRows = spinData ?? []
+  const fabRows  = rows.filter((r: any) => Number(r.fabPipesCompleted)  > 0)
+  const coatRows = rows.filter((r: any) => Number(r.coatPipesCompleted) > 0)
+  const totalFab  = fabRows.reduce((s: number,  r: any) => s + Number(r.fabCost),  0)
+  const totalCoat = coatRows.reduce((s: number, r: any) => s + Number(r.coatCost), 0)
+  const totalSpin = spinRows.reduce((s: number, r: any) => s + Number(r.spinCost), 0)
+
+  // When contractor filter is set, resolve which processes that contractor covers
+  function processMatchesContractor(proc: string) {
+    if (contractorFilter === 'all') return true
+    const a = assignmentByProcess[proc] as ProcessContractorAssignment | undefined
+    return a?.supplierId === contractorFilter
+  }
+
+  const showFab  = (processFilter === 'all' || processFilter === 'FABRICATION') && processMatchesContractor('FABRICATION')
+  const showSpin = (processFilter === 'all' || processFilter === 'SPINNING')    && processMatchesContractor('SPINNING')
+  const showCoat = (processFilter === 'all' || processFilter === 'COATING')     && processMatchesContractor('COATING')
+
+  const visibleTotal =
+    (showFab  ? totalFab  : 0) +
+    (showSpin ? totalSpin : 0) +
+    (showCoat ? totalCoat : 0)
+
+  if (isLoading || spinLoading) return <LoadingTable />
+  if (rows.length === 0 && spinRows.length === 0) return <div className="text-center py-12 text-gray-400">No data for selected range</div>
+
+  return (
+    <div className="space-y-8">
+
+      {/* ── Fabrication ──────────────────────────────────────────── */}
+      {showFab && <div>
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-2 h-5 rounded-full bg-blue-500" />
+          <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">Fabrication Contractor</h3>
+          <span className="ml-auto text-xs text-gray-400 font-medium">Rate: ₹/kg of steel</span>
+        </div>
+        <div className="overflow-x-auto rounded-xl ring-1 ring-gray-100">
+          <table className="w-full text-sm">
+            <thead className="bg-blue-50 text-xs text-blue-800 uppercase">
+              <tr>
+                <th className="px-4 py-3 text-left">PO Number</th>
+                <th className="px-4 py-3 text-left">Pipe Config</th>
+                <th className="px-4 py-3 text-right">Dia (mm)</th>
+                <th className="px-4 py-3 text-right">Pipes Fabricated</th>
+                <th className="px-4 py-3 text-right">Kg / Pipe</th>
+                <th className="px-4 py-3 text-right">Rate (₹/kg)</th>
+                <th className="px-4 py-3 text-right font-bold">Amount ₹</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {fabRows.length === 0 ? (
+                <tr><td colSpan={7} className="px-4 py-6 text-center text-gray-400 text-xs">No fabrication entries</td></tr>
+              ) : fabRows.map((r: any, i: number) => (
+                <tr key={i} className="hover:bg-blue-50/40">
+                  <td className="px-4 py-3 font-mono text-xs text-violet-700">{r.poNumber}</td>
+                  <td className="px-4 py-3 text-gray-800 font-medium">{r.pipeConfig}</td>
+                  <td className="px-4 py-3 text-right">{r.diameterMm}</td>
+                  <td className="px-4 py-3 text-right">{r.fabPipesCompleted}</td>
+                  <td className="px-4 py-3 text-right text-gray-500">{fmt(r.fabKgPerPipe)}</td>
+                  <td className="px-4 py-3 text-right text-gray-500">₹{fmt(r.fabRateKg)}</td>
+                  <td className="px-4 py-3 text-right font-semibold text-blue-700">₹{fmt(r.fabCost)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot className="bg-blue-50/60 font-semibold text-sm">
+              <tr>
+                <td colSpan={6} className="px-4 py-3 text-right text-gray-600">Total Fabrication Cost</td>
+                <td className="px-4 py-3 text-right text-blue-700">₹{fmt(totalFab)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>}
+
+      {/* ── Coating ───────────────────────────────────────────────── */}
+      {showCoat && <div>
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-2 h-5 rounded-full bg-blue-500" />
+          <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">Coating Contractor</h3>
+          <span className="ml-auto text-xs text-gray-400 font-medium">Rate: ₹/pipe by diameter</span>
+        </div>
+        <div className="overflow-x-auto rounded-xl ring-1 ring-gray-100">
+          <table className="w-full text-sm">
+            <thead className="bg-blue-50 text-xs text-blue-800 uppercase">
+              <tr>
+                <th className="px-4 py-3 text-left">PO Number</th>
+                <th className="px-4 py-3 text-left">Pipe Config</th>
+                <th className="px-4 py-3 text-right">Dia (mm)</th>
+                <th className="px-4 py-3 text-right">Pipes Coated</th>
+                <th className="px-4 py-3 text-right">Rate (₹/pipe)</th>
+                <th className="px-4 py-3 text-right font-bold">Amount ₹</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {coatRows.length === 0 ? (
+                <tr><td colSpan={6} className="px-4 py-6 text-center text-gray-400 text-xs">No coating entries</td></tr>
+              ) : coatRows.map((r: any, i: number) => (
+                <tr key={i} className="hover:bg-blue-50/40">
+                  <td className="px-4 py-3 font-mono text-xs text-violet-700">{r.poNumber}</td>
+                  <td className="px-4 py-3 text-gray-800 font-medium">{r.pipeConfig}</td>
+                  <td className="px-4 py-3 text-right">{r.diameterMm}</td>
+                  <td className="px-4 py-3 text-right">{r.coatPipesCompleted}</td>
+                  <td className="px-4 py-3 text-right text-gray-500">₹{fmt(r.coatRatePerPipe)}</td>
+                  <td className="px-4 py-3 text-right font-semibold text-blue-700">₹{fmt(r.coatCost)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot className="bg-blue-50/60 font-semibold text-sm">
+              <tr>
+                <td colSpan={5} className="px-4 py-3 text-right text-gray-600">Total Coating Cost</td>
+                <td className="px-4 py-3 text-right text-blue-700">₹{fmt(totalCoat)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>}
+
+      {/* ── Spinning ──────────────────────────────────────────────── */}
+      {showSpin && <div>
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-2 h-5 rounded-full bg-violet-500" />
+          <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">Spinning Contractor</h3>
+          <span className="ml-auto text-xs text-gray-400 font-medium">Rate: ₹/pipe by diameter × bed size</span>
+        </div>
+        <div className="overflow-x-auto rounded-xl ring-1 ring-gray-100">
+          <table className="w-full text-sm">
+            <thead className="bg-violet-50 text-xs text-violet-800 uppercase">
+              <tr>
+                <th className="px-4 py-3 text-left">PO Number</th>
+                <th className="px-4 py-3 text-left">Pipe Config</th>
+                <th className="px-4 py-3 text-right">Dia (mm)</th>
+                <th className="px-4 py-3 text-left">Bed Size</th>
+                <th className="px-4 py-3 text-right">Pipes Spun</th>
+                <th className="px-4 py-3 text-right">Rate (₹/pipe)</th>
+                <th className="px-4 py-3 text-right font-bold">Amount ₹</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {spinRows.length === 0 ? (
+                <tr><td colSpan={7} className="px-4 py-6 text-center text-gray-400 text-xs">No spinning entries</td></tr>
+              ) : spinRows.map((r: any, i: number) => (
+                <tr key={i} className="hover:bg-violet-50/40">
+                  <td className="px-4 py-3 font-mono text-xs text-violet-700">{r.poNumber}</td>
+                  <td className="px-4 py-3 text-gray-800 font-medium">{r.pipeConfig}</td>
+                  <td className="px-4 py-3 text-right">{r.diameterMm}</td>
+                  <td className="px-4 py-3">
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                      r.bedSize === 'SMALL_BED' ? 'bg-amber-100 text-amber-700' :
+                      r.bedSize === 'LARGE_BED' ? 'bg-blue-100 text-blue-700' :
+                      'bg-gray-100 text-gray-500'
+                    }`}>
+                      {BED_LABEL[r.bedSize] ?? r.bedSize}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right">{r.spinPipesCompleted}</td>
+                  <td className="px-4 py-3 text-right text-gray-500">₹{fmt(r.ratePerPipe)}</td>
+                  <td className="px-4 py-3 text-right font-semibold text-violet-700">₹{fmt(r.spinCost)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot className="bg-violet-50/60 font-semibold text-sm">
+              <tr>
+                <td colSpan={6} className="px-4 py-3 text-right text-gray-600">Total Spinning Cost</td>
+                <td className="px-4 py-3 text-right text-violet-700">₹{fmt(totalSpin)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>}
+
+      {/* ── Grand Total ───────────────────────────────────────────── */}
+      <div className="flex justify-end">
+        <div className="bg-gradient-to-r from-violet-600 to-blue-600 text-white rounded-2xl px-8 py-4 flex items-center gap-8">
+          {showFab && <>
+            <div className="text-center">
+              <p className="text-xs text-blue-200 uppercase tracking-widest">Fabrication</p>
+              <p className="text-lg font-bold tabular-nums">₹{fmt(totalFab)}</p>
+            </div>
+            {(showSpin || showCoat) && <div className="w-px h-8 bg-white/20" />}
+          </>}
+          {showSpin && <>
+            <div className="text-center">
+              <p className="text-xs text-white/80 uppercase tracking-widest">Spinning</p>
+              <p className="text-lg font-bold tabular-nums">₹{fmt(totalSpin)}</p>
+            </div>
+            {showCoat && <div className="w-px h-8 bg-white/20" />}
+          </>}
+          {showCoat && <>
+            <div className="text-center">
+              <p className="text-xs text-blue-200 uppercase tracking-widest">Coating</p>
+              <p className="text-lg font-bold tabular-nums">₹{fmt(totalCoat)}</p>
+            </div>
+          </>}
+          {(showFab || showSpin || showCoat) && <div className="w-px h-8 bg-white/20" />}
+          <div className="text-center">
+            <p className="text-xs text-white/70 uppercase tracking-widest">
+              {processFilter === 'all' && contractorFilter === 'all' ? 'Grand Total' : 'Total'}
+            </p>
+            <p className="text-2xl font-extrabold tabular-nums">₹{fmt(visibleTotal)}</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 const TABS = [
-  { key: 'stage',    label: 'Stage Summary',  icon: Layers },
-  { key: 'cost',     label: 'Cost Report',    icon: BarChart3 },
-  { key: 'material', label: 'Material Usage', icon: Package },
+  { key: 'stage',      label: 'Stage Summary',     icon: Layers },
+  { key: 'cost',       label: 'Cost Report',       icon: BarChart3 },
+  { key: 'material',   label: 'Material Usage',    icon: Package },
+  { key: 'contractor', label: 'Contractor Costs',  icon: Hammer },
 ] as const
 
 type TabKey = typeof TABS[number]['key']
 
 const TAB_DESCRIPTIONS: Record<TabKey, string> = {
-  stage:    'Production throughput and yield rate by stage for each order',
-  cost:     'Full cost breakdown per production order — material, machine and overhead',
-  material: 'Total material quantities consumed and their cost by stage',
+  stage:      'Production throughput and yield rate by stage for each order',
+  cost:       'Full cost breakdown per production order — material, machine and overhead',
+  material:   'Total material quantities consumed and their cost by stage',
+  contractor: 'Fabrication and coating contractor payments per production order',
 }
 
 export default function ProductionReportsPage() {
-  const [activeTab, setActiveTab] = useState<TabKey>('stage')
-  const [from, setFrom]           = useState('')
-  const [to,   setTo]             = useState('')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tabParam = searchParams.get('tab') as TabKey | null
+  const activeTab = (tabParam && TABS.some(t => t.key === tabParam)) ? tabParam : 'stage'
+
+  const [from, setFrom] = useState('')
+  const [to,   setTo]   = useState('')
+  const [processFilter,    setProcessFilter]    = useState<ProcessFilter>('all')
+  const [contractorFilter, setContractorFilter] = useState<number | 'all'>('all')
+
+  const { data: assignments = [] } = useQuery({
+    queryKey: ['process-contractors'],
+    queryFn:  processContractorApi.list,
+  })
+
+  const assignmentByProcess = Object.fromEntries(
+    assignments.map((a: ProcessContractorAssignment) => [a.processType, a])
+  )
+  const contractorOptions = assignments.map((a: ProcessContractorAssignment) => ({
+    supplierId: a.supplierId,
+    name:       a.supplier?.name ?? `Vendor #${a.supplierId}`,
+    process:    a.processType,
+  }))
+
+  function setActiveTab(key: TabKey) {
+    setSearchParams(prev => { prev.set('tab', key); return prev }, { replace: true })
+  }
 
   const activeTabMeta = TABS.find(t => t.key === activeTab)!
 
@@ -550,8 +917,8 @@ export default function ProductionReportsPage() {
           </button>
         </div>
 
-        {/* Tab pills + date filter */}
-        <div className="relative px-8 pb-5 flex items-center justify-between gap-3">
+        {/* Tab pills + filters row */}
+        <div className="relative px-8 pb-5 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex gap-1 bg-white/10 backdrop-blur-sm p-1 rounded-xl">
             {TABS.map(tab => {
               const Icon = tab.icon
@@ -571,7 +938,53 @@ export default function ProductionReportsPage() {
             })}
           </div>
 
-          <DateFilterDropdown from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t) }} />
+          <div className="flex items-center gap-2">
+            {/* Process + Contractor dropdowns — only on contractor tab */}
+            {activeTab === 'contractor' && <>
+              <div className="relative">
+                <select
+                  value={processFilter}
+                  onChange={e => { setProcessFilter(e.target.value as ProcessFilter); setContractorFilter('all') }}
+                  className="appearance-none bg-white/10 border border-white/20 text-white rounded-xl px-3 py-2.5 pr-8 text-sm font-bold focus:outline-none hover:bg-white/20 transition-colors cursor-pointer"
+                >
+                  <option value="all" className="text-gray-800 bg-white">All Processes</option>
+                  <option value="FABRICATION" className="text-gray-800 bg-white">Fabrication</option>
+                  <option value="SPINNING"    className="text-gray-800 bg-white">Spinning</option>
+                  <option value="COATING"     className="text-gray-800 bg-white">Coating</option>
+                </select>
+                <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-white/70" />
+              </div>
+
+              <div className="relative">
+                <select
+                  value={contractorFilter === 'all' ? 'all' : String(contractorFilter)}
+                  onChange={e => {
+                    const v = e.target.value
+                    setContractorFilter(v === 'all' ? 'all' : Number(v))
+                    if (v !== 'all') {
+                      const found = contractorOptions.find(o => o.supplierId === Number(v))
+                      if (found) setProcessFilter(found.process as ProcessFilter)
+                    } else {
+                      setProcessFilter('all')
+                    }
+                  }}
+                  className="appearance-none bg-white/10 border border-white/20 text-white rounded-xl px-3 py-2.5 pr-8 text-sm font-bold focus:outline-none hover:bg-white/20 transition-colors cursor-pointer"
+                >
+                  <option value="all" className="text-gray-800 bg-white">All Contractors</option>
+                  {contractorOptions.map(o => (
+                    <option key={o.supplierId} value={o.supplierId} className="text-gray-800 bg-white">
+                      {o.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-white/70" />
+              </div>
+
+              <div className="w-px h-5 bg-white/20" />
+            </>}
+
+            <DateFilterDropdown from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t) }} />
+          </div>
         </div>
       </div>
 
@@ -588,9 +1001,16 @@ export default function ProductionReportsPage() {
         </div>
 
         <div className="p-6">
-          {activeTab === 'stage'    && <StageSummaryTab        from={from} to={to} />}
-          {activeTab === 'cost'     && <CostSummaryTab         from={from} to={to} />}
-          {activeTab === 'material' && <MaterialConsumptionTab from={from} to={to} />}
+          {activeTab === 'stage'      && <StageSummaryTab        from={from} to={to} />}
+          {activeTab === 'cost'       && <CostSummaryTab         from={from} to={to} />}
+          {activeTab === 'material'   && <MaterialConsumptionTab from={from} to={to} />}
+          {activeTab === 'contractor' && <ContractorCostsTab
+            from={from} to={to}
+            processFilter={processFilter}
+            contractorFilter={contractorFilter}
+            contractorOptions={contractorOptions}
+            assignmentByProcess={assignmentByProcess}
+          />}
         </div>
       </div>
 

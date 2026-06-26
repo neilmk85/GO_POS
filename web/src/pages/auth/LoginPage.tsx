@@ -23,6 +23,10 @@ export default function LoginPage() {
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: 'admin@pppipeproducts.com',
+      password: 'admin@123',
+    },
   })
 
   // fade-in on mount

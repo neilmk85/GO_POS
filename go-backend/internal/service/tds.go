@@ -219,3 +219,176 @@ func (s *TDSService) GetTDSPayable(outletID int, from, to time.Time) (decimal.De
 		  AND status = 'DEDUCTED'`, outletID, from, to).Scan(&total).Error
 	return total, err
 }
+
+// ─── TDS Receivables ──────────────────────────────────────────────────────────
+
+func (s *TDSService) RecordReceivable(
+	outletID, tdsSectionID int,
+	customerName, invoiceNumber string,
+	paymentDate time.Time,
+	baseAmount, tdsRate, tdsAmount decimal.Decimal,
+	notes, createdBy string,
+) (*models.TDSReceivable, error) {
+	r := &models.TDSReceivable{
+		OutletID:      outletID,
+		CustomerName:  customerName,
+		InvoiceNumber: invoiceNumber,
+		TDSSectionID:  tdsSectionID,
+		PaymentDate:   paymentDate,
+		BaseAmount:    baseAmount,
+		TDSRate:       tdsRate,
+		TDSAmount:     tdsAmount,
+		FinancialYear: financialYear(paymentDate),
+		Status:        "PENDING",
+		Notes:         notes,
+		CreatedBy:     &createdBy,
+	}
+	err := s.db.Create(r).Error
+	return r, err
+}
+
+func (s *TDSService) ListReceivables(outletID int, from, to time.Time) ([]models.TDSReceivable, error) {
+	var rows []models.TDSReceivable
+	err := s.db.Preload("TDSSection").
+		Where("outlet_id = ? AND payment_date >= ? AND payment_date <= ?", outletID, from, to).
+		Order("payment_date DESC").
+		Find(&rows).Error
+	return rows, err
+}
+
+func (s *TDSService) UpdateReceivable(id, outletID, tdsSectionID int, customerName, invoiceNumber, status, notes string,
+	paymentDate time.Time, baseAmount, tdsRate, tdsAmount decimal.Decimal, receivedDate *time.Time,
+) (*models.TDSReceivable, error) {
+	var r models.TDSReceivable
+	if err := s.db.Where("id = ? AND outlet_id = ?", id, outletID).First(&r).Error; err != nil {
+		return nil, err
+	}
+	r.CustomerName = customerName
+	r.InvoiceNumber = invoiceNumber
+	r.TDSSectionID = tdsSectionID
+	r.PaymentDate = paymentDate
+	r.BaseAmount = baseAmount
+	r.TDSRate = tdsRate
+	r.TDSAmount = tdsAmount
+	r.Status = status
+	r.Notes = notes
+	r.ReceivedDate = receivedDate
+	err := s.db.Save(&r).Error
+	return &r, err
+}
+
+func (s *TDSService) DeleteReceivable(id, outletID int) error {
+	return s.db.Where("outlet_id = ?", outletID).Delete(&models.TDSReceivable{}, id).Error
+}
+
+type TDSReceivableSectionRow struct {
+	SectionCode  string          `json:"sectionCode"`
+	Description  string          `json:"description"`
+	Rate         decimal.Decimal `json:"rate"`
+	TotalBase    decimal.Decimal `json:"totalBase"`
+	TotalTDS     decimal.Decimal `json:"totalTds"`
+	Received     decimal.Decimal `json:"received"`
+	Pending      decimal.Decimal `json:"pending"`
+	Transactions int             `json:"transactions"`
+}
+
+type TDSReceivableCustomerRow struct {
+	CustomerName string          `json:"customerName"`
+	SectionCode  string          `json:"sectionCode"`
+	TotalBase    decimal.Decimal `json:"totalBase"`
+	TotalTDS     decimal.Decimal `json:"totalTds"`
+	Received     decimal.Decimal `json:"received"`
+	Pending      decimal.Decimal `json:"pending"`
+	Transactions int             `json:"transactions"`
+}
+
+type TDSReceivableReport struct {
+	BySection     []TDSReceivableSectionRow  `json:"bySection"`
+	ByCustomer    []TDSReceivableCustomerRow `json:"byCustomer"`
+	TotalBase     decimal.Decimal            `json:"totalBase"`
+	TotalTDS      decimal.Decimal            `json:"totalTds"`
+	TotalReceived decimal.Decimal            `json:"totalReceived"`
+	TotalPending  decimal.Decimal            `json:"totalPending"`
+}
+
+func (s *TDSService) GetReceivableReport(outletID int, from, to time.Time) (TDSReceivableReport, error) {
+	var res TDSReceivableReport
+
+	type srow struct {
+		SectionCode string
+		Description string
+		Rate        decimal.Decimal
+		TotalBase   decimal.Decimal
+		TotalTDS    decimal.Decimal
+		Received    decimal.Decimal
+		Transactions int
+	}
+	var sRows []srow
+	if err := s.db.Raw(`
+		SELECT ts.section_code, ts.description, ts.rate,
+		       SUM(tr.base_amount) as total_base,
+		       SUM(tr.tds_amount)  as total_tds,
+		       SUM(CASE WHEN tr.status='RECEIVED' THEN tr.tds_amount ELSE 0 END) as received,
+		       COUNT(*) as transactions
+		FROM tds_receivables tr
+		JOIN tds_sections ts ON tr.tds_section_id = ts.id
+		WHERE tr.outlet_id = ? AND tr.payment_date >= ? AND tr.payment_date <= ?
+		GROUP BY ts.id, ts.section_code, ts.description, ts.rate
+		ORDER BY ts.section_code`, outletID, from, to).Scan(&sRows).Error; err != nil {
+		return res, err
+	}
+	for _, r := range sRows {
+		pending := r.TotalTDS.Sub(r.Received)
+		res.BySection = append(res.BySection, TDSReceivableSectionRow{
+			SectionCode:  r.SectionCode,
+			Description:  r.Description,
+			Rate:         r.Rate,
+			TotalBase:    r.TotalBase,
+			TotalTDS:     r.TotalTDS,
+			Received:     r.Received,
+			Pending:      pending,
+			Transactions: r.Transactions,
+		})
+		res.TotalBase = res.TotalBase.Add(r.TotalBase)
+		res.TotalTDS = res.TotalTDS.Add(r.TotalTDS)
+		res.TotalReceived = res.TotalReceived.Add(r.Received)
+		res.TotalPending = res.TotalPending.Add(pending)
+	}
+
+	type crow struct {
+		CustomerName string
+		SectionCode  string
+		TotalBase    decimal.Decimal
+		TotalTDS     decimal.Decimal
+		Received     decimal.Decimal
+		Transactions int
+	}
+	var cRows []crow
+	if err := s.db.Raw(`
+		SELECT tr.customer_name,
+		       ts.section_code,
+		       SUM(tr.base_amount) as total_base,
+		       SUM(tr.tds_amount)  as total_tds,
+		       SUM(CASE WHEN tr.status='RECEIVED' THEN tr.tds_amount ELSE 0 END) as received,
+		       COUNT(*) as transactions
+		FROM tds_receivables tr
+		JOIN tds_sections ts ON tr.tds_section_id = ts.id
+		WHERE tr.outlet_id = ? AND tr.payment_date >= ? AND tr.payment_date <= ?
+		GROUP BY tr.customer_name, ts.section_code
+		ORDER BY tr.customer_name`, outletID, from, to).Scan(&cRows).Error; err != nil {
+		return res, err
+	}
+	for _, r := range cRows {
+		res.ByCustomer = append(res.ByCustomer, TDSReceivableCustomerRow{
+			CustomerName: r.CustomerName,
+			SectionCode:  r.SectionCode,
+			TotalBase:    r.TotalBase,
+			TotalTDS:     r.TotalTDS,
+			Received:     r.Received,
+			Pending:      r.TotalTDS.Sub(r.Received),
+			Transactions: r.Transactions,
+		})
+	}
+
+	return res, nil
+}

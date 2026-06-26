@@ -46,3 +46,29 @@ type TDSDeduction struct {
 }
 
 func (TDSDeduction) TableName() string { return "tds_deductions" }
+
+// TDSReceivable records TDS deducted BY customers on our sales invoices.
+// Status: PENDING → RECEIVED (when credit appears in Form 26AS).
+type TDSReceivable struct {
+	ID            int             `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
+	OutletID      int             `gorm:"column:outlet_id;index" json:"outletId"`
+	CustomerID    *int            `gorm:"column:customer_id;index" json:"customerId"`
+	CustomerName  string          `gorm:"column:customer_name;size:255" json:"customerName"`
+	InvoiceNumber string          `gorm:"column:invoice_number;size:100" json:"invoiceNumber"`
+	TDSSectionID  int             `gorm:"column:tds_section_id" json:"tdsSectionId"`
+	PaymentDate   time.Time       `gorm:"column:payment_date;type:date" json:"paymentDate"`
+	BaseAmount    decimal.Decimal `gorm:"column:base_amount;type:decimal(12,2)" json:"baseAmount"`
+	TDSRate       decimal.Decimal `gorm:"column:tds_rate;type:decimal(5,2)" json:"tdsRate"`
+	TDSAmount     decimal.Decimal `gorm:"column:tds_amount;type:decimal(12,2)" json:"tdsAmount"`
+	FinancialYear string          `gorm:"column:financial_year;size:10" json:"financialYear"`
+	Status        string          `gorm:"column:status;size:20;default:PENDING" json:"status"` // PENDING, RECEIVED
+	ReceivedDate  *time.Time      `gorm:"column:received_date;type:date" json:"receivedDate,omitempty"`
+	Notes         string          `gorm:"column:notes;type:text" json:"notes"`
+	CreatedAt     time.Time       `gorm:"column:created_at;autoCreateTime" json:"createdAt"`
+	UpdatedAt     time.Time       `gorm:"column:updated_at;autoUpdateTime" json:"updatedAt"`
+	CreatedBy     *string         `gorm:"column:created_by" json:"createdBy"`
+
+	TDSSection *TDSSection `gorm:"foreignKey:TDSSectionID" json:"tdsSection,omitempty"`
+}
+
+func (TDSReceivable) TableName() string { return "tds_receivables" }

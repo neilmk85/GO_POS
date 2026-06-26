@@ -457,6 +457,75 @@ export interface BusinessRateConfig {
   updatedAt:         string
 }
 
+// ─── Coating Contractor Rates ─────────────────────────────────────────────────
+
+export interface CoatingContractorRate {
+  id:          number
+  diameterMm:  number
+  ratePerPipe: string
+  createdAt:   string
+  updatedAt:   string
+}
+
+export const coatingRatesApi = {
+  list: () =>
+    api.get<{ data: CoatingContractorRate[] }>('/business/coating-rates')
+      .then(unwrap<CoatingContractorRate[]>),
+
+  upsert: (rates: { diameterMm: number; ratePerPipe: string }[]) =>
+    api.put<{ data: CoatingContractorRate[] }>('/business/coating-rates', rates)
+      .then(unwrap<CoatingContractorRate[]>),
+}
+
+// ─── Process Contractor Assignments ──────────────────────────────────────────
+
+export interface ProcessContractorAssignment {
+  id:          number
+  processType: 'FABRICATION' | 'SPINNING' | 'COATING'
+  supplierId:  number
+  supplier?: {
+    id:   number
+    name: string
+    phone?: string
+    vendorType?: string
+  }
+  createdAt: string
+  updatedAt: string
+}
+
+export const processContractorApi = {
+  list: () =>
+    api.get<{ data: ProcessContractorAssignment[] }>('/business/process-contractors')
+      .then(unwrap<ProcessContractorAssignment[]>),
+
+  upsert: (processType: string, supplierId: number) =>
+    api.put<{ data: ProcessContractorAssignment }>('/business/process-contractors', { processType, supplierId })
+      .then(unwrap<ProcessContractorAssignment>),
+}
+
+// ─── Spinning Bed Rates ───────────────────────────────────────────────────────
+
+export interface SpinningBedRate {
+  id:          number
+  bedSize:     'SMALL_BED' | 'LARGE_BED'
+  diameterMm:  number
+  ratePerPipe: string
+  createdAt:   string
+  updatedAt:   string
+}
+
+export const spinningRatesApi = {
+  list: () =>
+    api.get<{ data: SpinningBedRate[] }>('/business/spinning-rates')
+      .then(unwrap<SpinningBedRate[]>),
+
+  upsert: (rates: { bedSize: string; diameterMm: number; ratePerPipe: string }[]) =>
+    api.put<{ data: SpinningBedRate[] }>('/business/spinning-rates', rates)
+      .then(unwrap<SpinningBedRate[]>),
+}
+
+// ─── Business Rate Config ─────────────────────────────────────────────────────
+
 export const businessRateConfigApi = {
   get: () =>
     api.get<{ data: BusinessRateConfig }>('/business/rate-config')
@@ -465,4 +534,72 @@ export const businessRateConfigApi = {
   update: (data: Omit<BusinessRateConfig, 'id' | 'createdAt' | 'updatedAt'>) =>
     api.put<{ data: BusinessRateConfig }>('/business/rate-config', data)
       .then(unwrap<BusinessRateConfig>),
+}
+
+// ─── Third-Party Pipe Purchases ───────────────────────────────────────────────
+
+export interface PipePurchaseEntry {
+  id: number
+  outletId: number
+  supplierId: number | null
+  vendorName: string
+  invoiceNumber: string
+  purchaseDate: string
+  pipeConfigId: number | null
+  pipeName: string
+  quantity: number
+  unitRate: string
+  totalAmount: string
+  notes: string
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+  supplier?: { id: number; name: string } | null
+}
+
+export const pipePurchasesApi = {
+  list: (outletId: number, from?: string, to?: string) =>
+    api.get<{ data: { data: PipePurchaseEntry[] } }>('/business/pipe-purchases', {
+      params: { outletId, ...buildParams(from, to) },
+    }).then(unwrap<PipePurchaseEntry[]>),
+
+  create: (data: Omit<PipePurchaseEntry, 'id' | 'createdAt' | 'updatedAt' | 'supplier'>) =>
+    api.post<{ data: { data: PipePurchaseEntry } }>('/business/pipe-purchases', data)
+      .then(unwrap<PipePurchaseEntry>),
+
+  update: (id: number, data: Partial<PipePurchaseEntry>) =>
+    api.put<{ data: { data: PipePurchaseEntry } }>(`/business/pipe-purchases/${id}`, data)
+      .then(unwrap<PipePurchaseEntry>),
+
+  delete: (id: number) =>
+    api.delete(`/business/pipe-purchases/${id}`),
+}
+// ─── Cuttings ─────────────────────────────────────────────────────────────────
+
+export interface CuttingEntry {
+  id: number
+  date: string
+  fromSheet: string
+  toSheet: string
+  quantity: number
+  notes: string
+  createdAt: string
+  updatedAt: string
+}
+
+export const cuttingsApi = {
+  list: (from?: string, to?: string) =>
+    api.get<{ data: { data: CuttingEntry[] } }>('/business/cuttings', { params: buildParams(from, to) })
+      .then(unwrap<CuttingEntry[]>),
+
+  create: (data: Omit<CuttingEntry, 'id' | 'createdAt' | 'updatedAt'>) =>
+    api.post<{ data: { data: CuttingEntry } }>('/business/cuttings', data)
+      .then(unwrap<CuttingEntry>),
+
+  update: (id: number, data: Omit<CuttingEntry, 'id' | 'createdAt' | 'updatedAt'>) =>
+    api.put<{ data: { data: CuttingEntry } }>(`/business/cuttings/${id}`, data)
+      .then(unwrap<CuttingEntry>),
+
+  delete: (id: number) =>
+    api.delete(`/business/cuttings/${id}`),
 }

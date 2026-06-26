@@ -60,7 +60,7 @@ function ProductPicker({ onSelect }: { onSelect: (p: any) => void }) {
   useEffect(() => { const t = setTimeout(() => setDq(q), 200); return () => clearTimeout(t) }, [q])
 
   // Names that are internal inventory states — never purchased from vendors
-  const NON_PURCHASABLE_NAMES = ['silo cement', 'loose cement']
+  const NON_PURCHASABLE_NAMES = ['silo cement', 'loose cement', 'extra cement']
 
   const { data: rawResults = [], isFetching } = useQuery({
     queryKey: ['product-search-po', dq],

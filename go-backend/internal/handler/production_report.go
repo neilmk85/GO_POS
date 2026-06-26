@@ -70,3 +70,25 @@ func (h *ProductionReportHandler) MachineUtilization(w http.ResponseWriter, r *h
 	}
 	util.SendSuccess(w, "Machine utilization retrieved", rows)
 }
+
+// GET /api/production/reports/spinning-costs
+func (h *ProductionReportHandler) SpinningCosts(w http.ResponseWriter, r *http.Request) {
+	from, to, outletID := parseReportFilters(r)
+	rows, err := h.service.GetSpinningCostReport(from, to, outletID)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+	util.SendSuccess(w, "Spinning costs retrieved", rows)
+}
+
+// GET /api/production/reports/contractor-costs
+func (h *ProductionReportHandler) ContractorCosts(w http.ResponseWriter, r *http.Request) {
+	from, to, outletID := parseReportFilters(r)
+	rows, err := h.service.GetContractorCostReport(from, to, outletID)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+	util.SendSuccess(w, "Contractor costs retrieved", rows)
+}
