@@ -129,62 +129,60 @@ export default function SalesOrdersPage() {
       <div className="bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.08)] overflow-hidden ring-1 ring-gray-100">
 
         {/* Dark header */}
-        <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-violet-600 to-blue-600">
-          <div className="flex items-center gap-3.5">
-            <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center">
-              <FileText size={18} className="text-amber-400" />
-            </div>
-            <div>
-              <h2 className="text-sm font-bold text-white tracking-wide">All Sales Orders</h2>
-              <p className="text-xs text-blue-100 mt-0.5">{total} order{total !== 1 ? 's' : ''}</p>
-            </div>
-          </div>
-          <div className="text-right">
-            <p className="text-xs text-blue-100">Total Orders</p>
-            <p className="text-sm font-bold text-white tabular-nums">{total}</p>
-          </div>
-        </div>
-
-        {/* Filter bar */}
-        <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-3 flex-wrap bg-gray-50/50">
-          <div className="relative flex-1 min-w-48">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search SO number or customer…"
-              className="w-full pl-8 pr-8 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-300 bg-white" />
-            {search && <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500"><X size={13} /></button>}
-          </div>
-          <div className="flex gap-1.5 flex-wrap">
-            {['ALL','DRAFT','CONFIRMED','IN_PRODUCTION','DELIVERED','CANCELLED'].map(s => (
-              <button key={s} onClick={() => setStatus(s)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${status === s ? 'bg-gradient-to-r from-violet-600 to-blue-600 text-white shadow-sm' : 'bg-white text-gray-500 border border-gray-200 hover:border-violet-400'}`}>
-                {s === 'ALL' ? 'All' : (STATUS_CFG[s]?.label ?? s)}
-              </button>
-            ))}
-          </div>
-          <div ref={filterRef} className="relative">
-            <button onClick={() => setShowFilter(v => !v)}
-              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs border transition-all ${fromDate || toDate ? 'border-violet-500 bg-violet-50 text-violet-700 font-semibold' : 'border-gray-200 text-gray-500 hover:border-violet-400'}`}>
-              <CalendarDays size={13} />
-              {fromDate && toDate ? `${fromDate} – ${toDate}` : 'Date Range'}
-            </button>
-            {showFilter && (
-              <div className="absolute right-0 top-full mt-2 bg-white border border-gray-200 rounded-2xl shadow-xl p-4 z-30 w-60 space-y-3">
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Date Range</p>
-                {[['From', fromDate, setFromDate] as const, ['To', toDate, setToDate] as const].map(([lbl, val, set]) => (
-                  <div key={lbl}>
-                    <label className="text-xs text-gray-500 mb-1 block">{lbl}</label>
-                    <input type="date" value={val} onChange={e => set(e.target.value)}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300" />
-                  </div>
-                ))}
-                <div className="flex gap-2 pt-1">
-                  <button onClick={() => { setFromDate(''); setToDate(''); setShowFilter(false) }}
-                    className="flex-1 py-1.5 text-xs text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50">Clear</button>
-                  <button onClick={() => setShowFilter(false)}
-                    className="flex-1 py-1.5 text-xs text-white bg-gradient-to-r from-violet-600 to-blue-600 rounded-lg hover:from-violet-700 hover:to-blue-700">Apply</button>
-                </div>
+        <div className="bg-gradient-to-r from-violet-600 to-blue-600 px-6 pt-4 pb-3">
+          {/* Title row */}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3.5">
+              <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center">
+                <FileText size={18} className="text-amber-400" />
               </div>
-            )}
+              <div>
+                <h2 className="text-sm font-bold text-white tracking-wide">All Sales Orders</h2>
+                <p className="text-xs text-blue-100 mt-0.5">{total} order{total !== 1 ? 's' : ''}</p>
+              </div>
+            </div>
+          </div>
+          {/* Filter row */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative flex-1 min-w-48">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/60" />
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search SO number or customer…"
+                className="w-full pl-8 pr-8 py-1.5 text-sm bg-white/15 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:bg-white/25" />
+              {search && <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/50 hover:text-white"><X size={13} /></button>}
+            </div>
+            <div className="flex gap-1.5 flex-wrap">
+              {['ALL','DRAFT','CONFIRMED','IN_PRODUCTION','DELIVERED','CANCELLED'].map(s => (
+                <button key={s} onClick={() => setStatus(s)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${status === s ? 'bg-white text-violet-700 shadow-sm' : 'bg-white/15 text-white border border-white/20 hover:bg-white/25'}`}>
+                  {s === 'ALL' ? 'All' : (STATUS_CFG[s]?.label ?? s)}
+                </button>
+              ))}
+            </div>
+            <div ref={filterRef} className="relative">
+              <button onClick={() => setShowFilter(v => !v)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${fromDate || toDate ? 'bg-white text-violet-700 border-white' : 'bg-white/15 text-white border-white/20 hover:bg-white/25'}`}>
+                <CalendarDays size={13} />
+                {fromDate && toDate ? `${fromDate} – ${toDate}` : 'Date Range'}
+              </button>
+              {showFilter && (
+                <div className="absolute right-0 top-full mt-2 bg-white border border-gray-200 rounded-2xl shadow-xl p-4 z-30 w-60 space-y-3">
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Date Range</p>
+                  {[['From', fromDate, setFromDate] as const, ['To', toDate, setToDate] as const].map(([lbl, val, set]) => (
+                    <div key={lbl}>
+                      <label className="text-xs text-gray-500 mb-1 block">{lbl}</label>
+                      <input type="date" value={val} onChange={e => set(e.target.value)}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300" />
+                    </div>
+                  ))}
+                  <div className="flex gap-2 pt-1">
+                    <button onClick={() => { setFromDate(''); setToDate(''); setShowFilter(false) }}
+                      className="flex-1 py-1.5 text-xs text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50">Clear</button>
+                    <button onClick={() => setShowFilter(false)}
+                      className="flex-1 py-1.5 text-xs text-white bg-gradient-to-r from-violet-600 to-blue-600 rounded-lg hover:from-violet-700 hover:to-blue-700">Apply</button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
