@@ -5,6 +5,7 @@ import {
   Plus, Trash2, Search, Package, ChevronLeft, ChevronRight,
   FileText, Building2, Loader2, CheckCircle2, X, Calendar,
   ShoppingCart, Truck, Receipt, Tag, ArrowRight, History,
+  Banknote, CreditCard, SplitSquareHorizontal,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { productApi, vendorApi, taxGroupApi, purchaseOrderApi, outletApi } from '@/services/api'
@@ -423,6 +424,8 @@ export default function DirectPurchasePage() {
   const [purchaseDate, setPurchaseDate] = useState<string>(new Date().toISOString().slice(0, 10))
   const [notes, setNotes] = useState('')
   const [gstInclusive, setGstInclusive] = useState(false)
+  const [paymentMode, setPaymentMode] = useState<'cash' | 'credit' | 'partial'>('cash')
+  const [paidAmount, setPaidAmount] = useState('')
   const [saving, setSaving] = useState(false)
 
   // History
@@ -473,12 +476,13 @@ export default function DirectPurchasePage() {
 
     setSaving(true)
     try {
-      const payload = {
+      const payload: any = {
         outletId:      effectiveOutletId,
         supplierId,
         invoiceNumber: invoiceNo || null,
         purchaseDate,
         notes:         notes || null,
+        paymentMode,
         items: validLines.map(l => {
           const taxGroup = l.taxGroupOverride ?? l.product?.taxGroup
           return {
@@ -489,16 +493,22 @@ export default function DirectPurchasePage() {
           }
         }),
       }
+      if (paymentMode === 'partial' && paidAmount) {
+        payload.paidAmount = parseFloat(paidAmount) || 0
+      }
 
       const res = await purchaseOrderApi.createDirect(payload)
       const data = res.data.data
-      toast.success(`Purchase recorded! PO# ${data.poNumber}`)
+      const modeLabel = paymentMode === 'credit' ? ' · Bill created (unpaid)' : paymentMode === 'partial' ? ' · Bill created (partial)' : ''
+      toast.success(`Purchase recorded! PO# ${data.poNumber}${modeLabel}`)
 
       setLines([newLine()])
       setSupplierId(null)
       setInvoiceNo('')
       setPurchaseDate(new Date().toISOString().slice(0, 10))
       setNotes('')
+      setPaymentMode('cash')
+      setPaidAmount('')
       qc.invalidateQueries({ queryKey: ['purchase-orders'] })
       qc.invalidateQueries({ queryKey: ['inventory', 'all', effectiveOutletId] })
       qc.invalidateQueries({ queryKey: ['inventory', 'low-stock', effectiveOutletId] })
@@ -561,6 +571,51 @@ export default function DirectPurchasePage() {
               </select>
             </div>
           )}
+
+          {/* Payment Mode */}
+          <div className="mb-4">
+            <label className="block text-xs font-semibold text-gray-600 mb-2 flex items-center gap-1">
+              <Banknote size={11} /> Payment Mode <span className="text-red-400">*</span>
+            </label>
+            <div className="flex gap-2">
+              {([
+                { key: 'cash',    label: 'Cash / Paid',  Icon: Banknote,              desc: 'Paid immediately, no liability' },
+                { key: 'credit',  label: 'Credit',        Icon: CreditCard,            desc: 'Full amount owed to vendor' },
+                { key: 'partial', label: 'Partial',       Icon: SplitSquareHorizontal, desc: 'Part paid, rest owed to vendor' },
+              ] as const).map(({ key, label, Icon, desc }) => (
+                <button key={key} type="button" onClick={() => setPaymentMode(key)}
+                  className={`flex-1 flex items-center gap-2.5 px-4 py-3 rounded-xl border-2 text-left transition-all ${
+                    paymentMode === key
+                      ? key === 'cash'    ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                      : key === 'credit'  ? 'border-red-400 bg-red-50 text-red-700'
+                      :                    'border-amber-400 bg-amber-50 text-amber-700'
+                      : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
+                  }`}>
+                  <Icon size={16} className="shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold">{label}</p>
+                    <p className="text-[10px] opacity-70">{desc}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+            {paymentMode === 'partial' && (
+              <div className="mt-3 flex items-center gap-3">
+                <label className="text-xs font-semibold text-gray-600 shrink-0">Amount Paid Now (₹)</label>
+                <input
+                  type="number" min="0" step="0.01"
+                  value={paidAmount} onChange={e => setPaidAmount(e.target.value)}
+                  placeholder={`Max ${totals.grandTotal.toFixed(2)}`}
+                  className="w-48 border border-amber-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
+                />
+                {paidAmount && totals.grandTotal > 0 && (
+                  <span className="text-xs text-amber-700 font-semibold">
+                    Balance due: ₹{Math.max(0, totals.grandTotal - (parseFloat(paidAmount) || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
 
           <div className="grid grid-cols-3 gap-4">
             {/* Supplier */}

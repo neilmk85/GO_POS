@@ -177,10 +177,22 @@ func (pos *PurchaseOrderService) Create(data map[string]interface{}) (*models.Pu
 	return pos.GetByPONumber(order.PONumber)
 }
 
-// CreateDirect creates a purchase order and marks as received immediately, updating inventory
+// CreateDirect creates a purchase order and marks as received immediately, updating inventory.
+// If paymentMode is "credit" or "partial", a PurchaseBill is also created so the vendor
+// appears in the creditors list.
 func (pos *PurchaseOrderService) CreateDirect(data map[string]interface{}) (*models.PurchaseOrder, error) {
 	supplierId := int(data["supplierId"].(float64))
 	outletId := int(data["outletId"].(float64))
+
+	paymentMode, _ := data["paymentMode"].(string)
+	if paymentMode == "" {
+		paymentMode = "cash"
+	}
+
+	var paidAmount decimal.Decimal
+	if pa, ok := data["paidAmount"].(float64); ok && pa > 0 {
+		paidAmount = decimal.NewFromFloat(pa)
+	}
 
 	poNumber, err := util.GeneratePONumber(pos.db)
 	if err != nil {
@@ -209,15 +221,17 @@ func (pos *PurchaseOrderService) CreateDirect(data map[string]interface{}) (*mod
 		taxAmount = taxAmount.Add(lineTax)
 
 		itemsData = append(itemsData, CreateItemData{
-			ProductID:  int(itemMap["productId"].(float64)),
-			Quantity:   qty,
-			UnitCost:   cost,
-			TaxRate:    taxRate,
-			LineTotal:  lineSub.Add(lineTax),
+			ProductID: int(itemMap["productId"].(float64)),
+			Quantity:  qty,
+			UnitCost:  cost,
+			TaxRate:   taxRate,
+			LineTotal: lineSub.Add(lineTax),
 		})
 	}
 
 	now := time.Now()
+	totalAmount := subtotal.Add(taxAmount)
+
 	order := models.PurchaseOrder{
 		PONumber:     poNumber,
 		SupplierID:   supplierId,
@@ -226,7 +240,7 @@ func (pos *PurchaseOrderService) CreateDirect(data map[string]interface{}) (*mod
 		ReceivedDate: &now,
 		Subtotal:     subtotal,
 		TaxAmount:    taxAmount,
-		TotalAmount:  subtotal.Add(taxAmount),
+		TotalAmount:  totalAmount,
 	}
 
 	if notes, ok := data["notes"].(string); ok {
@@ -245,10 +259,64 @@ func (pos *PurchaseOrderService) CreateDirect(data map[string]interface{}) (*mod
 		})
 	}
 
-	// Use transaction for PO creation and inventory update
+	// Use transaction for PO creation, optional bill creation, and inventory update
 	return &order, pos.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&order).Error; err != nil {
 			return err
+		}
+
+		// Create a PurchaseBill so the vendor appears in the creditors list
+		if paymentMode == "credit" || paymentMode == "partial" {
+			billNumber, err := util.GenerateBillNumber(tx)
+			if err != nil {
+				return err
+			}
+
+			billStatus := models.BillStatusUnpaid
+			effectivePaid := decimal.Zero
+			if paymentMode == "partial" && paidAmount.IsPositive() {
+				effectivePaid = paidAmount
+				if effectivePaid.GreaterThanOrEqual(totalAmount) {
+					billStatus = models.BillStatusPaid
+				} else {
+					billStatus = models.BillStatusPartial
+				}
+			}
+
+			poID := order.ID
+			var vendorBillNum *string
+			if inv, ok := data["invoiceNumber"].(string); ok && inv != "" {
+				vendorBillNum = &inv
+			}
+
+			bill := models.PurchaseBill{
+				BillNumber:       billNumber,
+				SupplierID:       supplierId,
+				OutletID:         outletId,
+				SourcePoID:       &poID,
+				VendorBillNumber: vendorBillNum,
+				BillDate:         now,
+				Status:           billStatus,
+				Subtotal:         subtotal,
+				TaxAmount:        taxAmount,
+				TotalAmount:      totalAmount,
+				PaidAmount:       effectivePaid,
+			}
+
+			// Bill items mirror the PO items
+			for _, item := range itemsData {
+				bill.Items = append(bill.Items, models.PurchaseBillItem{
+					ProductID: item.ProductID,
+					Quantity:  item.Quantity,
+					UnitCost:  item.UnitCost,
+					TaxRate:   item.TaxRate,
+					LineTotal: item.LineTotal,
+				})
+			}
+
+			if err := tx.Create(&bill).Error; err != nil {
+				return err
+			}
 		}
 
 		// Update inventory for all items
@@ -257,17 +325,15 @@ func (pos *PurchaseOrderService) CreateDirect(data map[string]interface{}) (*mod
 			result := tx.Where("product_id = ? AND outlet_id = ?", item.ProductID, outletId).First(&inv)
 
 			if result.Error == gorm.ErrRecordNotFound {
-				// Create new inventory
 				if err := tx.Create(&models.Inventory{
-					ProductID:      item.ProductID,
-					OutletID:       outletId,
-					QuantityOnHand: item.Quantity,
+					ProductID:       item.ProductID,
+					OutletID:        outletId,
+					QuantityOnHand:  item.Quantity,
 					LastStockUpdate: &now,
 				}).Error; err != nil {
 					return err
 				}
 			} else if result.Error == nil {
-				// Update existing inventory
 				if err := tx.Model(&inv).Update("quantity_on_hand", gorm.Expr("quantity_on_hand + ?", item.Quantity)).
 					Update("last_stock_update", now).Error; err != nil {
 					return err
