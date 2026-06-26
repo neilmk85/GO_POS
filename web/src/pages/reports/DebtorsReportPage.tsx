@@ -367,7 +367,7 @@ export default function DebtorsReportPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-gray-50/60 p-6 space-y-6">
+    <div className="min-h-screen bg-gray-50/60 p-6 space-y-6 font-inter">
 
       {/* ── Hero header ── */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-violet-700 via-violet-600 to-blue-600 shadow-[0_8px_40px_rgba(109,40,217,0.30)]">

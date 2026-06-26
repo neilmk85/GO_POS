@@ -9,6 +9,9 @@ export default {
       animation: {
         'slide-in-right': 'slide-in-right 0.25s ease-out',
       },
+      fontFamily: {
+        inter: ['Inter', 'sans-serif'],
+      },
       colors: {
         primary: {
           50: '#eff6ff',
