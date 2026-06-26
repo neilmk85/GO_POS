@@ -900,7 +900,7 @@ export default function ProductionReportsPage() {
         </div>
 
         {/* Title row */}
-        <div className="relative flex items-center justify-between px-8 pt-6 pb-4">
+        <div className="relative flex items-center px-8 pt-6 pb-4">
           <div className="flex items-center gap-5">
             <div className="w-14 h-14 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center shadow-inner flex-shrink-0">
               <TrendingUp size={26} className="text-amber-300" />
@@ -911,10 +911,6 @@ export default function ProductionReportsPage() {
               <p className="text-sm text-blue-200 mt-0.5">Stage performance · Cost breakdown · Material usage</p>
             </div>
           </div>
-          <button className="inline-flex items-center gap-2 px-4 py-2.5 bg-white/10 border border-white/20 hover:bg-white/20 text-white text-sm font-semibold rounded-xl transition-all active:scale-95">
-            <Download size={15} />
-            Export CSV
-          </button>
         </div>
 
         {/* Tab pills + filters row */}
@@ -984,6 +980,10 @@ export default function ProductionReportsPage() {
             </>}
 
             <DateFilterDropdown from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t) }} />
+            <button className="inline-flex items-center gap-2 px-4 py-2.5 bg-white/10 border border-white/20 hover:bg-white/20 text-white text-sm font-semibold rounded-xl transition-all active:scale-95">
+              <Download size={15} />
+              Export CSV
+            </button>
           </div>
         </div>
       </div>
