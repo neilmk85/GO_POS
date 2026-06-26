@@ -63,6 +63,9 @@ import ProductionEntriesPage from '@/pages/production/ProductionEntriesPage'
 import MachinesPage from '@/pages/production/MachinesPage'
 import OverheadConfigsPage from '@/pages/production/OverheadConfigsPage'
 import ProductionReportsPage from '@/pages/production/ProductionReportsPage'
+import FabricationReportPage from '@/pages/production/FabricationReportPage'
+import CoatingReportPage from '@/pages/production/CoatingReportPage'
+import SpinningReportPage from '@/pages/production/SpinningReportPage'
 import ProductionEntryDetailPage from '@/pages/production/ProductionEntryDetailPage'
 import BusinessPage from '@/pages/business/BusinessPage'
 import CementBagsPage from '@/pages/business/CementBagsPage'
@@ -204,6 +207,9 @@ export default function App() {
           <Route path="/production/machines" element={<ProtectedRoute><MachinesPage /></ProtectedRoute>} />
           <Route path="/production/overhead-configs" element={<ProtectedRoute><OverheadConfigsPage /></ProtectedRoute>} />
           <Route path="/production/reports" element={<ProtectedRoute><ProductionReportsPage /></ProtectedRoute>} />
+          <Route path="/production/reports/fabrication" element={<ProtectedRoute><FabricationReportPage /></ProtectedRoute>} />
+          <Route path="/production/reports/coating" element={<ProtectedRoute><CoatingReportPage /></ProtectedRoute>} />
+          <Route path="/production/reports/spinning" element={<ProtectedRoute><SpinningReportPage /></ProtectedRoute>} />
           <Route path="/site" element={<ProtectedRoute><SitePage /></ProtectedRoute>} />
           <Route path="/site/projects" element={<ProtectedRoute><SitesPage /></ProtectedRoute>} />
           <Route path="/site/projects/:id" element={<ProtectedRoute><ProjectDetailPage /></ProtectedRoute>} />
