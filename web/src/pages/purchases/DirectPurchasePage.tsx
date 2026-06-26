@@ -548,15 +548,21 @@ export default function DirectPurchasePage() {
   const [to, setTo]     = useState('')
   function handleDateChange(f: string, t: string) { setFrom(f); setTo(t); setHistPage(0) }
 
+  // Search
+  const [searchInput, setSearchInput] = useState('')
+  const [search, setSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => { setSearch(searchInput); setHistPage(0) }, 300); return () => clearTimeout(t) }, [searchInput])
+
   // History
   const [histPage, setHistPage] = useState(0)
   const [showHist, setShowHist] = useState(true)
   const { data: histData } = useQuery({
-    queryKey: ['purchase-orders', effectiveOutletId, histPage, from, to],
+    queryKey: ['purchase-orders', effectiveOutletId, histPage, from, to, search],
     queryFn: () => purchaseOrderApi.getByOutlet(effectiveOutletId!, {
       page: histPage, size: 10,
-      ...(from && { from }),
-      ...(to   && { to }),
+      ...(from   && { from }),
+      ...(to     && { to }),
+      ...(search && { q: search }),
     }).then(r => r.data.data),
     enabled: !!effectiveOutletId,
   })
@@ -667,6 +673,15 @@ export default function DirectPurchasePage() {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              <div className="relative">
+                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-violet-300 pointer-events-none" />
+                <input
+                  value={searchInput}
+                  onChange={e => setSearchInput(e.target.value)}
+                  placeholder="Search supplier or PO#..."
+                  className="pl-8 pr-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white placeholder-violet-300 text-sm w-52 focus:outline-none focus:ring-2 focus:ring-white/30"
+                />
+              </div>
               <DateRangePicker fromDate={from} toDate={to} onChange={handleDateChange} />
               <button
                 onClick={() => setShowForm(true)}

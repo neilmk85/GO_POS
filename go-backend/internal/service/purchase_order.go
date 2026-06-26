@@ -19,24 +19,30 @@ func NewPurchaseOrderService(db *gorm.DB) *PurchaseOrderService {
 }
 
 // GetAll returns paginated list of purchase orders with filtering
-func (pos *PurchaseOrderService) GetAll(page, size int, outletId *int, supplierId *int, status *string, from, to *time.Time) (orders []models.PurchaseOrder, total int64, err error) {
+func (pos *PurchaseOrderService) GetAll(page, size int, outletId *int, supplierId *int, status *string, from, to *time.Time, search *string) (orders []models.PurchaseOrder, total int64, err error) {
 	query := pos.db
 
 	if outletId != nil {
-		query = query.Where("outlet_id = ?", *outletId)
+		query = query.Where("purchase_orders.outlet_id = ?", *outletId)
 	}
 
 	if supplierId != nil {
-		query = query.Where("supplier_id = ?", *supplierId)
+		query = query.Where("purchase_orders.supplier_id = ?", *supplierId)
 	}
 
 	if status != nil && *status != "" {
-		query = query.Where("status = ?", *status)
+		query = query.Where("purchase_orders.status = ?", *status)
 	}
 
 	if from != nil && to != nil {
-		query = query.Where("created_at >= ? AND created_at <= ?",
+		query = query.Where("purchase_orders.created_at >= ? AND purchase_orders.created_at <= ?",
 			*from, to.Add(24*time.Hour))
+	}
+
+	if search != nil && *search != "" {
+		s := "%" + *search + "%"
+		query = query.Joins("JOIN suppliers ON suppliers.id = purchase_orders.supplier_id").
+			Where("purchase_orders.po_number LIKE ? OR suppliers.name LIKE ?", s, s)
 	}
 
 	if err := query.Model(&models.PurchaseOrder{}).Count(&total).Error; err != nil {

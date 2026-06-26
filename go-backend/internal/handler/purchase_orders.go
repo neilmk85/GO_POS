@@ -58,7 +58,12 @@ func (poh *PurchaseOrderHandler) GetAll(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	orders, total, err := poh.service.GetAll(page, size, outletIdPtr, supplierIdPtr, statusPtr, fromPtr, toPtr)
+	var searchPtr *string
+	if q := r.URL.Query().Get("q"); q != "" {
+		searchPtr = &q
+	}
+
+	orders, total, err := poh.service.GetAll(page, size, outletIdPtr, supplierIdPtr, statusPtr, fromPtr, toPtr, searchPtr)
 	if err != nil {
 		handleError(w, err)
 		return
