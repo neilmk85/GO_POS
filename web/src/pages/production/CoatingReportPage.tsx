@@ -55,21 +55,21 @@ function DateFilter({ from, to, onChange }: { from: string; to: string; onChange
             {PRESETS.map(p => (
               <button key={p.label} onClick={() => { onChange(p.from(), p.to()); setOpen(false) }}
                 className={`w-full text-left px-3 py-2 text-sm rounded-xl font-medium transition-colors ${
-                  from === p.from() && to === p.to() ? 'bg-emerald-50 text-emerald-700' : 'text-gray-700 hover:bg-gray-50'
+                  from === p.from() && to === p.to() ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'
                 }`}>{p.label}</button>
             ))}
           </div>
           <div className="border-t border-gray-100 pt-3 space-y-2">
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">Custom Range</p>
             <input type="date" value={tmpFrom} onChange={e => setTmpFrom(e.target.value)}
-              className="w-full px-3 py-1.5 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-400 text-gray-700" />
+              className="w-full px-3 py-1.5 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-700" />
             <input type="date" value={tmpTo} onChange={e => setTmpTo(e.target.value)}
-              className="w-full px-3 py-1.5 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-400 text-gray-700" />
+              className="w-full px-3 py-1.5 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-700" />
             <div className="flex gap-2">
               <button onClick={() => { onChange('',''); setOpen(false) }}
                 className="flex-1 py-1.5 text-xs font-medium text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50">Clear</button>
               <button onClick={() => { onChange(tmpFrom, tmpTo); setOpen(false) }} disabled={!tmpFrom || !tmpTo}
-                className="flex-1 py-1.5 text-xs font-bold text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 disabled:opacity-40">Apply</button>
+                className="flex-1 py-1.5 text-xs font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700 disabled:opacity-40">Apply</button>
             </div>
           </div>
         </div>
@@ -121,7 +121,7 @@ export default function CoatingReportPage() {
     <div className="min-h-screen bg-gray-50">
 
       {/* Hero */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-emerald-700 via-emerald-600 to-teal-600 px-8 pt-7 pb-6 shadow-[0_8px_40px_rgba(4,120,87,0.30)]">
+      <div className="relative overflow-hidden bg-gradient-to-br from-blue-700 via-blue-600 to-cyan-600 px-8 pt-7 pb-6 shadow-[0_8px_40px_rgba(29,78,216,0.30)]">
         <div className="absolute -top-8 -right-8 w-52 h-52 rounded-full bg-white/5 blur-2xl pointer-events-none" />
         <div className="absolute inset-0 opacity-[0.06] pointer-events-none"
           style={{ backgroundImage: 'radial-gradient(circle,#fff 1px,transparent 1px)', backgroundSize: '24px 24px' }} />
@@ -132,9 +132,9 @@ export default function CoatingReportPage() {
               <Paintbrush size={22} className="text-white" />
             </div>
             <div>
-              <p className="text-xs font-semibold text-emerald-200 uppercase tracking-widest mb-0.5">Production · Contractor Report</p>
+              <p className="text-xs font-semibold text-blue-200 uppercase tracking-widest mb-0.5">Production · Contractor Report</p>
               <h1 className="text-2xl font-extrabold text-white tracking-tight">Coating Report</h1>
-              <p className="text-sm text-emerald-200 mt-0.5">{contractorName}</p>
+              <p className="text-sm text-blue-200 mt-0.5">{contractorName}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -157,7 +157,7 @@ export default function CoatingReportPage() {
             { label: 'Rate Basis',       value: '₹ / pipe by diameter' },
           ].map((s, i) => (
             <div key={i} className="flex-1 px-5 py-3 bg-white/5">
-              <p className="text-[10px] font-bold text-emerald-200 uppercase tracking-widest mb-0.5">{s.label}</p>
+              <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest mb-0.5">{s.label}</p>
               <p className="text-lg font-bold text-white">{s.value}</p>
             </div>
           ))}
@@ -186,31 +186,31 @@ export default function CoatingReportPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-emerald-50 border-b border-emerald-100">
-                    <th className="px-4 py-3 text-left text-[11px] font-bold text-emerald-700 uppercase tracking-widest">PO Number</th>
-                    <th className="px-4 py-3 text-left text-[11px] font-bold text-emerald-700 uppercase tracking-widest">Pipe Config</th>
-                    <th className="px-4 py-3 text-right text-[11px] font-bold text-emerald-700 uppercase tracking-widest">Dia (mm)</th>
-                    <th className="px-4 py-3 text-right text-[11px] font-bold text-emerald-700 uppercase tracking-widest">Pipes Coated</th>
-                    <th className="px-4 py-3 text-right text-[11px] font-bold text-emerald-700 uppercase tracking-widest">Rate (₹/pipe)</th>
-                    <th className="px-4 py-3 text-right text-[11px] font-bold text-emerald-700 uppercase tracking-widest">Amount ₹</th>
+                  <tr className="bg-blue-50 border-b border-blue-100">
+                    <th className="px-4 py-3 text-left text-[11px] font-bold text-blue-700 uppercase tracking-widest">PO Number</th>
+                    <th className="px-4 py-3 text-left text-[11px] font-bold text-blue-700 uppercase tracking-widest">Pipe Config</th>
+                    <th className="px-4 py-3 text-right text-[11px] font-bold text-blue-700 uppercase tracking-widest">Dia (mm)</th>
+                    <th className="px-4 py-3 text-right text-[11px] font-bold text-blue-700 uppercase tracking-widest">Pipes Coated</th>
+                    <th className="px-4 py-3 text-right text-[11px] font-bold text-blue-700 uppercase tracking-widest">Rate (₹/pipe)</th>
+                    <th className="px-4 py-3 text-right text-[11px] font-bold text-blue-700 uppercase tracking-widest">Amount ₹</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {rows.map((r: any, i: number) => (
-                    <tr key={i} className="hover:bg-emerald-50/40 transition-colors">
+                    <tr key={i} className="hover:bg-blue-50/40 transition-colors">
                       <td className="px-4 py-3 font-mono text-xs text-violet-700 font-bold">{r.poNumber}</td>
                       <td className="px-4 py-3 text-gray-800 font-medium">{r.pipeConfig}</td>
                       <td className="px-4 py-3 text-right text-gray-600">{r.diameterMm}</td>
                       <td className="px-4 py-3 text-right font-semibold text-gray-900">{Number(r.coatPipesCompleted).toLocaleString()}</td>
                       <td className="px-4 py-3 text-right text-gray-500">₹{fmt(r.coatRatePerPipe)}</td>
-                      <td className="px-4 py-3 text-right font-bold text-emerald-700">₹{fmt(r.coatCost)}</td>
+                      <td className="px-4 py-3 text-right font-bold text-blue-700">₹{fmt(r.coatCost)}</td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr className="bg-emerald-50 border-t border-emerald-100">
+                  <tr className="bg-blue-50 border-t border-blue-100">
                     <td colSpan={5} className="px-4 py-3 text-right text-sm font-bold text-gray-700">Total Coating Cost</td>
-                    <td className="px-4 py-3 text-right text-base font-extrabold text-emerald-700">₹{fmt(total)}</td>
+                    <td className="px-4 py-3 text-right text-base font-extrabold text-blue-700">₹{fmt(total)}</td>
                   </tr>
                 </tfoot>
               </table>
