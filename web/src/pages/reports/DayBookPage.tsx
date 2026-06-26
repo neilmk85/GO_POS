@@ -485,7 +485,7 @@ export default function DayBookPage() {
       <div className="px-6 py-6">
 
         {/* Filter bar */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 mb-5">
+        <div className="bg-white rounded-2xl shadow-md p-4 mb-5">
           <div className="flex flex-wrap items-center gap-3">
 
             {/* Search */}
