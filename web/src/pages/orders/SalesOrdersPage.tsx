@@ -129,36 +129,33 @@ export default function SalesOrdersPage() {
       <div className="bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.08)] overflow-hidden ring-1 ring-gray-100">
 
         {/* Dark header */}
-        <div className="bg-gradient-to-r from-violet-600 to-blue-600 px-6 pt-4 pb-3">
-          {/* Title row */}
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3.5">
-              <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center">
-                <FileText size={18} className="text-amber-400" />
+        <div className="bg-gradient-to-r from-violet-600 to-blue-600 px-6 py-3">
+          <div className="flex items-center gap-3">
+            {/* Icon + title */}
+            <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
+              <FileText size={18} className="text-amber-400" />
+            </div>
+            <div className="shrink-0">
+              <h2 className="text-sm font-bold text-white tracking-wide">All Sales Orders</h2>
+              <p className="text-xs text-blue-100 mt-0.5">{total} order{total !== 1 ? 's' : ''}</p>
+            </div>
+            {/* Filters inline */}
+            <div className="flex items-center gap-2 ml-4 flex-1">
+              <div className="relative w-48">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/60" />
+                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…"
+                  className="w-full pl-8 pr-7 py-1.5 text-sm bg-white/15 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:bg-white/25" />
+                {search && <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/50 hover:text-white"><X size={13} /></button>}
               </div>
-              <div>
-                <h2 className="text-sm font-bold text-white tracking-wide">All Sales Orders</h2>
-                <p className="text-xs text-blue-100 mt-0.5">{total} order{total !== 1 ? 's' : ''}</p>
+              <div className="flex gap-1.5">
+                {['ALL','DRAFT','CONFIRMED','IN_PRODUCTION','DELIVERED','CANCELLED'].map(s => (
+                  <button key={s} onClick={() => setStatus(s)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${status === s ? 'bg-white text-violet-700 shadow-sm' : 'bg-white/15 text-white border border-white/20 hover:bg-white/25'}`}>
+                    {s === 'ALL' ? 'All' : (STATUS_CFG[s]?.label ?? s)}
+                  </button>
+                ))}
               </div>
-            </div>
-          </div>
-          {/* Filter row */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="relative flex-1 min-w-48">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/60" />
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search SO number or customer…"
-                className="w-full pl-8 pr-8 py-1.5 text-sm bg-white/15 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:bg-white/25" />
-              {search && <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/50 hover:text-white"><X size={13} /></button>}
-            </div>
-            <div className="flex gap-1.5 flex-wrap">
-              {['ALL','DRAFT','CONFIRMED','IN_PRODUCTION','DELIVERED','CANCELLED'].map(s => (
-                <button key={s} onClick={() => setStatus(s)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${status === s ? 'bg-white text-violet-700 shadow-sm' : 'bg-white/15 text-white border border-white/20 hover:bg-white/25'}`}>
-                  {s === 'ALL' ? 'All' : (STATUS_CFG[s]?.label ?? s)}
-                </button>
-              ))}
-            </div>
-            <div ref={filterRef} className="relative">
+              <div ref={filterRef} className="relative ml-auto">
               <button onClick={() => setShowFilter(v => !v)}
                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${fromDate || toDate ? 'bg-white text-violet-700 border-white' : 'bg-white/15 text-white border-white/20 hover:bg-white/25'}`}>
                 <CalendarDays size={13} />
@@ -183,8 +180,9 @@ export default function SalesOrdersPage() {
                 </div>
               )}
             </div>
-          </div>
-        </div>
+            </div>{/* end filters */}
+          </div>{/* end flex row */}
+        </div>{/* end dark header */}
 
         {/* Table */}
         <table className="w-full text-sm">
