@@ -427,6 +427,7 @@ export default function DirectPurchasePage() {
   const [paymentMode, setPaymentMode] = useState<'cash' | 'credit' | 'partial'>('cash')
   const [paidAmount, setPaidAmount] = useState('')
   const [saving, setSaving] = useState(false)
+  const [showForm, setShowForm] = useState(false)
 
   // History
   const [histPage, setHistPage] = useState(0)
@@ -512,6 +513,7 @@ export default function DirectPurchasePage() {
       qc.invalidateQueries({ queryKey: ['purchase-orders'] })
       qc.invalidateQueries({ queryKey: ['inventory', 'all', effectiveOutletId] })
       qc.invalidateQueries({ queryKey: ['inventory', 'low-stock', effectiveOutletId] })
+      setShowForm(false)
     } catch (err: any) {
       toast.error(err?.response?.data?.message ?? 'An error occurred')
     } finally {
@@ -541,14 +543,36 @@ export default function DirectPurchasePage() {
                 <h1 className="text-white text-2xl font-bold tracking-tight">Direct Purchase</h1>
               </div>
             </div>
-            <span className="text-xs bg-white/10 border border-white/20 text-white px-3 py-1.5 rounded-full font-medium">
-              Status: Received on Submit
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs bg-white/10 border border-white/20 text-white px-3 py-1.5 rounded-full font-medium">
+                Status: Received on Submit
+              </span>
+              <button
+                onClick={() => setShowForm(true)}
+                className="flex items-center gap-2 bg-white text-violet-700 hover:bg-violet-50 transition-all px-4 py-2 rounded-xl text-sm font-bold shadow-md active:scale-95"
+              >
+                <Plus size={16} /> Add Direct Purchase
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="p-6 space-y-5">
+      {/* ── Add Direct Purchase Modal ── */}
+      {showForm && createPortal(
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={e => { if (e.target === e.currentTarget) setShowForm(false) }}>
+          <div className="relative bg-gray-50 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] overflow-y-auto">
+            {/* Modal header */}
+            <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 bg-white border-b border-gray-100 rounded-t-2xl">
+              <div className="flex items-center gap-3">
+                <Package size={20} className="text-violet-600" />
+                <h2 className="text-lg font-bold text-gray-900">Add Direct Purchase</h2>
+              </div>
+              <button onClick={() => setShowForm(false)} className="p-2 hover:bg-gray-100 rounded-xl text-gray-400 hover:text-gray-700 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 space-y-5">
 
         {/* ── PO Header ── */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
@@ -794,6 +818,14 @@ export default function DirectPurchasePage() {
             )}
           </div>
         </div>
+
+            </div>{/* end modal form p-6 */}
+          </div>{/* end modal panel */}
+        </div>,
+        document.body
+      )}
+
+      <div className="p-6">
 
         {/* ── Purchase History ── */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
