@@ -12,6 +12,8 @@ import { pipePurchasesApi, type PipePurchaseEntry } from '@/services/businessApi
 import { pipeConfigApi, vendorApi } from '@/services/api'
 import { useAuthStore } from '@/store/authStore'
 
+const NO_SPINNER = '[appearance:textfield] [&::-webkit-inner-spin-button]:hidden [&::-webkit-outer-spin-button]:hidden'
+
 function today() {
   return new Date().toISOString().slice(0, 10)
 }
@@ -475,7 +477,7 @@ function AddForm({
                 <div className="px-2 py-2.5">
                   <input type="number" min={1} placeholder="0" value={quantity}
                     onChange={e => { setQuantity(e.target.value); setErrors(prev => ({ ...prev, quantity: undefined! })) }}
-                    className={`w-full px-2 py-1.5 text-sm text-right border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white ${errors.quantity ? 'border-red-400' : 'border-gray-200'}`} />
+                    className={`w-full px-2 py-1.5 text-sm text-right border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white ${NO_SPINNER} ${errors.quantity ? 'border-red-400' : 'border-gray-200'}`} />
                   {errors.quantity && <p className="text-[10px] text-red-500 mt-0.5">{errors.quantity}</p>}
                 </div>
                 <div className="px-2 py-2.5">
@@ -483,7 +485,7 @@ function AddForm({
                     <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-300 pointer-events-none">₹</span>
                     <input type="number" min={0} step="0.01" placeholder="0.00" value={unitRate}
                       onChange={e => setUnitRate(e.target.value)}
-                      className="w-full pl-5 pr-2 py-1.5 text-sm text-right border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white" />
+                      className={`w-full pl-5 pr-2 py-1.5 text-sm text-right border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white ${NO_SPINNER}`} />
                   </div>
                 </div>
                 <div className="px-3 py-2.5 text-right">
