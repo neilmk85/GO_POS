@@ -13,6 +13,8 @@ import { useAuthStore } from '@/store/authStore'
 import CustomerSearchInput from '@/components/CustomerSearchInput'
 import { createPortal } from 'react-dom'
 
+const NO_SPINNER = '[appearance:textfield] [&::-webkit-inner-spin-button]:hidden [&::-webkit-outer-spin-button]:hidden'
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const STATUS_COLORS: Record<string, string> = {
@@ -415,25 +417,25 @@ function CreateQuotationPanel({ outletId, onClose, onCreated }: {
                       <div className="px-2 py-2.5">
                         <input type="number" min="0.01" step="0.01" value={it.meters || ''}
                           onChange={e => updateItem(it.id, 'meters', parseFloat(e.target.value) || 0)}
-                          className="w-full px-2 py-1.5 text-sm text-right border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300 bg-white" />
+                          className={`w-full px-2 py-1.5 text-sm text-right border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300 bg-white ${NO_SPINNER}`} />
                       </div>
                       <div className="px-2 py-2.5">
                         <div className="relative">
                           <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-300 pointer-events-none">₹</span>
                           <input type="number" min="0" step="0.01" value={it.unitPrice || ''}
                             onChange={e => updateItem(it.id, 'unitPrice', parseFloat(e.target.value) || 0)}
-                            className="w-full pl-5 pr-2 py-1.5 text-sm text-right border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300 bg-white" />
+                            className={`w-full pl-5 pr-2 py-1.5 text-sm text-right border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300 bg-white ${NO_SPINNER}`} />
                         </div>
                       </div>
                       <div className="px-2 py-2.5">
                         <input type="number" min="0" max="100" step="0.5" value={it.discountPercent || ''}
                           onChange={e => updateItem(it.id, 'discountPercent', parseFloat(e.target.value) || 0)}
-                          className="w-full px-2 py-1.5 text-sm text-right border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300 bg-white" />
+                          className={`w-full px-2 py-1.5 text-sm text-right border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300 bg-white ${NO_SPINNER}`} />
                       </div>
                       <div className="px-2 py-2.5">
                         <input type="number" min="0" max="100" step="0.5" value={it.taxRate || ''}
                           onChange={e => updateItem(it.id, 'taxRate', parseFloat(e.target.value) || 0)}
-                          className="w-full px-2 py-1.5 text-sm text-right border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300 bg-white" />
+                          className={`w-full px-2 py-1.5 text-sm text-right border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300 bg-white ${NO_SPINNER}`} />
                       </div>
                       <div className="px-3 py-2.5 text-right">
                         <p className="text-sm font-bold text-gray-900 tabular-nums">₹{c.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
@@ -467,14 +469,14 @@ function CreateQuotationPanel({ outletId, onClose, onCreated }: {
                       <label className="text-xs font-medium text-gray-600 w-36 shrink-0">Trade Discount (%)</label>
                       <input type="number" min="0" max="100" step="0.5" value={billDiscPct || ''}
                         onChange={e => setBillDiscPct(parseFloat(e.target.value) || 0)} placeholder="0"
-                        className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-400 bg-white text-right" />
+                        className={`flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-400 bg-white text-right ${NO_SPINNER}`} />
                       {billDiscPct > 0 && <span className="text-xs text-emerald-600 font-medium whitespace-nowrap">−₹{billDiscAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>}
                     </div>
                     <div className="flex items-center gap-3">
                       <label className="text-xs font-medium text-gray-600 w-36 shrink-0">Freight (₹)</label>
                       <input type="number" min="0" step="0.01" value={shippingAmt || ''}
                         onChange={e => setShippingAmt(parseFloat(e.target.value) || 0)} placeholder="0.00"
-                        className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-400 bg-white text-right" />
+                        className={`flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-400 bg-white text-right ${NO_SPINNER}`} />
                     </div>
                   </div>
                 </div>
