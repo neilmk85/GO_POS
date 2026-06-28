@@ -161,6 +161,9 @@ function ProductPicker({ onSelect }: { onSelect: (p: any) => void }) {
   )
 }
 
+// Sentinel: user explicitly chose 0% — distinct from null (= "not overridden, use product default")
+const NO_TAX = { id: -1, name: 'No Tax', totalRate: 0, cgstRate: 0, sgstRate: 0, igstRate: 0, cessRate: 0 }
+
 // ─── GST Picker (portal dropdown — shows % only) ─────────────────────────────
 function GstPicker({ value, onChange }: { value: any; onChange: (tg: any | null) => void }) {
   const [open, setOpen] = useState(false)
@@ -196,8 +199,8 @@ function GstPicker({ value, onChange }: { value: any; onChange: (tg: any | null)
     <div style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 9999 }}>
       <div className="bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden">
         <div className="max-h-48 overflow-y-auto">
-          <button onMouseDown={e => { e.preventDefault(); onChange(null); setOpen(false) }}
-            className="w-full px-3 py-2.5 text-sm text-gray-500 hover:bg-gray-50 text-left border-b border-gray-100">
+          <button onMouseDown={e => { e.preventDefault(); onChange(NO_TAX); setOpen(false) }}
+            className={`w-full px-3 py-2.5 text-sm text-left border-b border-gray-100 ${value?.id === -1 || (value && Number(value.totalRate) === 0) ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-gray-500 hover:bg-gray-50'}`}>
             0%
           </button>
           {(groups as any[]).filter((g: any) => Number(g.totalRate) > 0).map((g: any) => (
