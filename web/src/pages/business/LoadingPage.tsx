@@ -152,7 +152,9 @@ function Autocomplete({
 }) {
   const [open, setOpen]   = useState(false)
   const [query, setQuery] = useState(value)
+  const [pos, setPos]     = useState<{ top: number; left: number; width: number } | null>(null)
   const ref               = useRef<HTMLDivElement>(null)
+  const inputRef          = useRef<HTMLInputElement>(null)
 
   useEffect(() => { setQuery(value) }, [value])
 
@@ -162,9 +164,42 @@ function Autocomplete({
     return () => document.removeEventListener('mousedown', h)
   }, [])
 
+  function updatePos() {
+    if (inputRef.current) {
+      const r = inputRef.current.getBoundingClientRect()
+      setPos({ top: r.bottom + 4, left: r.left, width: r.width })
+    }
+  }
+
+  useEffect(() => {
+    if (!open) return
+    updatePos()
+    window.addEventListener('scroll', updatePos, true)
+    window.addEventListener('resize', updatePos)
+    return () => { window.removeEventListener('scroll', updatePos, true); window.removeEventListener('resize', updatePos) }
+  }, [open])
+
   const filtered = options.filter(o =>
     o.toLowerCase().includes(query.toLowerCase())
   )
+
+  const dropdown = open && filtered.length > 0 && pos ? createPortal(
+    <div style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 9999 }}>
+      <div className="bg-white border border-gray-100 rounded-xl shadow-xl max-h-48 overflow-y-auto">
+        {filtered.map(opt => (
+          <button
+            key={opt}
+            type="button"
+            className="w-full text-left px-3 py-2 text-sm hover:bg-violet-50 hover:text-violet-700 transition-colors"
+            onMouseDown={e => { e.preventDefault(); onChange(opt); setQuery(displayValue ? displayValue(opt) : opt); setOpen(false) }}
+          >
+            {renderOption ? renderOption(opt) : opt}
+          </button>
+        ))}
+      </div>
+    </div>,
+    document.body
+  ) : null
 
   return (
     <div className="relative" ref={ref}>
@@ -172,6 +207,7 @@ function Autocomplete({
         open ? 'border-violet-400 ring-2 ring-violet-200' : 'border-gray-200 hover:border-gray-300'
       }`}>
         <input
+          ref={inputRef}
           className="flex-1 text-sm text-gray-800 focus:outline-none bg-transparent"
           placeholder={placeholder}
           value={query}
@@ -184,20 +220,7 @@ function Autocomplete({
           </button>
         )}
       </div>
-      {open && filtered.length > 0 && (
-        <div className="absolute top-full mt-1.5 left-0 right-0 z-50 bg-white border border-gray-100 rounded-xl shadow-xl max-h-48 overflow-y-auto">
-          {filtered.map(opt => (
-            <button
-              key={opt}
-              type="button"
-              className="w-full text-left px-3 py-2 text-sm hover:bg-violet-50 hover:text-violet-700 transition-colors"
-              onClick={() => { onChange(opt); setQuery(displayValue ? displayValue(opt) : opt); setOpen(false) }}
-            >
-              {renderOption ? renderOption(opt) : opt}
-            </button>
-          ))}
-        </div>
-      )}
+      {dropdown}
     </div>
   )
 }
