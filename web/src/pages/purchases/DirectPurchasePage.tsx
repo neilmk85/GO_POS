@@ -25,10 +25,10 @@ function fmtCur(n: any) {
 }
 function paymentBadge(po: any) {
   const bill = po.sourceBills?.[0]
-  if (!bill) return { label: 'Cash', color: 'bg-emerald-100 text-emerald-700' }
-  if (bill.status === 'PAID')    return { label: 'Paid', color: 'bg-emerald-100 text-emerald-700' }
-  if (bill.status === 'PARTIAL') return { label: 'Partial', color: 'bg-amber-100 text-amber-700' }
-  return { label: 'Unpaid', color: 'bg-red-100 text-red-700' }
+  if (!bill) return { label: 'Cash', color: 'text-emerald-600' }
+  if (bill.status === 'PAID')    return { label: 'Paid', color: 'text-emerald-600' }
+  if (bill.status === 'PARTIAL') return { label: 'Partial', color: 'text-amber-600' }
+  return { label: 'Unpaid', color: 'text-red-600' }
 }
 
 function fmtDate(s: string) {
@@ -1095,7 +1095,7 @@ export default function DirectPurchasePage() {
                   <div className="bg-gray-50 rounded-xl p-4 flex items-center justify-between">
                     <div>
                       <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-1">Payment</p>
-                      <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${badge.color}`}>{badge.label}</span>
+                      <span className={`text-sm font-semibold ${badge.color}`}>{badge.label}</span>
                     </div>
                     {bill && (
                       <div className="text-right">
@@ -1215,14 +1215,14 @@ export default function DirectPurchasePage() {
                     ) : history.map((po: any) => (
                       <tr key={po.id} onClick={() => setSelectedPO(po)} className="border-b border-gray-50 hover:bg-violet-50/50 cursor-pointer transition-colors">
                         <td className="px-4 py-3">
-                          <span className="font-mono text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-1 rounded-lg">{po.poNumber}</span>
+                          <span className="font-mono text-xs font-bold text-white bg-gray-800 px-2 py-1 rounded-lg">{po.poNumber}</span>
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-600">{po.receivedDate ? fmtDate(po.receivedDate) : fmtDate(po.createdAt)}</td>
                         <td className="px-4 py-3 text-sm font-medium text-gray-800">{po.supplier?.name ?? '—'}</td>
                         <td className="px-4 py-3 text-right text-sm text-gray-600">{po.items?.length ?? 0}</td>
                         <td className="px-4 py-3 text-right text-sm font-bold text-gray-900">{fmtCur(po.totalAmount)}</td>
                         <td className="px-4 py-3 text-center">
-                          {(() => { const b = paymentBadge(po); return <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${b.color}`}>{b.label}</span> })()}
+                          {(() => { const b = paymentBadge(po); return <span className={`text-xs font-semibold ${b.color}`}>{b.label}</span> })()}
                         </td>
                         <td className="px-4 py-3 text-center">
                           <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${
