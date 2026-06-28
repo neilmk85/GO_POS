@@ -33,7 +33,7 @@ class PipesWidget : AppWidgetProvider() {
 
     companion object {
         private const val TAG = "PipesWidget"
-        private const val PREFS_NAME = "HomeWidgetPlugin"
+        private const val PREFS_NAME = "HomeWidgetPreferences"
 
         fun updateWidget(context: Context, appWidgetManager: AppWidgetManager, widgetId: Int) {
             val views = RemoteViews(context.packageName, R.layout.widget_pipes)
