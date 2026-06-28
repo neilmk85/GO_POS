@@ -4,7 +4,7 @@ import { format, startOfMonth } from 'date-fns'
 import {
   Package, Plus, Trash2, X, Loader2, AlertTriangle,
   ShoppingCart, Hash, Banknote, Building2, BarChart2,
-  Calendar, ChevronDown,
+  Calendar, ChevronDown, ArrowLeft, Search, CheckCircle2,
 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, Legend, PieChart, Pie, Cell, ResponsiveContainer } from 'recharts'
 import toast from 'react-hot-toast'
@@ -171,7 +171,106 @@ function DateRangePicker({ fromDate, toDate, onChange }: {
   )
 }
 
-// ─── Add Form ─────────────────────────────────────────────────────────────────
+// ─── Vendor Picker ────────────────────────────────────────────────────────────
+
+function VendorPicker({ vendors, onSelect }: {
+  vendors: { id: number; name: string }[]
+  onSelect: (v: any) => void
+}) {
+  const [query, setQuery] = useState('')
+  const [open, setOpen]   = useState(false)
+  const ref               = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  const filtered = vendors
+    .filter(v => !query.trim() || v.name.toLowerCase().includes(query.toLowerCase()))
+    .slice(0, 20)
+
+  return (
+    <div ref={ref} className="relative">
+      <div className="flex items-center gap-2 border border-gray-200 rounded-xl px-3 py-2.5 bg-gray-50 focus-within:border-blue-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+        <Search size={14} className="text-gray-400 shrink-0" />
+        <input value={query} onChange={e => { setQuery(e.target.value); setOpen(true) }} onFocus={() => setOpen(true)}
+          placeholder="Search vendor by name…"
+          className="flex-1 text-sm bg-transparent text-gray-700 placeholder-gray-400 focus:outline-none" />
+      </div>
+      {open && (
+        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 max-h-52 overflow-y-auto">
+          {filtered.length === 0
+            ? <p className="text-xs text-gray-400 text-center py-4">No vendors found</p>
+            : filtered.map(v => (
+              <button key={v.id} onMouseDown={() => { onSelect(v); setQuery(''); setOpen(false) }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-blue-50 text-left transition-colors border-b border-gray-50 last:border-0">
+                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs shrink-0">
+                  {v.name[0]?.toUpperCase()}
+                </div>
+                <p className="text-sm font-medium text-gray-900">{v.name}</p>
+              </button>
+            ))
+          }
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Pipe Config Picker ───────────────────────────────────────────────────────
+
+function PipePicker({ pipeConfigs, onAdd }: { pipeConfigs: any[]; onAdd: (pc: any) => void }) {
+  const [query, setQuery] = useState('')
+  const [open, setOpen]   = useState(false)
+  const ref               = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  const filtered = pipeConfigs.filter(c => {
+    if (!query.trim()) return true
+    const q = query.toLowerCase()
+    return String(c.diameterMm).includes(q) || (c.pressureClass ?? '').toLowerCase().includes(q) || (c.name ?? '').toLowerCase().includes(q)
+  })
+
+  return (
+    <div ref={ref} className="relative">
+      <div className="flex items-center gap-2 border border-gray-200 rounded-xl px-4 py-3 bg-gray-50 hover:border-gray-300 focus-within:border-blue-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+        <Package size={15} className="text-gray-400 shrink-0" />
+        <input value={query} onChange={e => { setQuery(e.target.value); setOpen(true) }} onFocus={() => setOpen(true)}
+          placeholder="Search pipe config by diameter or name…"
+          className="flex-1 text-sm bg-transparent text-gray-700 placeholder-gray-400 focus:outline-none" />
+        <ChevronDown size={14} className={`text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </div>
+      {open && (
+        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 max-h-64 overflow-auto">
+          {filtered.length === 0
+            ? <p className="text-xs text-gray-400 text-center py-4">No pipe configs found</p>
+            : filtered.map((pc: any) => (
+              <button key={pc.id} onMouseDown={() => { onAdd(pc); setQuery(''); setOpen(false) }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-blue-50 text-left transition-colors border-b border-gray-50 last:border-0">
+                <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+                  <Package size={14} className="text-blue-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">{pc.diameterMm}mm · {pc.pressureClass}</p>
+                  <p className="text-xs text-gray-400">{pc.name}</p>
+                </div>
+              </button>
+            ))
+          }
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Add Form (full-screen overlay) ──────────────────────────────────────────
 
 function AddForm({
   outletId,
@@ -187,19 +286,22 @@ function AddForm({
   onCancel: () => void
 }) {
   const qc = useQueryClient()
-  const [form, setForm] = useState({
-    purchaseDate:  today(),
-    pipeConfigId:  '',
-    pipeName:      '',
-    vendorId:      '',
-    vendorName:    '',
-    invoiceNumber: '',
-    quantity:      '',
-    unitRate:      '',
-    totalAmount:   '',
-    notes:         '',
-  })
-  const [errors, setErrors] = useState<Record<string, string>>({})
+
+  const [visible, setVisible]           = useState(false)
+  const [selectedVendor, setSelectedVendor] = useState<any>(null)
+  const [vendorFreeText, setVendorFreeText] = useState('')
+  const [selectedPipe, setSelectedPipe] = useState<any>(null)
+  const [purchaseDate, setPurchaseDate] = useState(today())
+  const [invoiceNumber, setInvoiceNumber] = useState('')
+  const [quantity, setQuantity]         = useState('')
+  const [unitRate, setUnitRate]         = useState('')
+  const [notes, setNotes]               = useState('')
+  const [errors, setErrors]             = useState<Record<string, string>>({})
+
+  useEffect(() => { const id = requestAnimationFrame(() => setVisible(true)); return () => cancelAnimationFrame(id) }, [])
+
+  const effectiveVendorName = selectedVendor?.name ?? vendorFreeText
+  const totalAmount = ((Number(quantity) || 0) * (Number(unitRate) || 0)).toFixed(2)
 
   const mutation = useMutation({
     mutationFn: (data: any) => pipePurchasesApi.create(data),
@@ -211,162 +313,253 @@ function AddForm({
     onError: () => toast.error('Failed to record purchase'),
   })
 
-  function set(k: keyof typeof form, v: string) {
-    setForm(prev => {
-      const next = { ...prev, [k]: v }
-      // Auto-compute total
-      const qty  = Number(k === 'quantity'  ? v : next.quantity)
-      const rate = Number(k === 'unitRate'   ? v : next.unitRate)
-      if (!isNaN(qty) && !isNaN(rate)) {
-        next.totalAmount = (qty * rate).toFixed(2)
-      }
-      return next
-    })
-    setErrors(prev => { const n = { ...prev }; delete n[k]; return n })
-  }
-
-  function handlePipeChange(id: string) {
-    const pc = pipeConfigs.find((p: any) => String(p.id) === id)
-    setForm(prev => ({
-      ...prev,
-      pipeConfigId: id,
-      pipeName: pc?.name ?? prev.pipeName,
-    }))
-  }
-
-  function handleVendorChange(id: string) {
-    const v = vendors.find((v: any) => String(v.id) === id)
-    setForm(prev => ({
-      ...prev,
-      vendorId:   id,
-      vendorName: v?.name ?? prev.vendorName,
-    }))
-  }
+  function handleClose() { setVisible(false); setTimeout(onCancel, 280) }
 
   function handleSubmit() {
     const errs: Record<string, string> = {}
-    if (!form.purchaseDate)             errs.purchaseDate  = 'Date is required'
-    if (!form.pipeName.trim())          errs.pipeName      = 'Pipe type is required'
-    if (!form.quantity || Number(form.quantity) < 1) errs.quantity = 'Quantity must be ≥ 1'
-    if (!form.vendorName.trim())        errs.vendorName    = 'Vendor name is required'
+    if (!selectedPipe)                          errs.pipe     = 'Select a pipe type'
+    if (!effectiveVendorName.trim())            errs.vendor   = 'Vendor name is required'
+    if (!quantity || Number(quantity) < 1)      errs.quantity = 'Quantity must be ≥ 1'
     if (Object.keys(errs).length) { setErrors(errs); return }
 
     mutation.mutate({
-      outletId:      outletId,
-      purchaseDate:  form.purchaseDate,
-      pipeConfigId:  form.pipeConfigId ? Number(form.pipeConfigId) : null,
-      pipeName:      form.pipeName.trim(),
-      supplierId:    form.vendorId ? Number(form.vendorId) : null,
-      vendorName:    form.vendorName.trim(),
-      invoiceNumber: form.invoiceNumber.trim(),
-      quantity:      Number(form.quantity),
-      unitRate:      form.unitRate || '0',
-      totalAmount:   form.totalAmount || '0',
-      notes:         form.notes.trim(),
+      outletId,
+      purchaseDate,
+      pipeConfigId:  selectedPipe.id,
+      pipeName:      selectedPipe.name,
+      supplierId:    selectedVendor?.id ?? null,
+      vendorName:    effectiveVendorName.trim(),
+      invoiceNumber: invoiceNumber.trim(),
+      quantity:      Number(quantity),
+      unitRate:      unitRate || '0',
+      totalAmount,
+      notes:         notes.trim(),
       createdBy:     '',
     })
   }
 
-  const inp = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
-  const sel = inp + ' bg-white'
-  const err = (k: string) => errors[k] ? <p className="text-red-500 text-xs mt-1">{errors[k]}</p> : null
-
   return (
-    <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 mb-4">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold text-blue-900 text-sm">Record Pipe Purchase</h3>
-        <button onClick={onCancel} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
-      </div>
+    <div className="fixed inset-0 z-50 bg-[#f8f9fb] overflow-y-auto"
+      style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(12px)', transition: 'all 280ms cubic-bezier(0.22,1,0.36,1)' }}>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-        {/* Purchase Date */}
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Purchase Date *</label>
-          <input type="date" value={form.purchaseDate} onChange={e => set('purchaseDate', e.target.value)} className={inp} />
-          {err('purchaseDate')}
-        </div>
-
-        {/* Pipe Type */}
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Pipe Type *</label>
-          <select value={form.pipeConfigId} onChange={e => handlePipeChange(e.target.value)} className={sel}>
-            <option value="">— Select Pipe Config —</option>
-            {pipeConfigs.map((p: any) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
-          {/* Free-text override */}
-          <input
-            type="text"
-            placeholder="Or type pipe name manually"
-            value={form.pipeName}
-            onChange={e => set('pipeName', e.target.value)}
-            className={inp + ' mt-1'}
-          />
-          {err('pipeName')}
-        </div>
-
-        {/* Vendor */}
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Vendor *</label>
-          <select value={form.vendorId} onChange={e => handleVendorChange(e.target.value)} className={sel}>
-            <option value="">— Select Vendor —</option>
-            {vendors.map((v: any) => (
-              <option key={v.id} value={v.id}>{v.name}</option>
-            ))}
-          </select>
-          <input
-            type="text"
-            placeholder="Or type vendor name"
-            value={form.vendorName}
-            onChange={e => set('vendorName', e.target.value)}
-            className={inp + ' mt-1'}
-          />
-          {err('vendorName')}
-        </div>
-
-        {/* Invoice No */}
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Invoice No.</label>
-          <input type="text" placeholder="e.g. INV-2024-001" value={form.invoiceNumber} onChange={e => set('invoiceNumber', e.target.value)} className={inp} />
-        </div>
-
-        {/* Quantity */}
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Quantity (pcs) *</label>
-          <input type="number" min={1} placeholder="0" value={form.quantity} onChange={e => set('quantity', e.target.value)} className={inp} />
-          {err('quantity')}
-        </div>
-
-        {/* Unit Rate */}
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Unit Rate (₹)</label>
-          <input type="number" min={0} step="0.01" placeholder="0.00" value={form.unitRate} onChange={e => set('unitRate', e.target.value)} className={inp} />
-        </div>
-
-        {/* Total Amount */}
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Total Amount (₹)</label>
-          <input type="number" min={0} step="0.01" placeholder="auto-computed" value={form.totalAmount} onChange={e => set('totalAmount', e.target.value)} className={inp + ' bg-gray-50'} />
-        </div>
-
-        {/* Notes */}
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
-          <input type="text" placeholder="Optional notes" value={form.notes} onChange={e => set('notes', e.target.value)} className={inp} />
-        </div>
-      </div>
-
-      <div className="flex justify-end mt-4 gap-2">
-        <button onClick={onCancel} className="px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50">Cancel</button>
-        <button
-          onClick={handleSubmit}
-          disabled={mutation.isPending}
-          className="px-5 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
-        >
-          {mutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-          Record Purchase
+      {/* ── Sticky header ── */}
+      <div className="sticky top-0 z-20 bg-white border-b border-gray-200 px-8 py-4 flex items-center gap-4 shadow-sm">
+        <button onClick={handleClose}
+          className="w-9 h-9 rounded-xl border border-gray-200 hover:bg-gray-50 flex items-center justify-center text-gray-600 transition-colors">
+          <ArrowLeft size={18} />
         </button>
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center">
+            <Package size={17} className="text-white" />
+          </div>
+          <div>
+            <h1 className="text-lg font-bold text-gray-900 leading-none">Record Pipe Purchase</h1>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {selectedPipe
+                ? `${selectedPipe.name}${quantity ? ` · ${quantity} pcs` : ''}`
+                : 'Select vendor & pipe to get started'}
+            </p>
+          </div>
+        </div>
+        <div className="ml-auto flex gap-2">
+          <button onClick={handleClose}
+            className="px-4 py-2 border border-gray-300 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors text-gray-600">
+            Cancel
+          </button>
+          <button onClick={handleSubmit} disabled={mutation.isPending}
+            className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 text-white rounded-xl font-semibold text-sm shadow-lg shadow-blue-200 transition-all hover:shadow-xl hover:-translate-y-0.5 flex items-center gap-2">
+            {mutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
+            Record Purchase
+          </button>
+        </div>
+      </div>
+
+      <div className="max-w-[1600px] mx-auto px-8 py-6 grid grid-cols-12 gap-5">
+
+        {/* ── Left col ── */}
+        <div className="col-span-8 space-y-5">
+
+          {/* From / Vendor */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-white rounded-xl shadow-md p-5">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">From</p>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
+                  <Building2 size={17} className="text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-gray-900">PP Pipes Products</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Outlet #{outletId}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className={`bg-white rounded-xl shadow-md p-5 ${errors.vendor ? 'ring-2 ring-red-300' : ''}`}>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Vendor / Supplier</p>
+              {selectedVendor ? (
+                <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-xl p-3">
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                    {selectedVendor.name[0]?.toUpperCase()}
+                  </div>
+                  <p className="flex-1 font-semibold text-gray-900 text-sm truncate">{selectedVendor.name}</p>
+                  <button onClick={() => { setSelectedVendor(null); setVendorFreeText('') }}
+                    className="text-gray-400 hover:text-red-500 text-xs px-2 py-1 rounded-lg hover:bg-red-50 transition-colors shrink-0">Change</button>
+                </div>
+              ) : (
+                <>
+                  <VendorPicker vendors={vendors} onSelect={v => { setSelectedVendor(v); setErrors(e => ({ ...e, vendor: undefined! })) }} />
+                  <input type="text" placeholder="Or type vendor name manually…" value={vendorFreeText}
+                    onChange={e => { setVendorFreeText(e.target.value); setErrors(prev => ({ ...prev, vendor: undefined! })) }}
+                    className="mt-2 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 placeholder-gray-300" />
+                </>
+              )}
+              {errors.vendor && <p className="text-xs text-red-500 mt-2">{errors.vendor}</p>}
+            </div>
+          </div>
+
+          {/* Metadata bar */}
+          <div className="bg-white rounded-xl shadow-md">
+            <div className="grid divide-x divide-gray-100" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
+              <div className="px-5 py-4">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Purchase Date</p>
+                <input type="date" value={purchaseDate} onChange={e => setPurchaseDate(e.target.value)}
+                  className="w-full text-sm text-gray-800 border-0 bg-transparent p-0 focus:outline-none" />
+              </div>
+              <div className="px-5 py-4">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Invoice No.</p>
+                <input type="text" value={invoiceNumber} onChange={e => setInvoiceNumber(e.target.value)} placeholder="INV-2024-001"
+                  className="w-full text-sm text-gray-800 placeholder-gray-300 border-0 bg-transparent p-0 focus:outline-none" />
+              </div>
+              <div className="px-5 py-4">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Purchase No.</p>
+                <p className="text-sm text-gray-400 italic">Auto-assigned</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Pipe Details */}
+          <div className="bg-white rounded-xl shadow-md overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100">
+              <PipePicker pipeConfigs={pipeConfigs} onAdd={pc => { setSelectedPipe(pc); setErrors(e => ({ ...e, pipe: undefined! })) }} />
+            </div>
+
+            {/* Table header */}
+            <div className="grid text-[11px] font-bold text-gray-800 tracking-wide border-b border-blue-100"
+              style={{ gridTemplateColumns: '2.5fr 130px 150px 150px 36px', background: 'linear-gradient(to right, #eff6ff, #eef2ff)' }}>
+              <div className="px-5 py-3">Pipe Type</div>
+              <div className="px-3 py-3 text-right">Quantity (pcs)</div>
+              <div className="px-3 py-3 text-right">Unit Rate (₹)</div>
+              <div className="px-3 py-3 text-right">Total Amount</div>
+              <div />
+            </div>
+
+            {!selectedPipe ? (
+              <div className="py-10 text-center">
+                <p className="text-sm text-gray-400">No pipe selected — search above to add</p>
+                {errors.pipe && <p className="text-xs text-red-500 mt-1">{errors.pipe}</p>}
+              </div>
+            ) : (
+              <div className="grid items-center border-b border-gray-100 hover:bg-blue-50/20 transition-colors bg-white"
+                style={{ gridTemplateColumns: '2.5fr 130px 150px 150px 36px' }}>
+                <div className="px-5 py-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-md bg-blue-100 flex items-center justify-center shrink-0">
+                      <Package size={11} className="text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">{selectedPipe.name}</p>
+                      <p className="text-[11px] text-blue-600 font-medium mt-0.5">{selectedPipe.diameterMm}mm · {selectedPipe.pressureClass}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="px-2 py-2.5">
+                  <input type="number" min={1} placeholder="0" value={quantity}
+                    onChange={e => { setQuantity(e.target.value); setErrors(prev => ({ ...prev, quantity: undefined! })) }}
+                    className={`w-full px-2 py-1.5 text-sm text-right border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white ${errors.quantity ? 'border-red-400' : 'border-gray-200'}`} />
+                  {errors.quantity && <p className="text-[10px] text-red-500 mt-0.5">{errors.quantity}</p>}
+                </div>
+                <div className="px-2 py-2.5">
+                  <div className="relative">
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-300 pointer-events-none">₹</span>
+                    <input type="number" min={0} step="0.01" placeholder="0.00" value={unitRate}
+                      onChange={e => setUnitRate(e.target.value)}
+                      className="w-full pl-5 pr-2 py-1.5 text-sm text-right border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white" />
+                  </div>
+                </div>
+                <div className="px-3 py-2.5 text-right">
+                  <p className="text-sm font-bold text-gray-900 tabular-nums">
+                    ₹{Number(totalAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <div className="pr-2 flex items-center justify-center">
+                  <button type="button" onClick={() => { setSelectedPipe(null); setQuantity(''); setUnitRate('') }}
+                    className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors">
+                    <X size={13} />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Notes</label>
+            <textarea rows={3} value={notes} onChange={e => setNotes(e.target.value)}
+              placeholder="Any additional notes about this purchase…"
+              className="w-full px-4 py-3 text-sm rounded-xl shadow-md focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white resize-none" />
+          </div>
+        </div>
+
+        {/* ── Right col ── */}
+        <div className="col-span-4 space-y-4">
+
+          {/* Purchase Summary */}
+          <div className="bg-white rounded-xl shadow-md p-5">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Purchase Summary</p>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between text-gray-600">
+                <span>Pipe Type</span>
+                <span className="font-medium text-gray-800 text-right max-w-[55%] truncate">{selectedPipe?.name ?? '—'}</span>
+              </div>
+              <div className="flex justify-between text-gray-600">
+                <span>Vendor</span>
+                <span className="font-medium text-gray-800 text-right max-w-[55%] truncate">{effectiveVendorName || '—'}</span>
+              </div>
+              <div className="flex justify-between text-gray-600">
+                <span>Quantity</span>
+                <span className="tabular-nums font-medium">{quantity ? `${Number(quantity).toLocaleString()} pcs` : '—'}</span>
+              </div>
+              <div className="flex justify-between text-gray-600">
+                <span>Unit Rate</span>
+                <span className="tabular-nums font-medium">{unitRate ? `₹${Number(unitRate).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—'}</span>
+              </div>
+              <div className="flex justify-between font-bold text-[15px] border-t border-gray-200 pt-3 mt-1 text-gray-900">
+                <span>Total Amount</span>
+                <span className="tabular-nums text-blue-700">₹{Number(totalAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Inventory note */}
+          <div className="bg-blue-50 rounded-xl p-4 flex items-start gap-3">
+            <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
+              <Package size={15} className="text-blue-600" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-blue-800">Inventory will be credited</p>
+              <p className="text-xs text-blue-600 mt-0.5">Recording this purchase immediately adds the quantity to finished pipe inventory.</p>
+            </div>
+          </div>
+
+          {/* Submit */}
+          <button onClick={handleSubmit} disabled={mutation.isPending}
+            className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold rounded-xl flex items-center justify-center gap-2 transition-colors shadow-md text-sm">
+            {mutation.isPending
+              ? <><Loader2 size={15} className="animate-spin" /> Recording…</>
+              : <><Package size={15} /> Record Purchase{quantity ? ` · ${quantity} pcs` : ''}</>
+            }
+          </button>
+        </div>
       </div>
     </div>
   )
