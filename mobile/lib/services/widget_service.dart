@@ -1,5 +1,6 @@
 import 'package:home_widget/home_widget.dart';
 import 'package:intl/intl.dart';
+import '../utils/parse.dart' as p;
 import 'api_service.dart';
 
 class WidgetService {
@@ -13,18 +14,18 @@ class WidgetService {
       final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
 
       // Total available finished-pipe inventory
+      // quantityOnHand comes as a decimal string from Go — use p.d() to parse safely
       final inventory = await _api.getInventoryByOutlet(outletId, size: 500);
       final available = inventory
           .where((i) =>
               (i['product']?['itemType'] ?? '') == 'FINISHED_PIPE' &&
-              (i['quantityOnHand'] as num? ?? 0) > 0)
-          .fold<int>(
-              0, (sum, i) => sum + (i['quantityOnHand'] as num).toInt());
+              p.d(i['quantityOnHand']) > 0)
+          .fold<int>(0, (sum, i) => sum + p.d(i['quantityOnHand']).toInt());
 
-      // Total pipes loaded today (sum of all loading record quantities for today)
+      // Total pipes loaded today
       final records = await _api.getLoadingRecords(date: today, size: 500);
       final loaded = records.fold<int>(
-          0, (sum, r) => sum + ((r['quantity'] as num?) ?? 0).toInt());
+          0, (sum, r) => sum + p.d(r['quantity']).toInt());
 
       final timestamp = DateFormat('d MMM, h:mm a').format(DateTime.now());
 
