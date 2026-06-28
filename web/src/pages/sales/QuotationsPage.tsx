@@ -241,6 +241,7 @@ function CreateQuotationPanel({ outletId, onClose, onCreated }: {
   const gstLabel       = taxRates.length === 1 ? `GST (${taxRates[0]}%)` : 'GST'
 
   async function handleSubmit(send: boolean) {
+    if (!selectedCustomer)  { toast.error('Please select a customer'); return }
     if (items.length === 0) { toast.error('Add at least one item'); return }
     setSendOnSave(send)
     setSubmitting(true)
