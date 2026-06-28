@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
+
+const NO_SPINNER = '[appearance:textfield] [&::-webkit-inner-spin-button]:hidden [&::-webkit-outer-spin-button]:hidden'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -2110,14 +2112,14 @@ export default function LoadingPage() {
                             <Autocomplete
                               value={pe.pipeName}
                               onChange={v => updatePipeEntry(pe.id, { pipeName: v })}
-                              options={rows.filter(r => r.finalTesting > 0).map(r => r.pipeName)}
+                              options={pipeConfigs.map(pc => pc.name)}
                               placeholder="Search pipe type…"
                               renderOption={opt => {
                                 const r = rows.find(r => r.pipeName === opt)
                                 return (
                                   <span className="flex items-center justify-between w-full">
                                     <span className="font-medium">{opt}</span>
-                                    {r && <span className="text-green-600 font-bold text-xs tabular-nums">{r.finalTesting} avail.</span>}
+                                    {r && r.finalTesting > 0 && <span className="text-green-600 font-bold text-xs tabular-nums">{r.finalTesting} avail.</span>}
                                   </span>
                                 )
                               }}
@@ -2145,7 +2147,7 @@ export default function LoadingPage() {
                                 value={pe.qty}
                                 onChange={e => updatePipeEntry(pe.id, { qty: e.target.value })}
                                 placeholder="0"
-                                className="flex-1 text-center text-sm font-semibold text-gray-800 py-2.5 focus:outline-none w-0 bg-transparent"
+                                className={`flex-1 text-center text-sm font-semibold text-gray-800 py-2.5 focus:outline-none w-0 bg-transparent ${NO_SPINNER}`}
                               />
                               <button type="button"
                                 onClick={() => updatePipeEntry(pe.id, { qty: String(Math.min(avail || Infinity, qty + 1)) })}
@@ -2223,7 +2225,7 @@ export default function LoadingPage() {
                           value={form.transportRate}
                           onChange={e => setField('transportRate', e.target.value)}
                           placeholder="0.00"
-                          className="w-full pl-7 pr-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-300 bg-white"
+                          className={`w-full pl-7 pr-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-300 bg-white ${NO_SPINNER}`}
                         />
                       </div>
                       {form.transportRate && Number(form.transportRate) > 0 && (() => {
