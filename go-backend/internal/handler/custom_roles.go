@@ -10,6 +10,58 @@ import (
 	"gorm.io/gorm"
 )
 
+type customRoleReq struct {
+	Name        string   `json:"name"`
+	DisplayName string   `json:"displayName"`
+	Description string   `json:"description"`
+	Permissions []string `json:"permissions"`
+	Color       string   `json:"color"`
+}
+
+type customRoleResp struct {
+	ID          int      `json:"id"`
+	Name        string   `json:"name"`
+	DisplayName string   `json:"displayName"`
+	Description *string  `json:"description"`
+	Permissions []string `json:"permissions"`
+	Color       *string  `json:"color"`
+	Active      bool     `json:"active"`
+}
+
+func toCustomRoleResp(r models.CustomRole) customRoleResp {
+	perms := []string{}
+	if r.Permissions != nil && *r.Permissions != "" {
+		_ = json.Unmarshal([]byte(*r.Permissions), &perms)
+	}
+	return customRoleResp{
+		ID:          r.ID,
+		Name:        r.Name,
+		DisplayName: r.DisplayName,
+		Description: r.Description,
+		Permissions: perms,
+		Color:       r.Color,
+		Active:      r.Active,
+	}
+}
+
+func (req customRoleReq) toModel() models.CustomRole {
+	permsJSON, _ := json.Marshal(req.Permissions)
+	permsStr := string(permsJSON)
+	role := models.CustomRole{
+		Name:        req.Name,
+		DisplayName: req.DisplayName,
+		Active:      true,
+	}
+	if req.Description != "" {
+		role.Description = &req.Description
+	}
+	role.Permissions = &permsStr
+	if req.Color != "" {
+		role.Color = &req.Color
+	}
+	return role
+}
+
 type CustomRoleHandler struct {
 	db *gorm.DB
 }
@@ -26,7 +78,11 @@ func (crh *CustomRoleHandler) GetAll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	util.SendSuccess(w, "Custom roles retrieved", roles)
+	resp := make([]customRoleResp, len(roles))
+	for i, r := range roles {
+		resp[i] = toCustomRoleResp(r)
+	}
+	util.SendSuccess(w, "Custom roles retrieved", resp)
 }
 
 // GetByID retrieves a specific custom role by ID
@@ -53,12 +109,12 @@ func (crh *CustomRoleHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	util.SendSuccess(w, "Custom role retrieved", role)
+	util.SendSuccess(w, "Custom role retrieved", toCustomRoleResp(*role))
 }
 
 // Create creates a new custom role
 func (crh *CustomRoleHandler) Create(w http.ResponseWriter, r *http.Request) {
-	var req models.CustomRole
+	var req customRoleReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		util.SendError(w, http.StatusBadRequest, "Invalid request body")
 		return
@@ -69,14 +125,13 @@ func (crh *CustomRoleHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req.Active = true
-
-	if err := crh.db.Create(&req).Error; err != nil {
+	role := req.toModel()
+	if err := crh.db.Create(&role).Error; err != nil {
 		handleError(w, err)
 		return
 	}
 
-	util.SendSuccess(w, "Custom role created", req)
+	util.SendSuccess(w, "Custom role created", toCustomRoleResp(role))
 }
 
 // Update updates a custom role
@@ -93,7 +148,7 @@ func (crh *CustomRoleHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req models.CustomRole
+	var req customRoleReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		util.SendError(w, http.StatusBadRequest, "Invalid request body")
 		return
@@ -109,18 +164,17 @@ func (crh *CustomRoleHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Update fields
 	if req.DisplayName != "" {
 		role.DisplayName = req.DisplayName
 	}
-	if req.Description != nil {
-		role.Description = req.Description
+	if req.Description != "" {
+		role.Description = &req.Description
 	}
-	if req.Permissions != nil {
-		role.Permissions = req.Permissions
-	}
-	if req.Color != nil {
-		role.Color = req.Color
+	permsJSON, _ := json.Marshal(req.Permissions)
+	permsStr := string(permsJSON)
+	role.Permissions = &permsStr
+	if req.Color != "" {
+		role.Color = &req.Color
 	}
 
 	if err := crh.db.Save(role).Error; err != nil {
@@ -128,7 +182,7 @@ func (crh *CustomRoleHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	util.SendSuccess(w, "Custom role updated", role)
+	util.SendSuccess(w, "Custom role updated", toCustomRoleResp(*role))
 }
 
 // Delete deletes a custom role (soft delete by marking inactive)

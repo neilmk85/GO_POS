@@ -19,14 +19,15 @@ func NewAuthService(db *gorm.DB) *AuthService {
 
 // AuthResponse represents the response sent after login/register/refresh
 type AuthResponse struct {
-	AccessToken  string   `json:"accessToken"`
-	RefreshToken string   `json:"refreshToken"`
-	UserID       int      `json:"userId"`
-	Name         string   `json:"name"`
-	Email        string   `json:"email"`
-	Roles        []string `json:"roles"`
-	OutletID     *int     `json:"outletId"`
-	OutletName   *string  `json:"outletName"`
+	AccessToken     string           `json:"accessToken"`
+	RefreshToken    string           `json:"refreshToken"`
+	UserID          int              `json:"userId"`
+	Name            string           `json:"name"`
+	Email           string           `json:"email"`
+	Roles           []string         `json:"roles"`
+	OutletID        *int             `json:"outletId"`
+	OutletName      *string          `json:"outletName"`
+	CardPermissions *CardPermissions `json:"cardPermissions"`
 }
 
 // LoginRequest represents the login request body
@@ -74,9 +75,13 @@ func (s *AuthService) getUserWithRoles(email string) (*models.User, error) {
 // buildAuthResponse constructs the auth response DTO from a user
 func (s *AuthService) buildAuthResponse(user *models.User, accessToken, refreshToken string) *AuthResponse {
 	roles := make([]string, 0, len(user.UserRoles))
+	isSuperAdmin := false
 	for _, ur := range user.UserRoles {
 		if ur.Role != nil {
 			roles = append(roles, string(ur.Role.Name))
+			if ur.Role.Name == models.RoleSuperAdmin {
+				isSuperAdmin = true
+			}
 		}
 	}
 
@@ -85,15 +90,56 @@ func (s *AuthService) buildAuthResponse(user *models.User, accessToken, refreshT
 		outletName = user.Outlet.Name
 	}
 
+	// SUPER_ADMIN gets nil card permissions (mobile treats nil as "show all").
+	// All other users get role-level card permissions (empty list = show nothing).
+	var cardPerms *CardPermissions
+	if !isSuperAdmin {
+		business := make([]string, 0)
+		pccp := make([]string, 0)
+
+		var customRoleName string
+		for _, ur := range user.UserRoles {
+			if ur.Role != nil && ur.Role.Name != models.RoleSuperAdmin && ur.Role.Name != models.RoleAdmin {
+				customRoleName = string(ur.Role.Name)
+				break
+			}
+		}
+
+		if customRoleName != "" {
+			var rolePerms []models.RoleCardPermission
+			s.db.Where("role_name = ?", customRoleName).Find(&rolePerms)
+			for _, p := range rolePerms {
+				if p.CardType == "business" {
+					business = append(business, p.CardKey)
+				} else if p.CardType == "pccp" {
+					pccp = append(pccp, p.CardKey)
+				}
+			}
+		} else {
+			var userPerms []models.UserCardPermission
+			s.db.Where("user_id = ?", user.ID).Find(&userPerms)
+			for _, p := range userPerms {
+				if p.CardType == "business" {
+					business = append(business, p.CardKey)
+				} else if p.CardType == "pccp" {
+					pccp = append(pccp, p.CardKey)
+				}
+			}
+		}
+
+		cardPerms = &CardPermissions{Business: business, Pccp: pccp}
+	}
+
 	return &AuthResponse{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		UserID:       user.ID,
-		Name:         user.Name,
-		Email:        user.Email,
-		Roles:        roles,
-		OutletID:     user.OutletID,
-		OutletName:   &outletName,
+		AccessToken:     accessToken,
+		RefreshToken:    refreshToken,
+		UserID:          user.ID,
+		Name:            user.Name,
+		Email:           user.Email,
+		Roles:           roles,
+		OutletID:        user.OutletID,
+		OutletName:      &outletName,
+		CardPermissions: cardPerms,
 	}
 }
 

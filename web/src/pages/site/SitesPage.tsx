@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import SiteFloatingNav from './SiteFloatingNav'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Plus, Search, X, Loader2, MapPin, Building2, Calendar,
@@ -409,10 +410,10 @@ export default function SitesPage() {
     <>
       {/* Header */}
       <div
-        className="border-b border-gray-200 px-6 py-5 flex items-center justify-between"
+        className="border-b border-gray-200 px-6 py-5 flex items-center gap-4"
         style={{ background: 'linear-gradient(135deg, #c2d8f0 0%, #eaedf5 100%)' }}
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 shrink-0">
           <button onClick={() => navigate('/site')} className="text-blue-700 hover:text-blue-900 transition-colors">
             <ArrowLeft size={18} />
           </button>
@@ -421,11 +422,25 @@ export default function SitesPage() {
             <p className="text-xs text-gray-500">Manage all water supply pipeline projects</p>
           </div>
         </div>
+        <div className="flex-1 flex justify-center">
+          <SiteFloatingNav theme="light" inline />
+        </div>
         <button
           onClick={() => { setEditProject(undefined); setShowPanel(true) }}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all active:scale-95 shadow-sm"
+          className="shrink-0 active:scale-95"
+          style={{
+            width: 36, height: 36, borderRadius: '50%',
+            background: 'rgba(255,255,255,0.95)',
+            border: 'none',
+            color: '#3b82f6',
+            fontSize: 22, fontWeight: 300,
+            fontFamily: '"Roboto", sans-serif',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', lineHeight: 1,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.10)',
+          }}
         >
-          <Plus size={16} /> New Project
+          +
         </button>
       </div>
 

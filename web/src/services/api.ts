@@ -542,6 +542,19 @@ export const staffApi = {
     api.put<ApiResponse<any>>(`/users/${id}/reset-password`, { password }),
 }
 
+// User Card Permissions
+export const userCardPermissionsApi = {
+  get: (userId: number) => api.get<ApiResponse<any>>(`/card-permissions/${userId}`),
+  update: (userId: number, data: { business: string[]; pccp: string[] }) =>
+    api.put<ApiResponse<any>>(`/card-permissions/${userId}`, data),
+}
+
+export const roleCardPermissionsApi = {
+  get: (roleName: string) => api.get<ApiResponse<any>>(`/card-permissions/role/${encodeURIComponent(roleName)}`),
+  update: (roleName: string, data: { business: string[]; pccp: string[] }) =>
+    api.put<ApiResponse<any>>(`/card-permissions/role/${encodeURIComponent(roleName)}`, data),
+}
+
 // Roles
 export const rolesApi = {
   getAll: () => api.get<ApiResponse<any[]>>('/roles'),

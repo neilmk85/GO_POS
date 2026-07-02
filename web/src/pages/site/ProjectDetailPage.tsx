@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
@@ -6,38 +6,36 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import toast from 'react-hot-toast'
 import {
-  ArrowLeft,
-  Plus,
-  Building2,
-  Hammer,
-  Pencil,
-  Trash2,
-  ChevronDown,
-  MapPin,
-  Package,
+  ArrowLeft, Plus, Pencil, Trash2, ChevronDown,
+  MapPin, Package,
 } from 'lucide-react'
 import { siteProjectApi, workPackageApi } from '@/services/api'
+import SiteFloatingNav from './SiteFloatingNav'
 
 const PHASES = [
-  'EXCAVATION',
-  'CONCRETE',
-  'PSC_PCCP',
-  'HDPE',
-  'MS_SPECIALS',
-  'WUA',
-  'TESTING',
-  'OTHER',
+  'EXCAVATION', 'CONCRETE', 'PSC_PCCP', 'HDPE',
+  'MS_SPECIALS', 'WUA', 'TESTING', 'OTHER',
 ]
 
 const UNITS = ['m', 'm²', 'm³', 'LS', 'Nos', 'RMT', 'MT', 'KG']
-
 const STATUSES = ['PLANNED', 'IN_PROGRESS', 'COMPLETED', 'ON_HOLD']
 
-const STATUS_COLORS: Record<string, string> = {
-  PLANNED: 'bg-gray-100 text-gray-700',
-  IN_PROGRESS: 'bg-blue-100 text-blue-700',
-  COMPLETED: 'bg-green-100 text-green-700',
-  ON_HOLD: 'bg-yellow-100 text-yellow-700',
+const PHASE_META: Record<string, { color: string; light: string; text: string; border: string; label: string }> = {
+  EXCAVATION:  { color: '#f97316', light: '#fff7ed', text: '#c2410c', border: '#fed7aa', label: 'Excavation' },
+  CONCRETE:    { color: '#64748b', light: '#f8fafc', text: '#334155', border: '#e2e8f0', label: 'Concrete' },
+  PSC_PCCP:    { color: '#3b82f6', light: '#eff6ff', text: '#1d4ed8', border: '#bfdbfe', label: 'PSC / PCCP' },
+  HDPE:        { color: '#22c55e', light: '#f0fdf4', text: '#15803d', border: '#bbf7d0', label: 'HDPE' },
+  MS_SPECIALS: { color: '#ef4444', light: '#fef2f2', text: '#b91c1c', border: '#fecaca', label: 'MS Specials' },
+  WUA:         { color: '#a855f7', light: '#faf5ff', text: '#7e22ce', border: '#e9d5ff', label: 'WUA' },
+  TESTING:     { color: '#06b6d4', light: '#ecfeff', text: '#0e7490', border: '#a5f3fc', label: 'Testing' },
+  OTHER:       { color: '#6b7280', light: '#f9fafb', text: '#374151', border: '#e5e7eb', label: 'Other' },
+}
+
+const STATUS_META: Record<string, { label: string; color: string; bg: string; dot: string }> = {
+  PLANNED:     { label: 'Planned',     color: '#6b7280', bg: '#f3f4f6', dot: '#9ca3af' },
+  IN_PROGRESS: { label: 'In Progress', color: '#2563eb', bg: '#eff6ff', dot: '#3b82f6' },
+  COMPLETED:   { label: 'Completed',   color: '#16a34a', bg: '#f0fdf4', dot: '#22c55e' },
+  ON_HOLD:     { label: 'On Hold',     color: '#d97706', bg: '#fffbeb', dot: '#f59e0b' },
 }
 
 const packageSchema = z.object({
@@ -66,65 +64,8 @@ interface WorkPackage {
   notes?: string
 }
 
-function PackageCard({
-  pkg,
-  onEdit,
-  onDelete,
-}: {
-  pkg: WorkPackage
-  onEdit: (p: WorkPackage) => void
-  onDelete: (id: number) => void
-}) {
-  return (
-    <div className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap mb-1">
-            <span className="text-xs font-semibold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded">
-              {pkg.phase}
-            </span>
-            <span className={`text-xs font-medium px-2 py-0.5 rounded ${STATUS_COLORS[pkg.status] ?? 'bg-gray-100 text-gray-700'}`}>
-              {pkg.status.replace('_', ' ')}
-            </span>
-          </div>
-          <p className="text-sm font-medium text-gray-900 truncate">{pkg.description}</p>
-          <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-500">
-            <span className="flex items-center gap-1">
-              <Package size={12} />
-              {pkg.plannedQty} {pkg.unit}
-            </span>
-            {pkg.location && (
-              <span className="flex items-center gap-1">
-                <MapPin size={12} />
-                {pkg.location}
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-1 shrink-0">
-          <button
-            onClick={() => onEdit(pkg)}
-            className="p-1.5 text-gray-400 hover:text-blue-600 rounded transition-colors"
-          >
-            <Pencil size={14} />
-          </button>
-          <button
-            onClick={() => onDelete(pkg.id)}
-            className="p-1.5 text-gray-400 hover:text-red-600 rounded transition-colors"
-          >
-            <Trash2 size={14} />
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function PackagePanel({
-  projectId,
-  editingPackage,
-  defaultExecutionType,
-  onClose,
+  projectId, editingPackage, defaultExecutionType, onClose,
 }: {
   projectId: number
   editingPackage: WorkPackage | null
@@ -132,13 +73,11 @@ function PackagePanel({
   onClose: () => void
 }) {
   const queryClient = useQueryClient()
+  const [visible, setVisible] = useState(false)
+  useEffect(() => { const id = requestAnimationFrame(() => setVisible(true)); return () => cancelAnimationFrame(id) }, [])
+  const handleClose = () => { setVisible(false); setTimeout(onClose, 300) }
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors },
-  } = useForm<PackageFormData>({
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<PackageFormData>({
     resolver: zodResolver(packageSchema),
     defaultValues: editingPackage
       ? {
@@ -152,20 +91,15 @@ function PackagePanel({
           notes: editingPackage.notes ?? '',
         }
       : {
-          phase: 'EXCAVATION',
-          unit: 'LS',
-          plannedQty: '1',
-          executionType: defaultExecutionType,
-          status: 'PLANNED',
+          phase: 'EXCAVATION', unit: 'LS', plannedQty: '1',
+          executionType: defaultExecutionType, status: 'PLANNED',
         },
   })
 
   const saveMutation = useMutation({
     mutationFn: (data: PackageFormData) => {
       const payload = { ...data, siteProjectId: projectId }
-      return editingPackage
-        ? workPackageApi.update(editingPackage.id, payload)
-        : workPackageApi.create(payload)
+      return editingPackage ? workPackageApi.update(editingPackage.id, payload) : workPackageApi.create(payload)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['site-work-packages', projectId] })
@@ -180,132 +114,134 @@ function PackagePanel({
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end">
-      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
-      <div className="relative z-50 w-full max-w-md bg-white shadow-xl flex flex-col">
-        <div className="flex items-center justify-between px-5 py-4 border-b">
-          <h2 className="text-base font-semibold text-gray-900">
-            {editingPackage ? 'Edit Work Package' : 'New Work Package'}
-          </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+      <div
+        className="absolute inset-0 bg-black/30 backdrop-blur-sm transition-opacity duration-300"
+        style={{ opacity: visible ? 1 : 0 }}
+        onClick={handleClose}
+      />
+      <div
+        className="relative z-50 bg-white shadow-2xl flex flex-col"
+        style={{
+          width: '50vw',
+          transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          transform: visible ? 'translateX(0)' : 'translateX(100%)',
+        }}
+      >
+        <div style={{ background: '#f8f9fb', borderBottom: '1px solid #e8edf3' }}
+          className="flex items-center justify-between px-6 py-4">
+          <div>
+            <h2 className="text-sm font-bold text-gray-900">
+              {editingPackage ? 'Edit Work Package' : 'New Work Package'}
+            </h2>
+            <p className="text-xs text-gray-400 mt-0.5">Fill in the details below</p>
+          </div>
+          <button onClick={handleClose}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors text-base leading-none">
             ✕
           </button>
         </div>
-        <form onSubmit={handleSubmit(onSubmit)} className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Execution Type</label>
-            <div className="flex gap-3">
-              {(['INHOUSE', 'SUBCONTRACTED'] as const).map((t) => (
-                <label key={t} className="flex items-center gap-2 cursor-pointer">
-                  <input type="radio" value={t} {...register('executionType')} className="accent-indigo-600" />
-                  <span className="text-sm text-gray-700">{t === 'INHOUSE' ? 'Inhouse' : 'Subcontracted'}</span>
-                </label>
-              ))}
-            </div>
-          </div>
 
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Phase</label>
-            <div className="relative">
-              <select
-                {...register('phase')}
-                className="w-full appearance-none border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                {PHASES.map((p) => (
-                  <option key={p} value={p}>{p}</option>
+        <form onSubmit={handleSubmit(onSubmit)} className="flex-1 overflow-y-auto">
+          <div className="px-6 py-5 space-y-4">
+
+            {/* Execution Type */}
+            <div className="bg-white rounded-xl shadow-md p-5">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Execution Type</p>
+              <div className="flex gap-2">
+                {(['INHOUSE', 'SUBCONTRACTED'] as const).map((t) => (
+                  <label key={t} className="flex-1 cursor-pointer">
+                    <input type="radio" value={t} {...register('executionType')} className="sr-only peer" />
+                    <div className="py-2.5 text-sm font-semibold rounded-xl text-center transition-colors bg-gray-50 text-gray-500 hover:bg-gray-100 peer-checked:bg-blue-500 peer-checked:text-white">
+                      {t === 'INHOUSE' ? 'Inhouse' : 'Subcontracted'}
+                    </div>
+                  </label>
                 ))}
-              </select>
-              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            </div>
-            {errors.phase && <p className="text-xs text-red-500 mt-1">{errors.phase.message}</p>}
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
-            <textarea
-              {...register('description')}
-              rows={2}
-              placeholder="e.g. RCC pipe laying from Ch. 0+000 to Ch. 0+500"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-            />
-            {errors.description && <p className="text-xs text-red-500 mt-1">{errors.description.message}</p>}
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Location / Chainage</label>
-            <input
-              {...register('location')}
-              placeholder="e.g. Ch. 0+000 to 0+500"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Planned Qty</label>
-              <input
-                {...register('plannedQty')}
-                type="number"
-                step="0.001"
-                min="0"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-              {errors.plannedQty && <p className="text-xs text-red-500 mt-1">{errors.plannedQty.message}</p>}
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Unit</label>
-              <div className="relative">
-                <select
-                  {...register('unit')}
-                  className="w-full appearance-none border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  {UNITS.map((u) => (
-                    <option key={u} value={u}>{u}</option>
-                  ))}
-                </select>
-                <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
               </div>
             </div>
-          </div>
 
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Status</label>
-            <div className="relative">
-              <select
-                {...register('status')}
-                className="w-full appearance-none border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                {STATUSES.map((s) => (
-                  <option key={s} value={s}>{s.replace('_', ' ')}</option>
-                ))}
-              </select>
-              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            {/* Phase + Status */}
+            <div className="bg-white rounded-xl shadow-md p-5 grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Phase</p>
+                <div className="relative">
+                  <select {...register('phase')}
+                    className="w-full appearance-none text-sm text-gray-800 border border-gray-200 rounded-lg px-3 py-2.5 pr-8 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400/40 focus:border-blue-400 transition-colors">
+                    {PHASES.map((p) => <option key={p} value={p}>{PHASE_META[p]?.label ?? p}</option>)}
+                  </select>
+                  <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                </div>
+                {errors.phase && <p className="text-xs text-red-500 mt-1">{errors.phase.message}</p>}
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Status</p>
+                <div className="relative">
+                  <select {...register('status')}
+                    className="w-full appearance-none text-sm text-gray-800 border border-gray-200 rounded-lg px-3 py-2.5 pr-8 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400/40 focus:border-blue-400 transition-colors">
+                    {STATUSES.map((s) => <option key={s} value={s}>{STATUS_META[s]?.label ?? s}</option>)}
+                  </select>
+                  <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                </div>
+              </div>
             </div>
-          </div>
 
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Notes</label>
-            <textarea
-              {...register('notes')}
-              rows={2}
-              placeholder="Optional notes"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-            />
+            {/* Description */}
+            <div className="bg-white rounded-xl shadow-md p-5">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">
+                Description <span className="text-blue-500">*</span>
+              </p>
+              <textarea {...register('description')} rows={3}
+                placeholder="e.g. RCC pipe laying from Ch. 0+000 to Ch. 0+500"
+                className="w-full text-sm text-gray-800 border border-gray-200 rounded-lg px-3 py-2.5 bg-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400/40 focus:border-blue-400 transition-colors resize-none" />
+              {errors.description && <p className="text-xs text-red-500 mt-1">{errors.description.message}</p>}
+            </div>
+
+            {/* Location + Qty + Unit */}
+            <div className="bg-white rounded-xl shadow-md p-5">
+              <div className="grid gap-4" style={{ gridTemplateColumns: '2fr 1fr 1fr' }}>
+                <div>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Location / Chainage</p>
+                  <input {...register('location')} placeholder="e.g. Ch. 0+000 to 0+500"
+                    className="w-full text-sm text-gray-800 border border-gray-200 rounded-lg px-3 py-2.5 bg-gray-50 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400/40 focus:border-blue-400 focus:bg-white transition-colors" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">
+                    Qty <span className="text-blue-500">*</span>
+                  </p>
+                  <input {...register('plannedQty')} type="number" step="0.001" min="0"
+                    className="w-full text-sm text-gray-800 border border-gray-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400/40 focus:border-blue-400 transition-colors" />
+                  {errors.plannedQty && <p className="text-xs text-red-500 mt-1">{errors.plannedQty.message}</p>}
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Unit</p>
+                  <div className="relative">
+                    <select {...register('unit')}
+                      className="w-full appearance-none text-sm text-gray-800 border border-gray-200 rounded-lg px-3 py-2.5 pr-8 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400/40 focus:border-blue-400 transition-colors">
+                      {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+                    </select>
+                    <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div className="bg-white rounded-xl shadow-md p-5">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Notes</p>
+              <textarea {...register('notes')} rows={2} placeholder="Optional notes"
+                className="w-full text-sm text-gray-800 border border-gray-200 rounded-lg px-3 py-2.5 bg-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400/40 focus:border-blue-400 transition-colors resize-none" />
+            </div>
+
           </div>
         </form>
 
-        <div className="px-5 py-4 border-t flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-          >
+        <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3" style={{ background: '#f8f9fb' }}>
+          <button type="button" onClick={handleClose}
+            className="px-4 py-2 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-100 transition-colors">
             Cancel
           </button>
-          <button
-            onClick={handleSubmit(onSubmit)}
-            disabled={saveMutation.isPending}
-            className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-60"
-          >
+          <button onClick={handleSubmit(onSubmit)} disabled={saveMutation.isPending}
+            style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)' }}
+            className="px-5 py-2 text-sm text-white rounded-xl disabled:opacity-60 font-medium shadow-sm">
             {saveMutation.isPending ? 'Saving…' : editingPackage ? 'Update' : 'Create'}
           </button>
         </div>
@@ -314,16 +250,33 @@ function PackagePanel({
   )
 }
 
+function formatCurrency(val?: string | number) {
+  if (!val) return '—'
+  const n = Number(val)
+  if (isNaN(n)) return String(val)
+  if (n >= 10000000) return `₹${(n / 10000000).toFixed(2)} Cr`
+  if (n >= 100000) return `₹${(n / 100000).toFixed(2)} L`
+  return `₹${n.toLocaleString('en-IN')}`
+}
+
+function formatDate(d?: string) {
+  if (!d) return '—'
+  try {
+    return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+  } catch { return d }
+}
+
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const projectId = Number(id)
 
-  const [activeTab, setActiveTab] = useState<'INHOUSE' | 'SUBCONTRACTED'>('INHOUSE')
+  const [execFilter, setExecFilter] = useState<'ALL' | 'INHOUSE' | 'SUBCONTRACTED'>('ALL')
   const [phaseFilter, setPhaseFilter] = useState('')
   const [panelOpen, setPanelOpen] = useState(false)
   const [editingPackage, setEditingPackage] = useState<WorkPackage | null>(null)
+  const [addBtnHovered, setAddBtnHovered] = useState(false)
 
   const { data: projectData } = useQuery({
     queryKey: ['site-project', projectId],
@@ -349,153 +302,388 @@ export default function ProjectDetailPage() {
   const project = projectData?.data?.data
   const allPackages: WorkPackage[] = packagesData?.data?.data ?? []
 
-  const filtered = allPackages.filter(
-    (p) =>
-      p.executionType === activeTab &&
-      (phaseFilter === '' || p.phase === phaseFilter),
-  )
+  const filtered = useMemo(() => allPackages.filter(p => {
+    if (execFilter !== 'ALL' && p.executionType !== execFilter) return false
+    if (phaseFilter && p.phase !== phaseFilter) return false
+    return true
+  }), [allPackages, execFilter, phaseFilter])
 
-  const inhouseCount = allPackages.filter((p) => p.executionType === 'INHOUSE').length
-  const subcontractedCount = allPackages.filter((p) => p.executionType === 'SUBCONTRACTED').length
-
-  const handleEdit = (pkg: WorkPackage) => {
-    setEditingPackage(pkg)
-    setPanelOpen(true)
-  }
-
-  const handleDelete = (pkgId: number) => {
-    if (window.confirm('Delete this work package?')) {
-      deleteMutation.mutate(pkgId)
+  const phaseGroups = useMemo(() => {
+    const groups: Record<string, WorkPackage[]> = {}
+    for (const pkg of filtered) {
+      if (!groups[pkg.phase]) groups[pkg.phase] = []
+      groups[pkg.phase].push(pkg)
     }
-  }
+    return PHASES.filter(p => groups[p]?.length).map(p => ({ phase: p, items: groups[p] }))
+  }, [filtered])
 
-  const openNew = () => {
-    setEditingPackage(null)
-    setPanelOpen(true)
-  }
+  const phaseCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const pkg of allPackages) {
+      if (execFilter !== 'ALL' && pkg.executionType !== execFilter) continue
+      counts[pkg.phase] = (counts[pkg.phase] ?? 0) + 1
+    }
+    return counts
+  }, [allPackages, execFilter])
 
-  const closePanel = () => {
-    setPanelOpen(false)
-    setEditingPackage(null)
+  const stats = useMemo(() => ({
+    total: allPackages.length,
+    inhouse: allPackages.filter(p => p.executionType === 'INHOUSE').length,
+    subcontracted: allPackages.filter(p => p.executionType === 'SUBCONTRACTED').length,
+    completed: allPackages.filter(p => p.status === 'COMPLETED').length,
+    inProgress: allPackages.filter(p => p.status === 'IN_PROGRESS').length,
+  }), [allPackages])
+
+  const handleEdit = (pkg: WorkPackage) => { setEditingPackage(pkg); setPanelOpen(true) }
+  const handleDelete = (pkgId: number) => {
+    if (window.confirm('Delete this work package?')) deleteMutation.mutate(pkgId)
   }
+  const openNew = () => { setEditingPackage(null); setPanelOpen(true) }
+  const closePanel = () => { setPanelOpen(false); setEditingPackage(null) }
+
+  const defaultExecType: 'INHOUSE' | 'SUBCONTRACTED' = execFilter === 'SUBCONTRACTED' ? 'SUBCONTRACTED' : 'INHOUSE'
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <button
-          onClick={() => navigate('/site/projects')}
-          className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
-        >
-          <ArrowLeft size={18} />
+    <div style={{ minHeight: '100vh', background: '#f8f9fb', fontFamily: '"Roboto", sans-serif' }}>
+
+      {/* ── Header ───────────────────────────────────────────────────────── */}
+      <div style={{
+        background: '#fff', borderBottom: '1px solid #e8edf3',
+        padding: '0 24px',
+        display: 'flex', alignItems: 'center', gap: 12,
+        height: 110,
+      }}>
+        <button onClick={() => navigate('/site/projects')}
+          style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #e2e8f0',
+            background: '#fff', color: '#64748b', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            transition: 'all 0.15s' }}
+          onMouseEnter={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#0f172a' }}
+          onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#64748b' }}>
+          <ArrowLeft size={15} />
         </button>
-        <div className="flex-1">
-          <h1 className="text-xl font-bold text-gray-900">
-            {project?.name ?? 'Loading…'}
-          </h1>
+
+        <div style={{ flexShrink: 0 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', lineHeight: 1.2 }}>
+            {project?.name ?? '…'}
+          </div>
           {project && (
-            <p className="text-sm text-gray-500 mt-0.5">
-              {project.clientName} · {project.location}
-            </p>
+            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1, display: 'flex', gap: 8 }}>
+              {project.clientName && <span>{project.clientName}</span>}
+              {project.location && <span>· {project.location}</span>}
+            </div>
           )}
         </div>
-        <button
-          onClick={openNew}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors"
-        >
-          <Plus size={16} />
-          Add Work Package
-        </button>
-      </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 mb-5 bg-gray-100 p-1 rounded-lg w-fit">
-        <button
-          onClick={() => setActiveTab('INHOUSE')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-            activeTab === 'INHOUSE'
-              ? 'bg-white text-indigo-700 shadow-sm'
-              : 'text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          <Hammer size={14} />
-          Inhouse
-          <span className="text-xs bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full">
-            {inhouseCount}
-          </span>
-        </button>
-        <button
-          onClick={() => setActiveTab('SUBCONTRACTED')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-            activeTab === 'SUBCONTRACTED'
-              ? 'bg-white text-orange-700 shadow-sm'
-              : 'text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          <Building2 size={14} />
-          Subcontracted
-          <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full">
-            {subcontractedCount}
-          </span>
-        </button>
-      </div>
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+          <SiteFloatingNav theme="light" inline />
+        </div>
 
-      {/* Phase filter */}
-      <div className="flex items-center gap-2 mb-4 flex-wrap">
-        <span className="text-xs text-gray-500 font-medium">Phase:</span>
-        <button
-          onClick={() => setPhaseFilter('')}
-          className={`text-xs px-2.5 py-1 rounded-full transition-colors ${
-            phaseFilter === '' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          All
-        </button>
-        {PHASES.map((p) => (
-          <button
-            key={p}
-            onClick={() => setPhaseFilter(p)}
-            className={`text-xs px-2.5 py-1 rounded-full transition-colors ${
-              phaseFilter === p ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            {p}
+        {/* + button with multicolor glow */}
+        <div style={{ position: 'relative', flexShrink: 0 }}
+          onMouseEnter={() => setAddBtnHovered(true)}
+          onMouseLeave={() => setAddBtnHovered(false)}>
+          <div style={{
+            position: 'absolute', inset: -10, borderRadius: '50%',
+            background: 'conic-gradient(from 0deg, #f43f5e, #f97316, #eab308, #22c55e, #06b6d4, #3b82f6, #8b5cf6, #ec4899, #f43f5e)',
+            filter: 'blur(10px)', opacity: addBtnHovered ? 0.85 : 0,
+            transition: 'opacity 0.3s ease', zIndex: 0,
+          }} />
+          <button onClick={openNew}
+            style={{ position: 'relative', zIndex: 1, width: 36, height: 36, borderRadius: '50%',
+              border: 'none', background: '#fff', color: '#3b82f6', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 1px 6px rgba(0,0,0,0.12)',
+              transition: 'transform 0.2s', transform: addBtnHovered ? 'scale(1.08)' : 'scale(1)' }}>
+            <Plus size={18} />
           </button>
+        </div>
+      </div>
+
+      {/* ── Project info strip ──────────────────────────────────────────── */}
+      <div style={{
+        background: 'linear-gradient(135deg, #f0f4ff 0%, #f5f0ff 35%, #fff0f9 65%, #f0faff 100%)',
+        borderBottom: '1px solid #e2e8f0',
+        padding: '20px 24px 16px',
+        display: 'flex', alignItems: 'center', gap: 0,
+      }}>
+        {[
+          {
+            label: 'Contract Value',
+            value: project?.contractValue ? formatCurrency(project.contractValue) : '—',
+            color: '#16a34a',
+          },
+          {
+            label: 'Start Date',
+            value: formatDate(project?.startDate),
+            color: '#0f172a',
+          },
+          {
+            label: 'End Date',
+            value: formatDate(project?.endDate),
+            color: '#0f172a',
+          },
+          {
+            label: 'Status',
+            value: (project?.status ?? 'ACTIVE').replace('_', ' '),
+            color: '#3b82f6',
+          },
+          { label: 'Total Packages', value: String(stats.total), color: '#0f172a' },
+          { label: 'Inhouse', value: String(stats.inhouse), color: '#0f172a' },
+          { label: 'Subcontracted', value: String(stats.subcontracted), color: '#0f172a' },
+          { label: 'Completed', value: String(stats.completed), color: '#16a34a' },
+        ].map((s, i) => (
+          <div key={s.label} style={{
+            flex: 1, padding: '4px 16px', textAlign: 'center',
+            borderRight: i < 7 ? '1px solid #f1f5f9' : 'none',
+          }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: s.color, lineHeight: 1 }}>{s.value}</div>
+            <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 3, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+              {s.label}
+            </div>
+          </div>
         ))}
       </div>
 
-      {/* Package list */}
-      {isLoading ? (
-        <div className="text-center py-16 text-gray-400 text-sm">Loading work packages…</div>
-      ) : filtered.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">
-          <p className="text-sm">No {activeTab.toLowerCase()} work packages yet.</p>
-          <button
-            onClick={openNew}
-            className="mt-3 text-sm text-indigo-600 hover:underline"
-          >
-            + Add one now
-          </button>
-        </div>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {filtered.map((pkg) => (
-            <PackageCard
-              key={pkg.id}
-              pkg={pkg}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-            />
+      {/* ── Filter bar ───────────────────────────────────────────────────── */}
+      <div style={{
+        background: '#fff', borderBottom: '1px solid #e8edf3',
+        padding: '12px 24px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
+      }}>
+        {/* execution type toggle */}
+        <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: 999, padding: 4, gap: 2 }}>
+          {(['ALL', 'INHOUSE', 'SUBCONTRACTED'] as const).map(t => (
+            <button key={t} onClick={() => setExecFilter(t)}
+              style={{
+                padding: '6px 14px', borderRadius: 999, border: 'none',
+                background: execFilter === t ? '#0f172a' : 'transparent',
+                color: execFilter === t ? '#fff' : '#64748b',
+                fontSize: 12, fontWeight: execFilter === t ? 600 : 400,
+                cursor: 'pointer', transition: 'all 0.15s ease',
+                letterSpacing: '0.03em',
+              }}>
+              {t === 'ALL' ? 'All' : t === 'INHOUSE' ? 'Inhouse' : 'Subcontracted'}
+            </button>
           ))}
         </div>
-      )}
+
+        <div style={{ width: 1, height: 28, background: '#e2e8f0', flexShrink: 0 }} />
+
+        {/* phase filter pills */}
+        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', flexWrap: 'nowrap', flex: 1 }}>
+          <button onClick={() => setPhaseFilter('')}
+            style={{
+              padding: '5px 12px', borderRadius: 999, border: '1.5px solid',
+              borderColor: phaseFilter === '' ? '#0f172a' : '#e2e8f0',
+              background: phaseFilter === '' ? '#0f172a' : '#fff',
+              color: phaseFilter === '' ? '#fff' : '#64748b',
+              fontSize: 11, fontWeight: phaseFilter === '' ? 600 : 400,
+              cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s',
+            }}>
+            All Phases
+          </button>
+          {PHASES.map(p => {
+            const meta = PHASE_META[p]
+            const count = phaseCounts[p] ?? 0
+            const isActive = phaseFilter === p
+            return (
+              <button key={p} onClick={() => setPhaseFilter(p === phaseFilter ? '' : p)}
+                style={{
+                  padding: '5px 12px', borderRadius: 999, border: '1.5px solid',
+                  borderColor: isActive ? meta.color : '#e2e8f0',
+                  background: isActive ? meta.color : '#fff',
+                  color: isActive ? '#fff' : meta.text,
+                  fontSize: 11, fontWeight: isActive ? 600 : 400,
+                  cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s',
+                  display: 'flex', alignItems: 'center', gap: 5,
+                }}>
+                {meta.label}
+                {count > 0 && (
+                  <span style={{
+                    background: isActive ? 'rgba(255,255,255,0.25)' : meta.light,
+                    color: isActive ? '#fff' : meta.text,
+                    borderRadius: 999, padding: '1px 6px', fontSize: 10, fontWeight: 700,
+                  }}>{count}</span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* ── Package list ──────────────────────────────────────────────────── */}
+      <div style={{ padding: '20px 24px' }}>
+        {isLoading ? (
+          <div style={{ textAlign: 'center', padding: '64px 0', color: '#94a3b8', fontSize: 14 }}>
+            Loading work packages…
+          </div>
+        ) : phaseGroups.length === 0 ? (
+          <div style={{
+            textAlign: 'center', padding: '64px 0',
+            background: '#fff', borderRadius: 16, border: '1px dashed #e2e8f0',
+          }}>
+            <Package size={32} style={{ color: '#cbd5e1', margin: '0 auto 12px' }} />
+            <p style={{ color: '#94a3b8', fontSize: 14, margin: 0 }}>No work packages found.</p>
+            <button onClick={openNew}
+              style={{ marginTop: 12, fontSize: 13, color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer' }}>
+              + Add one now
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {phaseGroups.map(({ phase, items }) => {
+              const meta = PHASE_META[phase] ?? PHASE_META.OTHER
+              const completedCount = items.filter(i => i.status === 'COMPLETED').length
+              const progressPct = items.length ? Math.round((completedCount / items.length) * 100) : 0
+
+              return (
+                <div key={phase} style={{
+                  background: '#fff', borderRadius: 16,
+                  border: `1px solid ${meta.border}`,
+                  overflow: 'hidden',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                }}>
+                  {/* phase header */}
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '14px 20px',
+                    background: meta.light,
+                    borderBottom: `1px solid ${meta.border}`,
+                  }}>
+                    <div style={{
+                      width: 10, height: 10, borderRadius: '50%',
+                      background: meta.color, flexShrink: 0,
+                      boxShadow: `0 0 0 3px ${meta.border}`,
+                    }} />
+                    <span style={{ fontSize: 13, fontWeight: 700, color: meta.text, letterSpacing: '0.02em' }}>
+                      {meta.label}
+                    </span>
+                    <span style={{
+                      fontSize: 11, fontWeight: 600, color: meta.color,
+                      background: '#fff', border: `1px solid ${meta.border}`,
+                      padding: '1px 8px', borderRadius: 999,
+                    }}>
+                      {items.length} {items.length === 1 ? 'package' : 'packages'}
+                    </span>
+
+                    {/* mini progress */}
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
+                      <div style={{ width: 80, height: 4, background: meta.border, borderRadius: 99 }}>
+                        <div style={{
+                          height: '100%', borderRadius: 99,
+                          width: `${progressPct}%`, background: meta.color,
+                          transition: 'width 0.4s ease',
+                        }} />
+                      </div>
+                      <span style={{ fontSize: 10, color: meta.text, fontWeight: 600, minWidth: 28, textAlign: 'right' }}>
+                        {progressPct}%
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* package rows */}
+                  <div>
+                    {items.map((pkg, idx) => {
+                      const sMeta = STATUS_META[pkg.status] ?? STATUS_META.PLANNED
+                      return (
+                        <div key={pkg.id} style={{
+                          display: 'flex', alignItems: 'center', gap: 16,
+                          padding: '13px 20px',
+                          borderBottom: idx < items.length - 1 ? '1px solid #f8fafc' : 'none',
+                          transition: 'background 0.12s',
+                        }}
+                          onMouseEnter={e => (e.currentTarget.style.background = '#fafbff')}
+                          onMouseLeave={e => (e.currentTarget.style.background = '')}>
+
+                          {/* colored left accent */}
+                          <div style={{
+                            width: 3, height: 36, borderRadius: 99,
+                            background: meta.color, flexShrink: 0, alignSelf: 'stretch',
+                          }} />
+
+                          {/* description + location */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: '#0f172a', lineHeight: 1.3 }}>
+                              {pkg.description}
+                            </p>
+                            {pkg.location && (
+                              <p style={{ margin: '3px 0 0', fontSize: 11, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <MapPin size={10} />
+                                {pkg.location}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* qty */}
+                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                            <span style={{ fontSize: 14, fontWeight: 600, color: '#334155' }}>{pkg.plannedQty}</span>
+                            <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 3 }}>{pkg.unit}</span>
+                          </div>
+
+                          {/* execution type badge */}
+                          <div style={{ flexShrink: 0 }}>
+                            <span style={{
+                              fontSize: 10, fontWeight: 600, letterSpacing: '0.05em',
+                              padding: '3px 8px', borderRadius: 999,
+                              background: pkg.executionType === 'INHOUSE' ? '#ecfdf5' : '#fef3c7',
+                              color: pkg.executionType === 'INHOUSE' ? '#065f46' : '#92400e',
+                            }}>
+                              {pkg.executionType === 'INHOUSE' ? 'INHOUSE' : 'SUB'}
+                            </span>
+                          </div>
+
+                          {/* status badge */}
+                          <div style={{ flexShrink: 0 }}>
+                            <span style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 5,
+                              fontSize: 11, fontWeight: 500,
+                              padding: '4px 10px', borderRadius: 999,
+                              background: sMeta.bg, color: sMeta.color,
+                            }}>
+                              <span style={{
+                                width: 6, height: 6, borderRadius: '50%',
+                                background: sMeta.dot, display: 'inline-block', flexShrink: 0,
+                              }} />
+                              {sMeta.label}
+                            </span>
+                          </div>
+
+                          {/* actions */}
+                          <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                            <button onClick={() => handleEdit(pkg)}
+                              style={{ padding: '6px', borderRadius: 8, border: 'none',
+                                background: 'transparent', color: '#94a3b8', cursor: 'pointer',
+                                transition: 'all 0.15s' }}
+                              onMouseEnter={e => { e.currentTarget.style.background = '#eff6ff'; e.currentTarget.style.color = '#3b82f6' }}
+                              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#94a3b8' }}>
+                              <Pencil size={14} />
+                            </button>
+                            <button onClick={() => handleDelete(pkg.id)}
+                              style={{ padding: '6px', borderRadius: 8, border: 'none',
+                                background: 'transparent', color: '#94a3b8', cursor: 'pointer',
+                                transition: 'all 0.15s' }}
+                              onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#ef4444' }}
+                              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#94a3b8' }}>
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
 
       {/* Slide-in panel */}
       {panelOpen && (
         <PackagePanel
           projectId={projectId}
           editingPackage={editingPackage}
-          defaultExecutionType={activeTab}
+          defaultExecutionType={defaultExecType}
           onClose={closePanel}
         />
       )}

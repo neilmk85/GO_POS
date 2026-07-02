@@ -562,6 +562,16 @@ func Migrate(db *gorm.DB) error {
 		}
 	}
 
+	// Phase 23: Card permissions (user-level and role-level)
+	if err := db.AutoMigrate(&models.UserCardPermission{}); err != nil {
+		slog.Error("[Database] Failed to migrate UserCardPermission", "error", err)
+		return err
+	}
+	if err := db.AutoMigrate(&models.RoleCardPermission{}); err != nil {
+		slog.Error("[Database] Failed to migrate RoleCardPermission", "error", err)
+		return err
+	}
+
 	slog.Info("[Database] Migrations completed successfully")
 	return nil
 }

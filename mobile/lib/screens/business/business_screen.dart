@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:pos_mobile/main.dart';
 import '../../models/models.dart';
+import '../../providers/auth_provider.dart';
 import '../../services/api_service.dart';
 
 class _BizCard {
@@ -43,14 +45,14 @@ const _routed = {'pccp', 'cement-bags', 'vehicles', 'silo', 'silo-extraction', '
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
-class BusinessScreen extends StatefulWidget {
+class BusinessScreen extends ConsumerStatefulWidget {
   const BusinessScreen({super.key});
 
   @override
-  State<BusinessScreen> createState() => _BusinessScreenState();
+  ConsumerState<BusinessScreen> createState() => _BusinessScreenState();
 }
 
-class _BusinessScreenState extends State<BusinessScreen> {
+class _BusinessScreenState extends ConsumerState<BusinessScreen> {
   double? _totalCementBags;
   double? _totalCementKg;
   double? _dieselToday;
@@ -233,6 +235,11 @@ class _BusinessScreenState extends State<BusinessScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final perms = ref.watch(authProvider).user?.cardPermissions;
+    final visibleCards = perms == null
+        ? _cards
+        : _cards.where((c) => perms.business.contains(c.key)).toList();
+
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
       body: CustomScrollView(
@@ -243,7 +250,7 @@ class _BusinessScreenState extends State<BusinessScreen> {
             sliver: SliverGrid(
               delegate: SliverChildBuilderDelegate(
                 (ctx, i) {
-                  final card = _cards[i];
+                  final card = visibleCards[i];
                   String? stat;
                   if (card.key == 'cement-bags' && _totalCementKg != null) {
                     final bags = _totalCementBags!.toStringAsFixed(0);
@@ -266,7 +273,7 @@ class _BusinessScreenState extends State<BusinessScreen> {
                     onTap: () => _onTap(ctx, card.key),
                   );
                 },
-                childCount: _cards.length,
+                childCount: visibleCards.length,
               ),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,

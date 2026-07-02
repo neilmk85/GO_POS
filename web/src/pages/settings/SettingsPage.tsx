@@ -1,23 +1,23 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Store, Users, Receipt, Percent, Plus, Pencil, Trash2, X, Loader2, Shield, Lock, Check, AlertCircle, ShieldCheck, Edit2, Building2, Phone, Mail, MapPin, FileText, Hash, MessageSquare, MessageCircle, Eye, EyeOff, Zap, Send, LayoutTemplate, Palette, Image, AlignLeft, Type, Baseline, KeyRound, Settings as SettingsIcon, ArrowLeft, IndianRupee, Save, Wrench } from 'lucide-react'
+import { Store, Users, Receipt, Percent, Plus, Pencil, Trash2, X, Loader2, Shield, Lock, Check, AlertCircle, ShieldCheck, Edit2, Building2, Phone, Mail, MapPin, FileText, Hash, MessageSquare, MessageCircle, Eye, EyeOff, Zap, Send, LayoutTemplate, Palette, Image, AlignLeft, Type, Baseline, KeyRound, Settings as SettingsIcon, ArrowLeft, IndianRupee, Save, Wrench, CheckSquare, Square, UserPlus } from 'lucide-react'
 import PermissionsSettings from './PermissionsSettings'
 import { tdsApi } from '@/services/api'
 import toast from 'react-hot-toast'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { taxGroupApi, rolesApi, outletApi, integrationApi } from '@/services/api'
+import { useQuery, useMutation, useQueryClient, useQueries } from '@tanstack/react-query'
+import { taxGroupApi, rolesApi, outletApi, integrationApi, staffApi, userCardPermissionsApi, roleCardPermissionsApi } from '@/services/api'
 import { useAuthStore } from '@/store/authStore'
 
 const tabs = [
-  { key: 'outlet',       label: 'Factory',      icon: <Store size={13} />,         desc: 'Manage your factory details and business information' },
-  { key: 'roles',        label: 'Roles',        icon: <Shield size={13} />,        desc: 'Define staff roles and access levels' },
-  { key: 'permissions',  label: 'Permissions',  icon: <KeyRound size={13} />,      desc: 'Enable or disable individual system permissions' },
-  { key: 'tax',          label: 'Tax Groups',   icon: <Percent size={13} />,       desc: 'Configure GST tax groups and rates' },
-  { key: 'receipt',      label: 'Receipt',      icon: <Receipt size={13} />,       desc: 'Customise your POS receipt template' },
-  { key: 'invoice',      label: 'Templates',    icon: <LayoutTemplate size={13} />,desc: 'Manage notification and document templates' },
-  { key: 'integrations', label: 'Integrations', icon: <Zap size={13} />,           desc: 'Connect email, SMS, and WhatsApp channels' },
-  { key: 'service-rates', label: 'Service Rates', icon: <IndianRupee size={13} />, desc: 'Define third-party service rates for fabrication, spinning, transport and labour' },
-  { key: 'tds',           label: 'TDS Sections', icon: <Wrench size={13} />,      desc: 'Manage TDS sections and applicable rates (194C, 194J, etc.)' },
+  { key: 'outlet',           label: 'Factory',          icon: <Store size={13} />,         desc: 'Manage your factory details and business information' },
+  { key: 'roles',            label: 'Users',            icon: <Shield size={13} />,        desc: 'Manage users and define staff roles' },
+  { key: 'permissions',      label: 'Permissions',      icon: <KeyRound size={13} />,      desc: 'Manage system permissions and process access by role' },
+  { key: 'tax',              label: 'Tax Groups',       icon: <Percent size={13} />,       desc: 'Configure GST tax groups and rates' },
+  { key: 'receipt',          label: 'Receipt',          icon: <Receipt size={13} />,       desc: 'Customise your POS receipt template' },
+  { key: 'invoice',          label: 'Templates',        icon: <LayoutTemplate size={13} />,desc: 'Manage notification and document templates' },
+  { key: 'integrations',     label: 'Integrations',     icon: <Zap size={13} />,           desc: 'Connect email, SMS, and WhatsApp channels' },
+  { key: 'service-rates',    label: 'Service Rates',    icon: <IndianRupee size={13} />,   desc: 'Define third-party service rates for fabrication, spinning, transport and labour' },
+  { key: 'tds',              label: 'TDS Sections',     icon: <Wrench size={13} />,        desc: 'Manage TDS sections and applicable rates (194C, 194J, etc.)' },
 ]
 
 export default function SettingsPage() {
@@ -74,16 +74,46 @@ export default function SettingsPage() {
 
       {/* ── Content ──────────────────────────────────────────────── */}
       <div className="p-6">
-        {tab === 'outlet'      && <OutletSettings />}
-        {tab === 'roles'       && <RolesSettings />}
-        {tab === 'permissions' && <PermissionsSettings />}
-        {tab === 'tax'         && <TaxSettings />}
-        {tab === 'receipt'     && <ReceiptSettings />}
-        {tab === 'invoice'     && <TemplatesSettings />}
-        {tab === 'integrations'  && <IntegrationsSettings />}
-        {tab === 'service-rates' && <ServiceRatesSettings />}
-        {tab === 'tds'           && <TDSSectionsSettings />}
+        {tab === 'outlet'           && <OutletSettings />}
+        {tab === 'roles'            && <RolesSettings />}
+        {tab === 'permissions'      && <PermissionsTab />}
+        {tab === 'tax'              && <TaxSettings />}
+        {tab === 'receipt'          && <ReceiptSettings />}
+        {tab === 'invoice'          && <TemplatesSettings />}
+        {tab === 'integrations'     && <IntegrationsSettings />}
+        {tab === 'service-rates'    && <ServiceRatesSettings />}
+        {tab === 'tds'              && <TDSSectionsSettings />}
       </div>
+    </div>
+  )
+}
+
+function PermissionsTab() {
+  const [subTab, setSubTab] = useState<'system' | 'card'>('system')
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-5 p-1 bg-gray-100 rounded-xl w-fit">
+        <button
+          onClick={() => setSubTab('system')}
+          className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
+            subTab === 'system'
+              ? 'bg-gradient-to-r from-violet-600 to-blue-600 text-white shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}>
+          System Permissions
+        </button>
+        <button
+          onClick={() => setSubTab('card')}
+          className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
+            subTab === 'card'
+              ? 'bg-gradient-to-r from-violet-600 to-blue-600 text-white shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}>
+          Process Permissions
+        </button>
+      </div>
+      {subTab === 'system' && <PermissionsSettings />}
+      {subTab === 'card'   && <CardPermissionsSettings />}
     </div>
   )
 }
@@ -374,11 +404,33 @@ const CUSTOM_COLORS = [
 
 function RoleModal({ role, onClose, onDone }: { role: any | null; onClose: () => void; onDone: () => void }) {
   const isEdit = !!role
+  const qc = useQueryClient()
+  const [modalTab, setModalTab] = useState<'system' | 'process'>('system')
+
+  // ── Details & system permissions ──────────────────────────────────────────
   const [displayName, setDisplayName] = useState(role?.displayName ?? '')
   const [description, setDescription] = useState(role?.description ?? '')
   const [color, setColor] = useState(role?.color ?? CUSTOM_COLORS[0].value)
   const [permissions, setPermissions] = useState<string[]>(role?.permissions ?? [])
   const [noPermissions, setNoPermissions] = useState<boolean>(role ? (role.permissions ?? []).length === 0 : false)
+
+  // ── Process permissions ────────────────────────────────────────────────────
+  const [business, setBusiness] = useState<string[]>([])
+  const [pccp, setPccp]         = useState<string[]>([])
+
+  const { isLoading: loadingProcessPerms, data: processPermsData } = useQuery({
+    queryKey: ['role-card-permissions', role?.name],
+    queryFn: () => roleCardPermissionsApi.get(role.name).then(r => r.data.data),
+    enabled: isEdit && !!role?.name,
+  })
+
+  useEffect(() => {
+    if (processPermsData) {
+      setBusiness((processPermsData as any)?.business ?? [])
+      setPccp((processPermsData as any)?.pccp ?? [])
+    }
+  }, [processPermsData])
+
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -388,10 +440,12 @@ function RoleModal({ role, onClose, onDone }: { role: any | null; onClose: () =>
   function selectGroup(groupItems: string[], select: boolean) {
     setPermissions(prev => select ? [...new Set([...prev, ...groupItems])] : prev.filter(p => !groupItems.includes(p)))
   }
+  function toggleBusiness(key: string) { setBusiness(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]) }
+  function togglePccp(key: string) { setPccp(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]) }
 
   async function handleSubmit() {
-    if (!displayName.trim()) { setError('Role name is required'); return }
-    if (!noPermissions && permissions.length === 0) { setError('Select at least one permission, or check "No Specific Permissions"'); return }
+    if (!displayName.trim()) { setError('Role name is required'); setModalTab('system'); return }
+    if (!noPermissions && permissions.length === 0) { setError('Select at least one permission, or check "No Specific Permissions"'); setModalTab('system'); return }
     setError('')
     setLoading(true)
     const name = displayName.trim().toUpperCase().replace(/\s+/g, '_').replace(/[^A-Z0-9_]/g, '')
@@ -399,11 +453,15 @@ function RoleModal({ role, onClose, onDone }: { role: any | null; onClose: () =>
       const payload = { name, displayName: displayName.trim(), description: description.trim(), permissions: noPermissions ? [] : permissions, color }
       if (isEdit) {
         await rolesApi.update(role.id, payload)
-        toast.success('Role updated')
       } else {
         await rolesApi.create(payload)
-        toast.success('Role created')
       }
+      // Save process permissions
+      const roleName = isEdit ? role.name : name
+      await roleCardPermissionsApi.update(roleName, { business, pccp })
+      await qc.invalidateQueries({ queryKey: ['custom-roles'] })
+      await qc.invalidateQueries({ queryKey: ['role-card-permissions', roleName] })
+      toast.success(isEdit ? 'Role updated' : 'Role created')
       onDone()
     } catch (err: any) {
       toast.error(err.response?.data?.message ?? 'Failed to save role')
@@ -415,15 +473,36 @@ function RoleModal({ role, onClose, onDone }: { role: any | null; onClose: () =>
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
           <div>
             <h2 className="text-lg font-bold text-gray-900">{isEdit ? 'Edit Role' : 'Create Custom Role'}</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Define name, badge color and permissions</p>
+            <p className="text-xs text-gray-500 mt-0.5">Configure name, badge color, system and process permissions</p>
           </div>
           <button onClick={onClose}><X size={20} className="text-gray-400 hover:text-gray-600" /></button>
         </div>
 
+        {/* Sub-tabs */}
+        <div className="flex items-center gap-2 px-6 pt-4 pb-0 shrink-0">
+          <div className="flex items-center gap-1 p-1 bg-gray-100 rounded-xl">
+            <button onClick={() => setModalTab('system')}
+              className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all ${modalTab === 'system' ? 'bg-gradient-to-r from-violet-600 to-blue-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+              System Permissions
+            </button>
+            <button onClick={() => setModalTab('process')}
+              className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all ${modalTab === 'process' ? 'bg-gradient-to-r from-violet-600 to-blue-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+              Process Permissions
+            </button>
+          </div>
+          {modalTab === 'process' && (
+            <span className="text-xs text-gray-400">{business.length} business · {pccp.length} PCCP selected</span>
+          )}
+        </div>
+
         <div className="overflow-auto flex-1 px-6 py-5 space-y-5">
+
+          {/* ── System tab ───────────────────────────────────────────── */}
+          {modalTab === 'system' && (<>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -545,6 +624,91 @@ function RoleModal({ role, onClose, onDone }: { role: any | null; onClose: () =>
               <AlertCircle size={14} /> {error}
             </p>
           )}
+          </>)}
+
+          {/* ── Process tab ──────────────────────────────────────────── */}
+          {modalTab === 'process' && (
+            loadingProcessPerms ? (
+              <div className="flex items-center justify-center py-16 text-gray-400">
+                <Loader2 size={20} className="animate-spin mr-2" /> Loading…
+              </div>
+            ) : (
+              <div className="space-y-5">
+                {/* Business Cards */}
+                <div className="bg-white rounded-xl border border-gray-200">
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                    <div>
+                      <span className="text-sm font-bold text-gray-800">Business Cards</span>
+                      <span className="ml-2 text-xs text-gray-400">{business.length}/{CARD_PERMISSION_BUSINESS.length}</span>
+                    </div>
+                    <div className="flex gap-3 text-xs">
+                      <button onClick={() => setBusiness(CARD_PERMISSION_BUSINESS.map(c => c.key))} className="text-violet-600 hover:underline font-medium">Select All</button>
+                      <button onClick={() => setBusiness([])} className="text-gray-400 hover:underline">Clear</button>
+                    </div>
+                  </div>
+                  <div className="p-4 space-y-4">
+                    {CARD_CATEGORIES.map(cat => {
+                      const cards = CARD_PERMISSION_BUSINESS.filter(c => c.category === cat)
+                      if (!cards.length) return null
+                      const allCatSelected = cards.every(c => business.includes(c.key))
+                      return (
+                        <div key={cat}>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{cat}</span>
+                            <button onClick={() => setBusiness(prev => allCatSelected ? prev.filter(k => !cards.map(c=>c.key).includes(k)) : [...new Set([...prev, ...cards.map(c=>c.key)])])}
+                              className="text-xs text-gray-400 hover:text-violet-600">{allCatSelected ? 'Deselect' : 'Select all'}</button>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2">
+                            {cards.map(card => {
+                              const on = business.includes(card.key)
+                              return (
+                                <button key={card.key} onClick={() => toggleBusiness(card.key)}
+                                  className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-all text-left ${on ? 'border-violet-400 bg-violet-50 text-violet-700' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50'}`}>
+                                  <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${on ? 'bg-violet-600 border-violet-600' : 'border-gray-300'}`}>
+                                    {on && <Check size={8} className="text-white" strokeWidth={3} />}
+                                  </div>
+                                  {card.label}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* PCCP Stages */}
+                <div className="bg-white rounded-xl border border-gray-200">
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                    <div>
+                      <span className="text-sm font-bold text-gray-800">PCCP Stages</span>
+                      <span className="ml-2 text-xs text-gray-400">{pccp.length}/{CARD_PERMISSION_PCCP.length}</span>
+                    </div>
+                    <div className="flex gap-3 text-xs">
+                      <button onClick={() => setPccp(CARD_PERMISSION_PCCP.map(s => s.key))} className="text-violet-600 hover:underline font-medium">Select All</button>
+                      <button onClick={() => setPccp([])} className="text-gray-400 hover:underline">Clear</button>
+                    </div>
+                  </div>
+                  <div className="p-4 grid grid-cols-3 gap-2">
+                    {CARD_PERMISSION_PCCP.map(stage => {
+                      const on = pccp.includes(stage.key)
+                      return (
+                        <button key={stage.key} onClick={() => togglePccp(stage.key)}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-all text-left ${on ? 'border-violet-400 bg-violet-50 text-violet-700' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50'}`}>
+                          <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${on ? 'bg-violet-600 border-violet-600' : 'border-gray-300'}`}>
+                            {on && <Check size={8} className="text-white" strokeWidth={3} />}
+                          </div>
+                          {stage.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+            )
+          )}
+
         </div>
 
         <div className="px-6 py-4 border-t flex gap-3 shrink-0">
@@ -570,11 +734,31 @@ function RolesSettings() {
   const [showModal, setShowModal] = useState(false)
   const [editTarget, setEditTarget] = useState<any | null>(null)
   const [expandedRole, setExpandedRole] = useState<string | null>(null)
+  const [showCreateUser, setShowCreateUser] = useState(false)
+  const [editUser, setEditUser] = useState<any | null>(null)
 
-  const { data: roles = [], isLoading } = useQuery({
+  const { data: roles = [], isLoading: rolesLoading } = useQuery({
     queryKey: ['custom-roles'],
     queryFn: () => rolesApi.getAll().then(r => r.data.data ?? []),
   })
+
+  const { data: allStaff = [], isLoading: staffLoading } = useQuery({
+    queryKey: ['staff-all'],
+    queryFn: () => staffApi.getAll().then(r => r.data.data as any[]),
+  })
+
+  const cardPermsResults = useQueries({
+    queries: (roles as any[]).map((role: any) => ({
+      queryKey: ['role-card-permissions', role.name],
+      queryFn: () => roleCardPermissionsApi.get(role.name).then((r: any) => r.data.data),
+    })),
+  })
+
+  function getProcessCount(roleName: string) {
+    const idx = (roles as any[]).findIndex((r: any) => r.name === roleName)
+    const data = cardPermsResults[idx]?.data as any
+    return (data?.business?.length ?? 0) + (data?.pccp?.length ?? 0)
+  }
 
   async function deleteRole(role: any) {
     if (!window.confirm(`Delete role "${role.displayName}"? This cannot be undone.`)) return
@@ -595,53 +779,106 @@ function RolesSettings() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">Role Management</h2>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Manage roles and permissions — roles can be assigned to staff members
-          </p>
-        </div>
-        <button onClick={() => { setEditTarget(null); setShowModal(true) }}
-          className="flex items-center gap-2 bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-700 hover:to-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
-          <Plus size={16} /> Add Role
-        </button>
+      <div className="mb-2">
+        <h2 className="text-lg font-semibold text-gray-900">Staff Members</h2>
+        <p className="text-sm text-gray-500 mt-0.5">Manage users and their assigned roles</p>
       </div>
 
-      {/* Super Admin — always locked */}
-      <div className="mb-4">
-        <div className="flex items-center gap-2 mb-2">
-          <Lock size={13} className="text-gray-400" />
-          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">System Role</span>
-        </div>
-        <div className="border border-gray-200 rounded-xl overflow-hidden">
+      {/* ── Users section ── */}
+      <div className="mb-8 mt-6">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Users size={13} className="text-gray-400" />
+            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Users</span>
+          </div>
           <button
-            onClick={() => setExpandedRole(saExpanded ? null : 'SUPER_ADMIN')}
-            className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors">
-            <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${SUPER_ADMIN_ROLE.color}`}>{SUPER_ADMIN_ROLE.label}</span>
-            <span className="text-sm text-gray-500">{permCount(SUPER_ADMIN_ROLE.permissions)}</span>
-            <Lock size={12} className="text-gray-300" />
-            <span className="ml-auto text-xs text-gray-400">{saExpanded ? 'Hide' : 'View'} permissions</span>
+            onClick={() => setShowCreateUser(true)}
+            className="flex items-center gap-1.5 text-xs font-medium text-violet-600 hover:text-violet-700 border border-violet-200 hover:border-violet-300 bg-violet-50 hover:bg-violet-100 px-3 py-1.5 rounded-lg transition-colors">
+            <UserPlus size={13} /> Add User
           </button>
-          {saExpanded && (
-            <div className="border-t border-gray-100 px-4 py-3 bg-gray-50">
-              <div className="flex flex-wrap gap-1.5">
-                {PERMISSION_GROUPS.flatMap(g => g.items).map(p => (
-                  <span key={p.key} className="text-xs bg-white border border-gray-200 text-gray-600 px-2 py-0.5 rounded-full">{p.label}</span>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
+
+        {staffLoading ? (
+          <div className="flex items-center justify-center py-8 text-gray-400">
+            <Loader2 size={18} className="animate-spin mr-2" /> Loading…
+          </div>
+        ) : allStaff.length === 0 ? (
+          <div className="border border-dashed border-gray-200 rounded-xl px-6 py-8 text-center">
+            <p className="text-sm text-gray-400">No users yet.</p>
+            <button onClick={() => setShowCreateUser(true)}
+              className="mt-2 text-sm text-violet-600 hover:underline font-medium flex items-center gap-1.5 mx-auto">
+              <UserPlus size={14} /> Create your first user
+            </button>
+          </div>
+        ) : (
+          <div className="border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
+            {(allStaff as any[]).map((u: any) => (
+              <div key={u.id} className="flex items-center gap-3 px-4 py-3">
+                <div className="w-7 h-7 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-xs font-bold shrink-0">
+                  {(u.name || u.email || '?')[0].toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">{u.name || '—'}</p>
+                  <p className="text-xs text-gray-400 truncate">{u.email}</p>
+                </div>
+                <div className="flex flex-wrap gap-1 justify-end">
+                  {(u.roles ?? []).map((r: string) => {
+                    const roleObj = (roles as any[]).find((x: any) => x.name === r)
+                    return (
+                      <span key={r} className={`text-xs px-2 py-0.5 rounded-full font-medium ${roleObj?.color ?? 'bg-gray-100 text-gray-600'}`}>
+                        {roleObj?.displayName ?? r}
+                      </span>
+                    )
+                  })}
+                </div>
+                <button
+                  onClick={() => setEditUser(u)}
+                  className="p-1.5 text-gray-400 hover:text-violet-600 rounded-lg hover:bg-gray-50 shrink-0 ml-1">
+                  <Edit2 size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* All other roles from API */}
+      {/* ── Roles & Permissions section ── */}
       <div>
-        <div className="flex items-center gap-2 mb-2">
-          <ShieldCheck size={13} className="text-primary-500" />
-          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Roles</span>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <ShieldCheck size={13} className="text-primary-500" />
+            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Roles & Permissions</span>
+          </div>
+          <button onClick={() => { setEditTarget(null); setShowModal(true) }}
+            className="flex items-center gap-1.5 text-xs font-medium text-violet-600 hover:text-violet-700 border border-violet-200 hover:border-violet-300 bg-violet-50 hover:bg-violet-100 px-3 py-1.5 rounded-lg transition-colors">
+            <Plus size={13} /> Add Role
+          </button>
         </div>
-        {isLoading ? (
+
+        {/* Super Admin — always locked */}
+        <div className="mb-2">
+          <div className="border border-gray-200 rounded-xl overflow-hidden">
+            <button
+              onClick={() => setExpandedRole(saExpanded ? null : 'SUPER_ADMIN')}
+              className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors">
+              <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${SUPER_ADMIN_ROLE.color}`}>{SUPER_ADMIN_ROLE.label}</span>
+              <span className="text-sm text-gray-500">{permCount(SUPER_ADMIN_ROLE.permissions)}</span>
+              <Lock size={12} className="text-gray-300" />
+              <span className="ml-auto text-xs text-gray-400">{saExpanded ? 'Hide' : 'View'} permissions</span>
+            </button>
+            {saExpanded && (
+              <div className="border-t border-gray-100 px-4 py-3 bg-gray-50">
+                <div className="flex flex-wrap gap-1.5">
+                  {PERMISSION_GROUPS.flatMap(g => g.items).map(p => (
+                    <span key={p.key} className="text-xs bg-white border border-gray-200 text-gray-600 px-2 py-0.5 rounded-full">{p.label}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {rolesLoading ? (
           <div className="flex items-center justify-center py-12 text-gray-400">
             <Loader2 size={20} className="animate-spin mr-2" /> Loading…
           </div>
@@ -659,7 +896,9 @@ function RolesSettings() {
                         {role.displayName}
                       </span>
                       {role.description && <span className="text-xs text-gray-400 truncate">{role.description}</span>}
-                      <span className="text-sm text-gray-400 ml-auto shrink-0">{permCount(role.permissions ?? [])}</span>
+                      <span className="text-xs text-gray-400 ml-auto shrink-0">
+                        {allStaff.filter((u: any) => u.roles?.includes(role.name)).length} users · {role.permissions?.length ?? 0} sys · {getProcessCount(role.name)} process
+                      </span>
                     </button>
                     <button onClick={() => { setEditTarget(role); setShowModal(true) }}
                       className="p-1.5 text-gray-400 hover:text-primary-600 rounded-lg hover:bg-gray-50 shrink-0">
@@ -671,7 +910,8 @@ function RolesSettings() {
                     </button>
                   </div>
                   {isExpanded && (
-                    <div className="border-t border-gray-100 px-4 py-3 bg-gray-50">
+                    <div className="border-t border-gray-100 bg-gray-50 px-4 py-3">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Permissions</p>
                       {(role.permissions ?? []).length === 0 ? (
                         <p className="text-xs text-gray-400 italic">No specific permissions — label only</p>
                       ) : (
@@ -699,6 +939,533 @@ function RolesSettings() {
           onDone={() => { setShowModal(false); qc.invalidateQueries({ queryKey: ['custom-roles'] }) }}
         />
       )}
+      {showCreateUser && (
+        <CreateUserModal
+          roles={roles as any[]}
+          onClose={() => setShowCreateUser(false)}
+          onDone={() => {
+            setShowCreateUser(false)
+            qc.invalidateQueries({ queryKey: ['staff-all'] })
+          }}
+        />
+      )}
+      {editUser && (
+        <EditUserModal
+          user={editUser}
+          roles={roles as any[]}
+          onClose={() => setEditUser(null)}
+          onDone={() => {
+            setEditUser(null)
+            qc.invalidateQueries({ queryKey: ['staff-all'] })
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+// ─── Create User Modal ───────────────────────────────────────────────────────
+
+function CreateUserModal({ roles, onClose, onDone }: { roles: any[]; onClose: () => void; onDone: () => void }) {
+  const [name, setName]             = useState('')
+  const [email, setEmail]           = useState('')
+  const [phone, setPhone]           = useState('')
+  const [password, setPassword]     = useState('')
+  const [selectedRole, setSelectedRole] = useState(roles[0]?.name ?? '')
+  const [showPw, setShowPw]         = useState(false)
+  const [errors, setErrors]         = useState<Record<string, string>>({})
+
+  const mutation = useMutation({
+    mutationFn: () => staffApi.create({ name, email: email || undefined, phone: phone || undefined, password, roles: selectedRole ? [selectedRole] : [] }),
+    onSuccess: () => {
+      const roleObj = roles.find(r => r.name === selectedRole)
+      toast.success(`User "${name}" created${roleObj ? ` as ${roleObj.displayName}` : ''}`)
+      onDone()
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message || 'Failed to create user'
+      toast.error(msg)
+    },
+  })
+
+  function validate() {
+    const e: Record<string, string> = {}
+    if (!name.trim()) e.name = 'Name is required'
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = 'Invalid email'
+    if (!password) e.password = 'Password is required'
+    else if (password.length < 6) e.password = 'Minimum 6 characters'
+    if (!selectedRole) e.role = 'Please select a role'
+    return e
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const errs = validate()
+    if (Object.keys(errs).length) { setErrors(errs); return }
+    mutation.mutate()
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center">
+              <UserPlus size={16} className="text-violet-600" />
+            </div>
+            <h2 className="text-sm font-bold text-gray-900">Add User</h2>
+          </div>
+          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400">
+            <X size={16} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Full Name <span className="text-red-500">*</span></label>
+            <input
+              value={name} onChange={e => { setName(e.target.value); setErrors(p => ({ ...p, name: '' })) }}
+              placeholder="e.g. Ravi Kumar"
+              className={`w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-violet-400 focus:outline-none ${errors.name ? 'border-red-400' : 'border-gray-300'}`}
+            />
+            {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <input
+              type="email" value={email} onChange={e => { setEmail(e.target.value); setErrors(p => ({ ...p, email: '' })) }}
+              placeholder="user@example.com"
+              className={`w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-violet-400 focus:outline-none ${errors.email ? 'border-red-400' : 'border-gray-300'}`}
+            />
+            {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+            <input
+              type="tel" value={phone} onChange={e => setPhone(e.target.value)}
+              placeholder="e.g. 9922450055"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-violet-400 focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Password <span className="text-red-500">*</span></label>
+            <div className="relative">
+              <input
+                type={showPw ? 'text' : 'password'} value={password}
+                onChange={e => { setPassword(e.target.value); setErrors(p => ({ ...p, password: '' })) }}
+                placeholder="Min. 6 characters"
+                className={`w-full border rounded-lg px-3 py-2.5 pr-10 text-sm focus:ring-2 focus:ring-violet-400 focus:outline-none ${errors.password ? 'border-red-400' : 'border-gray-300'}`}
+              />
+              <button type="button" onClick={() => setShowPw(v => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
+            {errors.password && <p className="text-xs text-red-500 mt-1">{errors.password}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Role <span className="text-red-500">*</span></label>
+            <select
+              value={selectedRole}
+              onChange={e => { setSelectedRole(e.target.value); setErrors(p => ({ ...p, role: '' })) }}
+              className={`w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-violet-400 focus:outline-none bg-white ${errors.role ? 'border-red-400' : 'border-gray-300'}`}
+            >
+              <option value="">— Select a role —</option>
+              {roles.map(r => (
+                <option key={r.name} value={r.name}>{r.displayName}</option>
+              ))}
+            </select>
+            {errors.role && <p className="text-xs text-red-500 mt-1">{errors.role}</p>}
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose}
+              className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+              Cancel
+            </button>
+            <button type="submit" disabled={mutation.isPending}
+              className="flex-1 px-4 py-2.5 text-sm font-semibold text-white bg-violet-600 hover:bg-violet-700 rounded-lg transition-colors disabled:opacity-60 flex items-center justify-center gap-2">
+              {mutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
+              {mutation.isPending ? 'Creating…' : 'Create User'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ─── Edit User Modal ─────────────────────────────────────────────────────────
+
+function EditUserModal({ user, roles, onClose, onDone }: { user: any; roles: any[]; onClose: () => void; onDone: () => void }) {
+  const [name, setName]             = useState(user.name ?? '')
+  const [email, setEmail]           = useState(user.email ?? '')
+  const [phone, setPhone]           = useState(user.phone ?? '')
+  const [password, setPassword]     = useState('')
+  const [selectedRole, setSelectedRole] = useState(user.roles?.[0] ?? '')
+  const [showPw, setShowPw]         = useState(false)
+  const [errors, setErrors]         = useState<Record<string, string>>({})
+
+  const mutation = useMutation({
+    mutationFn: () => {
+      const payload: any = {
+        name,
+        email: email || undefined,
+        phone: phone || undefined,
+        roles: selectedRole ? [selectedRole] : [],
+      }
+      if (password) payload.password = password
+      return staffApi.update(user.id, payload)
+    },
+    onSuccess: () => {
+      toast.success(`User "${name}" updated`)
+      onDone()
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || 'Failed to update user')
+    },
+  })
+
+  function validate() {
+    const e: Record<string, string> = {}
+    if (!name.trim()) e.name = 'Name is required'
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = 'Invalid email'
+    if (password && password.length < 6) e.password = 'Minimum 6 characters'
+    if (!selectedRole) e.role = 'Please select a role'
+    return e
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const errs = validate()
+    if (Object.keys(errs).length) { setErrors(errs); return }
+    mutation.mutate()
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center">
+              <Edit2 size={16} className="text-violet-600" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-gray-900">Edit User</h2>
+              <p className="text-xs text-gray-400">{user.email}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400">
+            <X size={16} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Full Name <span className="text-red-500">*</span></label>
+            <input
+              value={name} onChange={e => { setName(e.target.value); setErrors(p => ({ ...p, name: '' })) }}
+              placeholder="e.g. Ravi Kumar"
+              className={`w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-violet-400 focus:outline-none ${errors.name ? 'border-red-400' : 'border-gray-300'}`}
+            />
+            {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <input
+              type="email" value={email} onChange={e => { setEmail(e.target.value); setErrors(p => ({ ...p, email: '' })) }}
+              placeholder="user@example.com"
+              className={`w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-violet-400 focus:outline-none ${errors.email ? 'border-red-400' : 'border-gray-300'}`}
+            />
+            {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+            <input
+              type="tel" value={phone} onChange={e => setPhone(e.target.value)}
+              placeholder="e.g. 9922450055"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-violet-400 focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">New Password <span className="text-gray-400 font-normal">(leave blank to keep current)</span></label>
+            <div className="relative">
+              <input
+                type={showPw ? 'text' : 'password'} value={password}
+                onChange={e => { setPassword(e.target.value); setErrors(p => ({ ...p, password: '' })) }}
+                placeholder="Min. 6 characters"
+                className={`w-full border rounded-lg px-3 py-2.5 pr-10 text-sm focus:ring-2 focus:ring-violet-400 focus:outline-none ${errors.password ? 'border-red-400' : 'border-gray-300'}`}
+              />
+              <button type="button" onClick={() => setShowPw(v => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
+            {errors.password && <p className="text-xs text-red-500 mt-1">{errors.password}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Role <span className="text-red-500">*</span></label>
+            <select
+              value={selectedRole}
+              onChange={e => { setSelectedRole(e.target.value); setErrors(p => ({ ...p, role: '' })) }}
+              className={`w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-violet-400 focus:outline-none bg-white ${errors.role ? 'border-red-400' : 'border-gray-300'}`}
+            >
+              <option value="">— Select a role —</option>
+              {roles.map(r => (
+                <option key={r.name} value={r.name}>{r.displayName}</option>
+              ))}
+            </select>
+            {errors.role && <p className="text-xs text-red-500 mt-1">{errors.role}</p>}
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose}
+              className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+              Cancel
+            </button>
+            <button type="submit" disabled={mutation.isPending}
+              className="flex-1 px-4 py-2.5 text-sm font-semibold text-white bg-violet-600 hover:bg-violet-700 rounded-lg transition-colors disabled:opacity-60 flex items-center justify-center gap-2">
+              {mutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+              {mutation.isPending ? 'Saving…' : 'Save Changes'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ─── Process Permissions Settings ────────────────────────────────────────────
+
+const CARD_PERMISSION_BUSINESS = [
+  { key: 'pccp',               label: 'PCCP',               category: 'Production' },
+  { key: 'psc',                label: 'PSC',                category: 'Production' },
+  { key: 'discard',            label: 'Discard',            category: 'Production' },
+  { key: 'extra-fab',          label: 'Extra Fabrication',  category: 'Production' },
+  { key: 'cutting',            label: 'Cutting',            category: 'Production' },
+  { key: 'conversion',         label: 'Conversion',         category: 'Production' },
+  { key: 'testing-lab',        label: 'Testing Lab',        category: 'Quality' },
+  { key: 'pdi',                label: 'PDI',                category: 'Quality' },
+  { key: 'maintenance',        label: 'Maintenance',        category: 'Operations' },
+  { key: 'vehicles',           label: 'Vehicles',           category: 'Operations' },
+  { key: 'diesel-maintenance', label: 'Diesel Maintenance', category: 'Operations' },
+  { key: 'extra-vehicles',     label: 'Extra Vehicles',     category: 'Operations' },
+  { key: 'silo',               label: 'Silo',               category: 'Materials' },
+  { key: 'silo-extraction',    label: 'Silo Extraction',    category: 'Materials' },
+  { key: 'cement-bags',        label: 'Cement Bags',        category: 'Materials' },
+  { key: 'store-material',     label: 'Store Material',     category: 'Materials' },
+  { key: 'loading',            label: 'Loading',            category: 'Logistics' },
+  { key: 'loaded-pipes',       label: 'Loaded Pipes',       category: 'Logistics' },
+  { key: 'transport-report',   label: 'Transport Report',   category: 'Logistics' },
+  { key: 'labour',             label: 'Labour',             category: 'HR' },
+]
+
+const CARD_PERMISSION_PCCP = [
+  { key: 'FABRICATION',         label: 'Fabrication' },
+  { key: 'FABRICATION_TESTING', label: 'Fabrication Testing' },
+  { key: 'MOULDING',            label: 'Moulding' },
+  { key: 'SPINNING',            label: 'Spinning' },
+  { key: 'DEMOULDING',          label: 'Demoulding' },
+  { key: 'CURING_1',            label: 'Curing 1' },
+  { key: 'WINDING',             label: 'Winding' },
+  { key: 'COATING',             label: 'Coating' },
+  { key: 'CURING_2',            label: 'Curing 2' },
+  { key: 'FINAL_TESTING',       label: 'Final Testing' },
+  { key: 'PDI',                 label: 'PDI' },
+]
+
+const CARD_CATEGORIES = ['Production', 'Quality', 'Operations', 'Materials', 'Logistics', 'HR']
+
+function CardPermissionsSettings() {
+  const qc = useQueryClient()
+  const [selectedRole, setSelectedRole] = useState<string | null>(null)
+  const [business, setBusiness] = useState<string[]>([])
+  const [pccp, setPccp]         = useState<string[]>([])
+  const [dirty, setDirty]       = useState(false)
+
+  const { data: rolesData } = useQuery({
+    queryKey: ['custom-roles'],
+    queryFn: () => rolesApi.getAll().then(r => r.data.data as any[]),
+  })
+
+  const { isLoading: loadingPerms, data: permsData } = useQuery({
+    queryKey: ['role-card-permissions', selectedRole],
+    queryFn: () => roleCardPermissionsApi.get(selectedRole!).then(r => r.data.data),
+    enabled: selectedRole !== null,
+  })
+
+  useEffect(() => {
+    if (permsData) {
+      setBusiness((permsData as any).business ?? [])
+      setPccp((permsData as any).pccp ?? [])
+      setDirty(false)
+    }
+  }, [permsData])
+
+  const saveMutation = useMutation({
+    mutationFn: () => roleCardPermissionsApi.update(selectedRole!, { business, pccp }),
+    onSuccess: () => {
+      toast.success('Card permissions saved')
+      qc.invalidateQueries({ queryKey: ['role-card-permissions', selectedRole] })
+      setDirty(false)
+    },
+    onError: () => toast.error('Failed to save'),
+  })
+
+  const toggle = (list: string[], set: (v: string[]) => void, key: string) => {
+    set(list.includes(key) ? list.filter(k => k !== key) : [...list, key])
+    setDirty(true)
+  }
+
+  const roles           = rolesData ?? []
+  const selectedRoleObj = roles.find((r: any) => r.name === selectedRole)
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Process Permissions</h2>
+          <p className="text-sm text-gray-500 mt-0.5">Control which Business and PCCP processes each role can access on mobile</p>
+        </div>
+      </div>
+
+      <div className="flex gap-5">
+        {/* Role list */}
+        <div className="w-56 shrink-0">
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="divide-y divide-gray-50 max-h-[600px] overflow-y-auto">
+              {roles.map((r: any) => (
+                <button
+                  key={r.name}
+                  onClick={() => setSelectedRole(r.name)}
+                  className={`w-full text-left px-4 py-3 transition-colors ${selectedRole === r.name ? 'bg-slate-900 text-white' : 'hover:bg-gray-50 text-gray-700'}`}
+                >
+                  <div className="text-sm font-medium truncate">{r.displayName || r.name}</div>
+                  {r.description && <div className={`text-xs mt-0.5 truncate ${selectedRole === r.name ? 'text-white/50' : 'text-gray-400'}`}>{r.description}</div>}
+                </button>
+              ))}
+              {roles.length === 0 && <div className="px-4 py-6 text-center text-xs text-gray-400">No roles found</div>}
+            </div>
+          </div>
+        </div>
+
+        {/* Permissions */}
+        <div className="flex-1 min-w-0">
+          {!selectedRole ? (
+            <div className="flex flex-col items-center justify-center h-48 text-gray-300 bg-white rounded-xl border border-gray-200">
+              <ShieldCheck size={32} className="mb-2" />
+              <p className="text-sm text-gray-400">Select a role to configure process access</p>
+            </div>
+          ) : loadingPerms ? (
+            <div className="flex items-center justify-center h-48 bg-white rounded-xl border border-gray-200">
+              <Loader2 size={20} className="animate-spin text-gray-400" />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-bold text-gray-900">{selectedRoleObj?.displayName || selectedRole}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{business.length} business · {pccp.length} PCCP</p>
+                </div>
+                <button
+                  onClick={() => saveMutation.mutate()}
+                  disabled={!dirty || saveMutation.isPending}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${dirty ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
+                >
+                  <Save size={14} />
+                  {saveMutation.isPending ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+
+              {/* Business Cards */}
+              <div className="bg-white rounded-xl border border-gray-200">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                  <div>
+                    <span className="text-sm font-bold text-gray-800">Business Cards</span>
+                    <span className="ml-2 text-xs text-gray-400">{business.length}/{CARD_PERMISSION_BUSINESS.length}</span>
+                  </div>
+                  <div className="flex gap-2 text-xs">
+                    <button onClick={() => { setBusiness(CARD_PERMISSION_BUSINESS.map(c => c.key)); setDirty(true) }} className="text-blue-600 hover:underline font-medium">Select All</button>
+                    <span className="text-gray-300">·</span>
+                    <button onClick={() => { setBusiness([]); setDirty(true) }} className="text-gray-400 hover:underline">Clear</button>
+                  </div>
+                </div>
+                <div className="p-4 space-y-4">
+                  {CARD_CATEGORIES.map(cat => {
+                    const cards = CARD_PERMISSION_BUSINESS.filter(c => c.category === cat)
+                    if (!cards.length) return null
+                    return (
+                      <div key={cat}>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">{cat}</p>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {cards.map(card => {
+                            const checked = business.includes(card.key)
+                            return (
+                              <button
+                                key={card.key}
+                                onClick={() => toggle(business, setBusiness, card.key)}
+                                className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border text-left transition-all text-xs ${checked ? 'border-blue-400 bg-blue-50 text-gray-900' : 'border-gray-200 hover:border-gray-300 text-gray-600'}`}
+                              >
+                                {checked
+                                  ? <CheckSquare size={13} className="shrink-0 text-blue-500" />
+                                  : <Square size={13} className="shrink-0 text-gray-300" />}
+                                <span className="font-medium truncate">{card.label}</span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* PCCP Stages */}
+              <div className="bg-white rounded-xl border border-gray-200">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                  <div>
+                    <span className="text-sm font-bold text-gray-800">PCCP Stages</span>
+                    <span className="ml-2 text-xs text-gray-400">{pccp.length}/{CARD_PERMISSION_PCCP.length}</span>
+                  </div>
+                  <div className="flex gap-2 text-xs">
+                    <button onClick={() => { setPccp(CARD_PERMISSION_PCCP.map(s => s.key)); setDirty(true) }} className="text-blue-600 hover:underline font-medium">Select All</button>
+                    <span className="text-gray-300">·</span>
+                    <button onClick={() => { setPccp([]); setDirty(true) }} className="text-gray-400 hover:underline">Clear</button>
+                  </div>
+                </div>
+                <div className="p-4">
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {CARD_PERMISSION_PCCP.map(stage => {
+                      const checked = pccp.includes(stage.key)
+                      return (
+                        <button
+                          key={stage.key}
+                          onClick={() => toggle(pccp, setPccp, stage.key)}
+                          className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border text-left transition-all text-xs ${checked ? 'border-violet-400 bg-violet-50 text-gray-900' : 'border-gray-200 hover:border-gray-300 text-gray-600'}`}
+                        >
+                          {checked
+                            ? <CheckSquare size={13} className="shrink-0 text-violet-500" />
+                            : <Square size={13} className="shrink-0 text-gray-300" />}
+                          <span className="font-medium truncate">{stage.label}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

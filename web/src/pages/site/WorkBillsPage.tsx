@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
+import SiteFloatingNav from './SiteFloatingNav'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Plus, Search, X, Loader2, FileText, HardHat,
@@ -62,14 +63,14 @@ const PAY_MODES: { value: PayMode; label: string }[] = [
 
 const STATUS_CONFIG: Record<WBStatus, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
   DRAFT:     { label: 'Draft',     color: 'text-gray-500',   bg: 'bg-gray-100',    icon: <Edit2 size={11} /> },
-  SUBMITTED: { label: 'Submitted', color: 'text-blue-700',   bg: 'bg-blue-50',     icon: <Send size={11} /> },
+  SUBMITTED: { label: 'Submitted', color: 'text-blue-500',   bg: 'bg-blue-50',     icon: <Send size={11} /> },
   APPROVED:  { label: 'Approved',  color: 'text-green-700',  bg: 'bg-green-50',    icon: <CheckCircle2 size={11} /> },
   PAID:      { label: 'Paid',      color: 'text-violet-700', bg: 'bg-violet-50',   icon: <IndianRupee size={11} /> },
 }
 const STATUS_TABS: Array<WBStatus | 'ALL'> = ['ALL', 'DRAFT', 'SUBMITTED', 'APPROVED', 'PAID']
 const STATUS_TAB_ACTIVE: Record<string, string> = {
   ALL: 'bg-gray-800 text-white', DRAFT: 'bg-gray-500 text-white',
-  SUBMITTED: 'bg-blue-600 text-white', APPROVED: 'bg-green-600 text-white', PAID: 'bg-violet-600 text-white',
+  SUBMITTED: 'bg-blue-500 text-white', APPROVED: 'bg-green-600 text-white', PAID: 'bg-violet-600 text-white',
 }
 
 function fmt(n: number) { return n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }
@@ -131,7 +132,7 @@ function WOSelector({ value, onSelect }: {
   return (
     <div className="relative">
       <button onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center gap-2 px-3 py-2.5 border border-gray-200 rounded-xl hover:border-rose-400 text-sm text-gray-500 hover:text-gray-700 transition-colors bg-white">
+        className="w-full flex items-center gap-2 px-3 py-2.5 border border-gray-200 rounded-xl hover:border-blue-400 text-sm text-gray-500 hover:text-gray-700 transition-colors bg-white">
         <ClipboardList size={14} className="text-gray-400" />
         <span>Select a completed work order…</span>
         <ChevronRight size={13} className={`ml-auto transition-transform ${open ? 'rotate-90' : ''}`} />
@@ -145,7 +146,7 @@ function WOSelector({ value, onSelect }: {
             </div>
           ) : completedWOs.map(wo => (
             <button key={wo.id} onClick={() => { onSelect(wo); setOpen(false) }}
-              className="w-full flex items-start gap-3 px-4 py-3 hover:bg-rose-50 text-left border-b border-gray-50 last:border-0 transition-colors">
+              className="w-full flex items-start gap-3 px-4 py-3 hover:bg-blue-50 text-left border-b border-gray-50 last:border-0 transition-colors">
               <span className="text-xs font-bold font-mono text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded shrink-0 mt-0.5">{wo.woNumber}</span>
               <div>
                 <p className="text-sm font-medium text-gray-800">{wo.title}</p>
@@ -261,7 +262,7 @@ function CreateBillPanel({ initialWoId, onClose, onSaved }: {
     }
   }
 
-  const inputCls = 'w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-400/40 focus:border-rose-400 transition-colors'
+  const inputCls = 'w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400/40 focus:border-blue-400 transition-colors'
 
   return (
     <>
@@ -272,7 +273,7 @@ function CreateBillPanel({ initialWoId, onClose, onSaved }: {
           {/* Header */}
           <div className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-rose-600 flex items-center justify-center shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center shrink-0">
                 <FileText size={15} className="text-white" />
               </div>
               <div>
@@ -283,7 +284,7 @@ function CreateBillPanel({ initialWoId, onClose, onSaved }: {
             <div className="flex items-center gap-2">
               <button onClick={handleClose} className="px-3.5 py-2 text-sm text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">Cancel</button>
               <button onClick={handleSave} disabled={saving}
-                className="flex items-center gap-1.5 px-5 py-2 text-sm bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-lg font-semibold shadow-sm transition-colors">
+                className="flex items-center gap-1.5 px-5 py-2 text-sm bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-lg font-semibold shadow-sm transition-colors">
                 {saving ? <Loader2 size={13} className="animate-spin" /> : <FileText size={13} />}
                 Save Bill
               </button>
@@ -297,7 +298,7 @@ function CreateBillPanel({ initialWoId, onClose, onSaved }: {
               {/* Work Order + Bill Meta */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-white rounded-xl shadow-md p-5 space-y-3">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Work Order <span className="text-red-400">*</span></p>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Work Order <span className="text-blue-500">*</span></p>
                   <WOSelector value={wo} onSelect={setWO} />
                 </div>
                 <div className="bg-white rounded-xl shadow-md p-5">
@@ -338,7 +339,7 @@ function CreateBillPanel({ initialWoId, onClose, onSaved }: {
                     {(['INTRA_STATE', 'INTER_STATE'] as SupplyType[]).map(t => (
                       <button key={t} onClick={() => setSupplyType(t)}
                         className={`flex-1 py-2 text-sm font-semibold rounded-xl transition-colors ${
-                          supplyType === t ? 'bg-rose-600 text-white shadow-sm' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
+                          supplyType === t ? 'bg-blue-500 text-white shadow-sm' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
                         }`}>
                         {t === 'INTRA_STATE' ? 'Intra-State (CGST+SGST)' : 'Inter-State (IGST)'}
                       </button>
@@ -348,7 +349,7 @@ function CreateBillPanel({ initialWoId, onClose, onSaved }: {
                 <div className="bg-white rounded-xl shadow-md p-5 space-y-3">
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">TDS Deduction</p>
                   <select value={tdsRate} onChange={e => setTdsRate(Number(e.target.value))}
-                    className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-400/40 focus:border-rose-400 bg-white">
+                    className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400/40 focus:border-blue-400 bg-white">
                     {TDS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 </div>
@@ -395,12 +396,12 @@ function CreateBillPanel({ initialWoId, onClose, onSaved }: {
                         <div className="px-2 py-2">
                           <input type="number" min="0" step="0.01" value={it.actualQty || ''}
                             onChange={e => updateItem(it.id, 'actualQty', parseFloat(e.target.value) || 0)}
-                            className="w-full px-2 py-1.5 text-sm text-right border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-300 bg-white" />
+                            className="w-full px-2 py-1.5 text-sm text-right border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white" />
                         </div>
                         <div className="px-3 py-2 text-right text-sm text-gray-600 tabular-nums">₹{fmt(it.rate)}</div>
                         <div className="px-2 py-2">
                           <select value={it.gstRate} onChange={e => updateItem(it.id, 'gstRate', Number(e.target.value))}
-                            className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-300 bg-white text-center">
+                            className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white text-center">
                             {GST_RATES.map(r => <option key={r} value={r}>{r}%</option>)}
                           </select>
                         </div>
@@ -452,14 +453,14 @@ function CreateBillPanel({ initialWoId, onClose, onSaved }: {
                       <span className="tabular-nums font-semibold">₹{fmt(calc.subtotal + calc.gstTotal)}</span>
                     </div>
                     {tdsRate > 0 && (
-                      <div className="flex justify-between text-amber-600">
+                      <div className="flex justify-between text-gray-500">
                         <span>TDS ({tdsRate}% on base)</span>
                         <span className="tabular-nums font-medium">−₹{fmt(calc.tds)}</span>
                       </div>
                     )}
                     <div className="flex justify-between font-bold text-[15px] border-t pt-3 mt-1 text-gray-900">
                       <span>Net Payable</span>
-                      <span className="tabular-nums text-rose-600">₹{fmt(calc.netPayable)}</span>
+                      <span className="tabular-nums text-gray-900">₹{fmt(calc.netPayable)}</span>
                     </div>
                   </div>
                 </div>
@@ -469,7 +470,7 @@ function CreateBillPanel({ initialWoId, onClose, onSaved }: {
                   <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Notes</label>
                   <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={5}
                     placeholder="Payment instructions, site remarks, deduction details…"
-                    className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-400/40 focus:border-rose-400 transition-colors resize-none" />
+                    className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400/40 focus:border-blue-400 transition-colors resize-none" />
                 </div>
               </div>
 
@@ -484,7 +485,7 @@ function CreateBillPanel({ initialWoId, onClose, onSaved }: {
             <div className="flex gap-2">
               <button onClick={handleClose} className="px-4 py-2 text-sm text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">Cancel</button>
               <button onClick={handleSave} disabled={saving || !wo}
-                className="flex items-center gap-1.5 px-5 py-2 text-sm bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-lg font-semibold shadow-sm transition-colors">
+                className="flex items-center gap-1.5 px-5 py-2 text-sm bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-lg font-semibold shadow-sm transition-colors">
                 {saving ? <Loader2 size={13} className="animate-spin" /> : null}
                 Save Work Bill
               </button>
@@ -551,17 +552,17 @@ function RecordPaymentModal({ bill, onClose, onDone }: {
             </div>
             <div className="flex justify-between font-bold border-t pt-1.5 text-gray-800">
               <span>Balance</span>
-              <span className="text-rose-600">₹{fmt(balance)}</span>
+              <span className="text-blue-500">₹{fmt(balance)}</span>
             </div>
           </div>
           <div>
             <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Payment Date</label>
             <input type="date" value={date} onChange={e => setDate(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-400/40 focus:border-rose-400" />
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400/40 focus:border-blue-400" />
           </div>
           <div>
             <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Amount (₹)</label>
-            <div className="flex items-center border border-gray-200 rounded-xl px-3 py-2.5 focus-within:ring-2 focus-within:ring-rose-400/40 focus-within:border-rose-400">
+            <div className="flex items-center border border-gray-200 rounded-xl px-3 py-2.5 focus-within:ring-2 focus-within:ring-blue-400/40 focus-within:border-blue-400">
               <IndianRupee size={14} className="text-gray-400 mr-1.5" />
               <input type="number" min="0.01" step="0.01" value={amount} onChange={e => setAmount(e.target.value)}
                 className="flex-1 text-sm outline-none text-gray-800" />
@@ -573,7 +574,7 @@ function RecordPaymentModal({ bill, onClose, onDone }: {
               {PAY_MODES.map(m => (
                 <button key={m.value} onClick={() => setMode(m.value)}
                   className={`py-2 text-xs font-semibold rounded-xl transition-colors ${
-                    mode === m.value ? 'bg-rose-600 text-white' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
+                    mode === m.value ? 'bg-blue-500 text-white' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
                   }`}>
                   {m.label}
                 </button>
@@ -584,13 +585,13 @@ function RecordPaymentModal({ bill, onClose, onDone }: {
             <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Reference No. <span className="font-normal text-gray-300">(optional)</span></label>
             <input type="text" value={reference} onChange={e => setReference(e.target.value)}
               placeholder="UTR / Cheque no. / Transaction ID"
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-400/40 focus:border-rose-400" />
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400/40 focus:border-blue-400" />
           </div>
         </div>
         <div className="px-5 pb-5 flex gap-3 justify-end">
           <button onClick={onClose} className="px-4 py-2 text-sm text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50">Cancel</button>
           <button onClick={handleSave} disabled={saving}
-            className="flex items-center gap-2 px-5 py-2 text-sm bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-semibold transition-colors">
+            className="flex items-center gap-2 px-5 py-2 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-semibold transition-colors">
             {saving ? <Loader2 size={13} className="animate-spin" /> : <CreditCard size={13} />}
             Record Payment
           </button>
@@ -637,7 +638,7 @@ function BillDetail({ bill, onClose, onUpdated }: {
     DRAFT: 'Submit Bill', SUBMITTED: 'Approve Bill', APPROVED: null, PAID: null
   }
   const nextColor: Record<WBStatus, string> = {
-    DRAFT: 'bg-blue-600 hover:bg-blue-700', SUBMITTED: 'bg-green-600 hover:bg-green-700',
+    DRAFT: 'bg-blue-500 hover:bg-blue-600', SUBMITTED: 'bg-green-600 hover:bg-green-700',
     APPROVED: '', PAID: '',
   }
 
@@ -715,7 +716,7 @@ function BillDetail({ bill, onClose, onUpdated }: {
                       </td>
                       <td className="px-3 py-2.5 text-right tabular-nums text-gray-600">{it.actualQty.toLocaleString('en-IN')}</td>
                       <td className="px-3 py-2.5 text-right tabular-nums text-gray-600">₹{fmt(it.rate)}</td>
-                      <td className="px-3 py-2.5 text-center text-blue-600 text-xs font-semibold">{it.gstRate}%</td>
+                      <td className="px-3 py-2.5 text-center text-blue-500 text-xs font-semibold">{it.gstRate}%</td>
                       <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-gray-800">₹{fmt(it.actualQty * it.rate)}</td>
                     </tr>
                   ))}
@@ -732,7 +733,7 @@ function BillDetail({ bill, onClose, onUpdated }: {
                   ? [{ l: 'CGST', v: `₹${fmt(calc.cgst)}`, cls: 'text-gray-500' }, { l: 'SGST', v: `₹${fmt(calc.sgst)}`, cls: 'text-gray-500' }]
                   : [{ l: 'IGST', v: `₹${fmt(calc.igst)}`, cls: 'text-gray-500' }]),
                 { l: 'Gross Total', v: `₹${fmt(calc.subtotal + calc.gstTotal)}`, cls: 'text-gray-700 font-semibold' },
-                ...(bill.tdsRate > 0 ? [{ l: `TDS (${bill.tdsRate}%)`, v: `−₹${fmt(calc.tds)}`, cls: 'text-amber-600' }] : []),
+                ...(bill.tdsRate > 0 ? [{ l: `TDS (${bill.tdsRate}%)`, v: `−₹${fmt(calc.tds)}`, cls: 'text-gray-500' }] : []),
               ].map(r => (
                 <div key={r.l} className={`flex justify-between ${r.cls}`}>
                   <span>{r.l}</span><span className="tabular-nums">{r.v}</span>
@@ -740,7 +741,7 @@ function BillDetail({ bill, onClose, onUpdated }: {
               ))}
               <div className="flex justify-between font-bold text-base border-t pt-2.5 mt-1 text-gray-900">
                 <span>Net Payable</span>
-                <span className="text-rose-600 tabular-nums">₹{fmt(calc.netPayable)}</span>
+                <span className="text-gray-900 tabular-nums">₹{fmt(calc.netPayable)}</span>
               </div>
             </div>
 
@@ -764,7 +765,7 @@ function BillDetail({ bill, onClose, onUpdated }: {
                     <span className="text-green-600 tabular-nums">₹{fmt(paid)}</span>
                   </div>
                   {balance > 0.01 && (
-                    <div className="flex justify-between text-sm font-bold text-rose-600">
+                    <div className="flex justify-between text-sm font-bold text-blue-500">
                       <span>Balance Due</span>
                       <span className="tabular-nums">₹{fmt(balance)}</span>
                     </div>
@@ -791,7 +792,7 @@ function BillDetail({ bill, onClose, onUpdated }: {
             )}
             {(bill.status === 'APPROVED' || bill.status === 'SUBMITTED') && balance > 0.01 && (
               <button onClick={() => setShowPayment(true)}
-                className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors">
+                className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-semibold text-white bg-blue-500 hover:bg-blue-600 rounded-xl transition-colors">
                 <IndianRupee size={15} /> Record Payment
               </button>
             )}
@@ -820,11 +821,11 @@ function BillRow({ bill, onClick }: { bill: WorkBill; onClick: () => void }) {
 
   return (
     <button onClick={onClick}
-      className="w-full bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-rose-100 transition-all p-5 text-left group">
+      className="w-full bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-blue-100 transition-all p-5 text-left group">
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2.5 mb-1">
-            <span className="text-xs font-bold font-mono text-rose-600 bg-rose-50 px-2 py-0.5 rounded-lg">{bill.billNumber}</span>
+            <span className="text-xs font-bold font-mono text-blue-500 bg-blue-50 px-2 py-0.5 rounded-lg">{bill.billNumber}</span>
             <span className="text-xs font-mono text-gray-400">{bill.woNumber}</span>
             <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full ${cfg.bg} ${cfg.color}`}>
               {cfg.icon} {cfg.label}
@@ -842,7 +843,7 @@ function BillRow({ bill, onClick }: { bill: WorkBill; onClick: () => void }) {
           {bill.status !== 'DRAFT' && bill.status !== 'SUBMITTED' && (
             <div className="mt-2.5 flex items-center gap-2">
               <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-rose-400 to-rose-600 rounded-full transition-all"
+                <div className="h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-full transition-all"
                   style={{ width: `${pct}%` }} />
               </div>
               <span className="text-xs text-gray-400 shrink-0">₹{fmt(paid)} paid</span>
@@ -852,7 +853,7 @@ function BillRow({ bill, onClick }: { bill: WorkBill; onClick: () => void }) {
         <div className="shrink-0 text-right">
           <p className="text-base font-bold text-gray-900 tabular-nums">₹{fmt(calc.netPayable)}</p>
           <p className="text-[11px] text-gray-400 mt-0.5">Net payable</p>
-          <ChevronRight size={16} className="text-gray-300 group-hover:text-rose-400 transition-colors ml-auto mt-2" />
+          <ChevronRight size={16} className="text-gray-300 group-hover:text-blue-400 transition-colors ml-auto mt-2" />
         </div>
       </div>
     </button>
@@ -871,6 +872,7 @@ export default function WorkBillsPage() {
   const [activeTab, setActiveTab] = useState<WBStatus | 'ALL'>('ALL')
   const [showCreate, setShowCreate] = useState(!!initialWoId)
   const [detailBill, setDetailBill] = useState<WorkBill | undefined>()
+  const [addBtnHovered, setAddBtnHovered] = useState(false)
 
   const { data: bills = [] } = useQuery<WorkBill[]>({
     queryKey: ['work-bills'],
@@ -902,10 +904,10 @@ export default function WorkBillsPage() {
       {/* Header */}
       <div className="border-b border-gray-200"
         style={{ background: 'linear-gradient(135deg, #c2d8f0 0%, #eaedf5 100%)' }}>
-        <div className="px-6 py-5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="px-6 py-5 flex items-center gap-4">
+          <div className="flex items-center gap-3 shrink-0">
             <button onClick={() => navigate('/site')}
-              className="text-blue-700 hover:text-blue-900 transition-colors">
+              className="text-blue-500 hover:text-blue-900 transition-colors">
               <ArrowLeft size={18} />
             </button>
             <div>
@@ -913,10 +915,48 @@ export default function WorkBillsPage() {
               <p className="text-xs text-gray-500">GST billing for sub-contractor work</p>
             </div>
           </div>
-          <button onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all active:scale-95 shadow-sm">
-            <Plus size={16} /> New Work Bill
-          </button>
+
+          <div className="flex-1 flex justify-center">
+            <SiteFloatingNav theme="light" inline />
+          </div>
+
+          <div
+            className="shrink-0"
+            style={{ position: 'relative', width: 36, height: 36 }}
+            onMouseEnter={() => setAddBtnHovered(true)}
+            onMouseLeave={() => setAddBtnHovered(false)}
+          >
+            {/* Multicolor glow layer */}
+            <div style={{
+              position: 'absolute',
+              inset: -10,
+              borderRadius: '50%',
+              background: 'conic-gradient(from 0deg, #f43f5e, #f97316, #eab308, #22c55e, #06b6d4, #3b82f6, #8b5cf6, #ec4899, #f43f5e)',
+              filter: 'blur(10px)',
+              opacity: addBtnHovered ? 0.85 : 0,
+              transition: 'opacity 0.3s ease',
+              zIndex: 0,
+            }} />
+            <button
+              onClick={() => setShowCreate(true)}
+              className="active:scale-95"
+              style={{
+                position: 'relative', zIndex: 1,
+                width: 36, height: 36, borderRadius: '50%',
+                background: 'rgba(255,255,255,0.97)',
+                border: 'none',
+                color: '#3b82f6',
+                fontSize: 22, fontWeight: 300,
+                fontFamily: '"Roboto", sans-serif',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', lineHeight: 1,
+                transform: addBtnHovered ? 'scale(1.08)' : 'scale(1)',
+                transition: 'transform 0.2s ease',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+              }}>
+              +
+            </button>
+          </div>
         </div>
 
         {/* Summary strip */}
@@ -951,7 +991,7 @@ export default function WorkBillsPage() {
             )}
           </button>
         ))}
-        <div className="ml-auto flex items-center gap-2 px-3 py-1.5 border border-gray-200 rounded-xl bg-gray-50 focus-within:bg-white focus-within:border-rose-400 focus-within:ring-2 focus-within:ring-rose-400/20 transition-all min-w-[200px]">
+        <div className="ml-auto flex items-center gap-2 px-3 py-1.5 border border-gray-200 rounded-xl bg-gray-50 focus-within:bg-white focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-400/20 transition-all min-w-[200px]">
           <Search size={13} className="text-gray-400 shrink-0" />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search bills…"
             className="flex-1 text-xs bg-transparent outline-none text-gray-700 placeholder-gray-400" />
@@ -963,8 +1003,8 @@ export default function WorkBillsPage() {
       <div className="p-6">
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-rose-50 flex items-center justify-center mb-4">
-              <FileText size={28} className="text-rose-300" />
+            <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center mb-4">
+              <FileText size={28} className="text-blue-300" />
             </div>
             <p className="text-base font-semibold text-gray-700 mb-1">
               {search || activeTab !== 'ALL' ? 'No bills found' : 'No work bills yet'}
@@ -974,7 +1014,7 @@ export default function WorkBillsPage() {
             </p>
             {!search && activeTab === 'ALL' && (
               <button onClick={() => setShowCreate(true)}
-                className="flex items-center gap-2 px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm">
+                className="flex items-center gap-2 px-5 py-2.5 bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm">
                 <Plus size={15} /> New Work Bill
               </button>
             )}

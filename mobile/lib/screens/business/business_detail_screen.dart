@@ -1,11 +1,13 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../../widgets/date_filter_dropdown.dart';
 import 'package:pos_mobile/main.dart';
 import '../../models/models.dart';
+import '../../providers/auth_provider.dart';
 import '../../services/api_service.dart';
 
 // ── Cement Bags ───────────────────────────────────────────────────────────────
@@ -14673,13 +14675,13 @@ const _pccpStages = [
   _StageInfo('PDI',                 'PDI',             Icons.assignment_turned_in_outlined, Color(0xFF059669)),
 ];
 
-class PccpScreen extends StatefulWidget {
+class PccpScreen extends ConsumerStatefulWidget {
   const PccpScreen({super.key});
   @override
-  State<PccpScreen> createState() => _PccpScreenState();
+  ConsumerState<PccpScreen> createState() => _PccpScreenState();
 }
 
-class _PccpScreenState extends State<PccpScreen> {
+class _PccpScreenState extends ConsumerState<PccpScreen> {
   static const _color     = Color(0xFF7C3AED);
   static const _colorDark = Color(0xFF5B21B6);
 
@@ -14711,6 +14713,10 @@ class _PccpScreenState extends State<PccpScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final perms = ref.watch(authProvider).user?.cardPermissions;
+    final visibleStages = perms == null
+        ? _pccpStages
+        : _pccpStages.where((s) => perms.pccp.contains(s.stageType)).toList();
     final totalToday = _stageCounts.values.fold(0, (s, v) => s + v);
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
@@ -14791,7 +14797,7 @@ class _PccpScreenState extends State<PccpScreen> {
               sliver: SliverGrid(
                 delegate: SliverChildBuilderDelegate(
                   (ctx, i) {
-                    final s = _pccpStages[i];
+                    final s = visibleStages[i];
                     final count = _stageCounts[s.stageType] ?? 0;
                     return _PccpStageCard(
                       info: s,
@@ -14809,7 +14815,7 @@ class _PccpScreenState extends State<PccpScreen> {
                       },
                     );
                   },
-                  childCount: _pccpStages.length,
+                  childCount: visibleStages.length,
                 ),
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 2,

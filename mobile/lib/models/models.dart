@@ -5,6 +5,18 @@
 
 import '../utils/parse.dart' as p;
 
+class CardPermissions {
+  final List<String> business;
+  final List<String> pccp;
+
+  const CardPermissions({required this.business, required this.pccp});
+
+  factory CardPermissions.fromJson(Map<String, dynamic> json) => CardPermissions(
+        business: List<String>.from(json['business'] ?? []),
+        pccp: List<String>.from(json['pccp'] ?? []),
+      );
+}
+
 class AuthResponse {
   final String accessToken;
   final String refreshToken;
@@ -14,6 +26,7 @@ class AuthResponse {
   final List<String> roles;
   final int? outletId;
   final String? outletName;
+  final CardPermissions? cardPermissions; // null = SUPER_ADMIN, show all
 
   const AuthResponse({
     required this.accessToken,
@@ -24,6 +37,7 @@ class AuthResponse {
     required this.roles,
     this.outletId,
     this.outletName,
+    this.cardPermissions,
   });
 
   factory AuthResponse.fromJson(Map<String, dynamic> json) => AuthResponse(
@@ -35,6 +49,9 @@ class AuthResponse {
         roles: List<String>.from(json['roles'] ?? []),
         outletId: p.iOrNull(json['outletId']),
         outletName: json['outletName'],
+        cardPermissions: json['cardPermissions'] != null
+            ? CardPermissions.fromJson(json['cardPermissions'])
+            : null,
       );
 }
 

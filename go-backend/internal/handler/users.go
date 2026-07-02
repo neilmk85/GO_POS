@@ -242,3 +242,77 @@ func (h *UsersHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 
 	util.SendSuccess(w, "Profile updated", user)
 }
+
+// GetCardPermissions returns the card permissions for a specific user
+func (h *UsersHandler) GetCardPermissions(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		util.SendError(w, http.StatusBadRequest, "Invalid user ID")
+		return
+	}
+	perms, err := h.userService.GetCardPermissions(id)
+	if err != nil {
+		slog.Error("[UsersHandler] GetCardPermissions error", "error", err)
+		util.SendError(w, http.StatusInternalServerError, "Failed to fetch card permissions")
+		return
+	}
+	util.SendSuccess(w, "Success", perms)
+}
+
+// UpdateCardPermissions replaces card permissions for a specific user
+func (h *UsersHandler) UpdateCardPermissions(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		util.SendError(w, http.StatusBadRequest, "Invalid user ID")
+		return
+	}
+	var req service.UpdateCardPermissionsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		util.SendError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	if err := h.userService.UpdateCardPermissions(id, &req); err != nil {
+		slog.Error("[UsersHandler] UpdateCardPermissions error", "error", err)
+		util.SendError(w, http.StatusInternalServerError, "Failed to update card permissions")
+		return
+	}
+	util.SendSuccess(w, "Card permissions updated", nil)
+}
+
+// GetRoleCardPermissions returns the card permissions for a specific role
+func (h *UsersHandler) GetRoleCardPermissions(w http.ResponseWriter, r *http.Request) {
+	roleName := r.PathValue("roleName")
+	if roleName == "" {
+		util.SendError(w, http.StatusBadRequest, "Role name is required")
+		return
+	}
+	perms, err := h.userService.GetRoleCardPermissions(roleName)
+	if err != nil {
+		slog.Error("[UsersHandler] GetRoleCardPermissions error", "error", err)
+		util.SendError(w, http.StatusInternalServerError, "Failed to fetch role card permissions")
+		return
+	}
+	util.SendSuccess(w, "Success", perms)
+}
+
+// UpdateRoleCardPermissions replaces card permissions for a specific role
+func (h *UsersHandler) UpdateRoleCardPermissions(w http.ResponseWriter, r *http.Request) {
+	roleName := r.PathValue("roleName")
+	if roleName == "" {
+		util.SendError(w, http.StatusBadRequest, "Role name is required")
+		return
+	}
+	var req service.UpdateCardPermissionsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		util.SendError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	if err := h.userService.UpdateRoleCardPermissions(roleName, &req); err != nil {
+		slog.Error("[UsersHandler] UpdateRoleCardPermissions error", "error", err)
+		util.SendError(w, http.StatusInternalServerError, "Failed to update role card permissions")
+		return
+	}
+	util.SendSuccess(w, "Role card permissions updated", nil)
+}

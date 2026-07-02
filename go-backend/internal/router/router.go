@@ -237,6 +237,27 @@ func Setup(db *gorm.DB, cfg *config.Config, wsHub *websocket.Hub) http.Handler {
 		middleware.RequireRole("SUPER_ADMIN", "ADMIN"),
 	))
 
+	mux.HandleFunc("GET /api/card-permissions/{id}", middleware.Chain(
+		usersHandler.GetCardPermissions,
+		middleware.Authenticate(db),
+		middleware.RequireRole("SUPER_ADMIN", "ADMIN"),
+	))
+	mux.HandleFunc("PUT /api/card-permissions/{id}", middleware.Chain(
+		usersHandler.UpdateCardPermissions,
+		middleware.Authenticate(db),
+		middleware.RequireRole("SUPER_ADMIN", "ADMIN"),
+	))
+	mux.HandleFunc("GET /api/card-permissions/role/{roleName}", middleware.Chain(
+		usersHandler.GetRoleCardPermissions,
+		middleware.Authenticate(db),
+		middleware.RequireRole("SUPER_ADMIN", "ADMIN"),
+	))
+	mux.HandleFunc("PUT /api/card-permissions/role/{roleName}", middleware.Chain(
+		usersHandler.UpdateRoleCardPermissions,
+		middleware.Authenticate(db),
+		middleware.RequireRole("SUPER_ADMIN", "ADMIN"),
+	))
+
 	// Staff endpoints (alias for users)
 	mux.HandleFunc("GET /api/staff", middleware.Chain(
 		staffHandler.GetAll,

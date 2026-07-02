@@ -17,25 +17,65 @@ func NewUserService(db *gorm.DB) *UserService {
 	return &UserService{db: db}
 }
 
+// resolveRoleIDs looks up role IDs for the given role names.
+// It checks the built-in `roles` table first; if a name isn't found there,
+// it falls back to `custom_roles` and upserts a matching row into `roles`
+// so the `user_roles` join table can reference it.
+func (s *UserService) resolveRoleIDs(roleNames []string) ([]int, error) {
+	if len(roleNames) == 0 {
+		return nil, nil
+	}
+	var ids []int
+	for _, name := range roleNames {
+		var role models.Role
+		err := s.db.Where("name = ?", name).First(&role).Error
+		if err == nil {
+			ids = append(ids, role.ID)
+			continue
+		}
+		// Not a built-in role — check custom_roles
+		var cr models.CustomRole
+		if err2 := s.db.Where("name = ? AND is_active = ?", name, true).First(&cr).Error; err2 != nil {
+			slog.Warn("[UserService] Role not found in built-in or custom roles", "name", name)
+			continue
+		}
+		// Upsert into roles table so user_roles can reference it
+		newRole := models.Role{Name: models.RoleName(cr.Name)}
+		if err3 := s.db.Where("name = ?", cr.Name).FirstOrCreate(&newRole).Error; err3 != nil {
+			slog.Error("[UserService] Failed to upsert custom role into roles", "name", cr.Name, "error", err3)
+			continue
+		}
+		ids = append(ids, newRole.ID)
+	}
+	return ids, nil
+}
+
+// CardPermissions holds the card keys a user is allowed to see
+type CardPermissions struct {
+	Business []string `json:"business"`
+	Pccp     []string `json:"pccp"`
+}
+
 // UserResponse represents a user with roles and outlet
 type UserResponse struct {
-	ID                 int          `json:"id"`
-	Name               string       `json:"name"`
-	Email              string       `json:"email"`
-	Phone              *string      `json:"phone"`
-	EmployeeCode       *string      `json:"employeeCode"`
-	PinCode            *string      `json:"pinCode"`
-	OutletID           *int         `json:"outletId"`
-	Active             bool         `json:"active"`
-	LastLogin          *string      `json:"lastLogin"`
-	ProfileImage       *string      `json:"profileImage"`
-	MaxDiscountPercent float64      `json:"maxDiscountPercent"`
-	CreatedAt          string       `json:"createdAt"`
-	UpdatedAt          string       `json:"updatedAt"`
-	CreatedBy          *string      `json:"createdBy"`
-	UpdatedBy          *string      `json:"updatedBy"`
-	Roles              []string     `json:"roles"`
-	Outlet             *models.Outlet `json:"outlet"`
+	ID                 int              `json:"id"`
+	Name               string           `json:"name"`
+	Email              string           `json:"email"`
+	Phone              *string          `json:"phone"`
+	EmployeeCode       *string          `json:"employeeCode"`
+	PinCode            *string          `json:"pinCode"`
+	OutletID           *int             `json:"outletId"`
+	Active             bool             `json:"active"`
+	LastLogin          *string          `json:"lastLogin"`
+	ProfileImage       *string          `json:"profileImage"`
+	MaxDiscountPercent float64          `json:"maxDiscountPercent"`
+	CreatedAt          string           `json:"createdAt"`
+	UpdatedAt          string           `json:"updatedAt"`
+	CreatedBy          *string          `json:"createdBy"`
+	UpdatedBy          *string          `json:"updatedBy"`
+	Roles              []string         `json:"roles"`
+	Outlet             *models.Outlet   `json:"outlet"`
+	CardPermissions    *CardPermissions `json:"cardPermissions"`
 }
 
 // CreateUserRequest represents the request to create a user
@@ -54,7 +94,9 @@ type CreateUserRequest struct {
 // UpdateUserRequest represents the request to update a user
 type UpdateUserRequest struct {
 	Name               *string  `json:"name"`
+	Email              *string  `json:"email"`
 	Phone              *string  `json:"phone"`
+	Password           *string  `json:"password"`
 	EmployeeCode       *string  `json:"employeeCode"`
 	PinCode            *string  `json:"pinCode"`
 	OutletID           *int     `json:"outletId"`
@@ -73,15 +115,62 @@ type UpdateProfileRequest struct {
 // toUserResponse converts a User model to UserResponse
 func (s *UserService) toUserResponse(user *models.User) *UserResponse {
 	roles := make([]string, 0, len(user.UserRoles))
+	isSuperAdmin := false
 	for _, ur := range user.UserRoles {
 		if ur.Role != nil {
 			roles = append(roles, string(ur.Role.Name))
+			if ur.Role.Name == models.RoleSuperAdmin {
+				isSuperAdmin = true
+			}
 		}
 	}
 
 	lastLogin := ""
 	if user.LastLogin != nil {
 		lastLogin = user.LastLogin.Format("2006-01-02T15:04:05Z07:00")
+	}
+
+	// SUPER_ADMIN gets nil card permissions (mobile treats nil as "show all").
+	// Other users: look up role-level card permissions for their first custom role.
+	var cardPerms *CardPermissions
+	if !isSuperAdmin {
+		business := make([]string, 0)
+		pccp := make([]string, 0)
+
+		// Find the first custom role name (non-built-in) for this user
+		var customRoleName string
+		for _, ur := range user.UserRoles {
+			if ur.Role != nil && ur.Role.Name != models.RoleSuperAdmin && ur.Role.Name != models.RoleAdmin {
+				customRoleName = string(ur.Role.Name)
+				break
+			}
+		}
+
+		if customRoleName != "" {
+			// Role-level permissions take priority
+			var rolePerms []models.RoleCardPermission
+			s.db.Where("role_name = ?", customRoleName).Find(&rolePerms)
+			for _, p := range rolePerms {
+				if p.CardType == "business" {
+					business = append(business, p.CardKey)
+				} else if p.CardType == "pccp" {
+					pccp = append(pccp, p.CardKey)
+				}
+			}
+		} else {
+			// Fall back to user-level permissions (for ADMIN and other built-in roles)
+			var userPerms []models.UserCardPermission
+			s.db.Where("user_id = ?", user.ID).Find(&userPerms)
+			for _, p := range userPerms {
+				if p.CardType == "business" {
+					business = append(business, p.CardKey)
+				} else if p.CardType == "pccp" {
+					pccp = append(pccp, p.CardKey)
+				}
+			}
+		}
+
+		cardPerms = &CardPermissions{Business: business, Pccp: pccp}
 	}
 
 	return &UserResponse{
@@ -102,6 +191,7 @@ func (s *UserService) toUserResponse(user *models.User) *UserResponse {
 		UpdatedBy:          user.UpdatedBy,
 		Roles:              roles,
 		Outlet:             user.Outlet,
+		CardPermissions:    cardPerms,
 	}
 }
 
@@ -186,19 +276,13 @@ func (s *UserService) Create(req *CreateUserRequest) (*UserResponse, error) {
 		}
 	}
 
-	// Get role IDs
+	// Get role IDs — checks both built-in roles and custom_roles
 	var roleIDs []int
 	if len(req.Roles) > 0 {
-		var roles []models.Role
-		if err := s.db.Where("name IN ?", req.Roles).Find(&roles).Error; err != nil {
-			slog.Error("[UserService] Failed to find roles", "error", err)
-			return nil, &util.BusinessException{
-				StatusCode: 400,
-				Message:    "One or more roles not found",
-			}
-		}
-		for _, role := range roles {
-			roleIDs = append(roleIDs, role.ID)
+		var err error
+		roleIDs, err = s.resolveRoleIDs(req.Roles)
+		if err != nil {
+			return nil, err
 		}
 	} else {
 		// Default role: CASHIER
@@ -282,9 +366,20 @@ func (s *UserService) Update(id int, req *UpdateUserRequest) (*UserResponse, err
 		updateData["name"] = *req.Name
 		user.Name = *req.Name
 	}
+	if req.Email != nil && *req.Email != "" {
+		updateData["email"] = *req.Email
+		user.Email = *req.Email
+	}
 	if req.Phone != nil {
 		updateData["phone"] = *req.Phone
 		user.Phone = req.Phone
+	}
+	if req.Password != nil && *req.Password != "" {
+		hashed, err := util.HashPassword(*req.Password)
+		if err != nil {
+			return nil, &util.BusinessException{StatusCode: 500, Message: "Failed to hash password"}
+		}
+		updateData["password"] = hashed
 	}
 	if req.EmployeeCode != nil {
 		updateData["employee_code"] = *req.EmployeeCode
@@ -318,21 +413,17 @@ func (s *UserService) Update(id int, req *UpdateUserRequest) (*UserResponse, err
 			}
 		}
 
-		// Get new role IDs
-		var roles []models.Role
-		if err := s.db.Where("name IN ?", req.Roles).Find(&roles).Error; err != nil {
-			slog.Error("[UserService] Failed to find roles", "error", err)
-			return nil, &util.BusinessException{
-				StatusCode: 400,
-				Message:    "One or more roles not found",
-			}
+		// Get new role IDs — checks both built-in roles and custom_roles
+		newRoleIDs, err := s.resolveRoleIDs(req.Roles)
+		if err != nil {
+			return nil, err
 		}
 
 		// Create new user roles
-		for _, role := range roles {
+		for _, roleID := range newRoleIDs {
 			userRole := &models.UserRole{
 				UserID: id,
-				RoleID: role.ID,
+				RoleID: roleID,
 			}
 			if err := s.db.Create(userRole).Error; err != nil {
 				slog.Error("[UserService] Failed to create user role", "error", err)
@@ -522,4 +613,86 @@ func (s *UserService) getUserByID(id int) (*models.User, error) {
 	}
 
 	return &user, nil
+}
+
+// GetCardPermissions returns the card permissions for a user
+func (s *UserService) GetCardPermissions(userID int) (*CardPermissions, error) {
+	var perms []models.UserCardPermission
+	if err := s.db.Where("user_id = ?", userID).Find(&perms).Error; err != nil {
+		return nil, err
+	}
+	business := make([]string, 0)
+	pccp := make([]string, 0)
+	for _, p := range perms {
+		if p.CardType == "business" {
+			business = append(business, p.CardKey)
+		} else if p.CardType == "pccp" {
+			pccp = append(pccp, p.CardKey)
+		}
+	}
+	return &CardPermissions{Business: business, Pccp: pccp}, nil
+}
+
+// UpdateCardPermissionsRequest is the body for setting card permissions
+type UpdateCardPermissionsRequest struct {
+	Business []string `json:"business"`
+	Pccp     []string `json:"pccp"`
+}
+
+// UpdateCardPermissions replaces all card permissions for a user
+func (s *UserService) UpdateCardPermissions(userID int, req *UpdateCardPermissionsRequest) error {
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("user_id = ?", userID).Delete(&models.UserCardPermission{}).Error; err != nil {
+			return err
+		}
+		var newPerms []models.UserCardPermission
+		for _, k := range req.Business {
+			newPerms = append(newPerms, models.UserCardPermission{UserID: userID, CardKey: k, CardType: "business"})
+		}
+		for _, k := range req.Pccp {
+			newPerms = append(newPerms, models.UserCardPermission{UserID: userID, CardKey: k, CardType: "pccp"})
+		}
+		if len(newPerms) > 0 {
+			return tx.Create(&newPerms).Error
+		}
+		return nil
+	})
+}
+
+// GetRoleCardPermissions returns card permissions for a role
+func (s *UserService) GetRoleCardPermissions(roleName string) (*CardPermissions, error) {
+	var perms []models.RoleCardPermission
+	if err := s.db.Where("role_name = ?", roleName).Find(&perms).Error; err != nil {
+		return nil, err
+	}
+	business := make([]string, 0)
+	pccp := make([]string, 0)
+	for _, p := range perms {
+		if p.CardType == "business" {
+			business = append(business, p.CardKey)
+		} else if p.CardType == "pccp" {
+			pccp = append(pccp, p.CardKey)
+		}
+	}
+	return &CardPermissions{Business: business, Pccp: pccp}, nil
+}
+
+// UpdateRoleCardPermissions replaces all card permissions for a role
+func (s *UserService) UpdateRoleCardPermissions(roleName string, req *UpdateCardPermissionsRequest) error {
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("role_name = ?", roleName).Delete(&models.RoleCardPermission{}).Error; err != nil {
+			return err
+		}
+		var newPerms []models.RoleCardPermission
+		for _, k := range req.Business {
+			newPerms = append(newPerms, models.RoleCardPermission{RoleName: roleName, CardKey: k, CardType: "business"})
+		}
+		for _, k := range req.Pccp {
+			newPerms = append(newPerms, models.RoleCardPermission{RoleName: roleName, CardKey: k, CardType: "pccp"})
+		}
+		if len(newPerms) > 0 {
+			return tx.Create(&newPerms).Error
+		}
+		return nil
+	})
 }

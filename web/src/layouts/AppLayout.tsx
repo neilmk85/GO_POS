@@ -7,7 +7,7 @@ import {
   Building2, PackageCheck, Receipt, CreditCard, FileX,
   Wallet, RotateCcw, Truck, Trophy, UserCog, LineChart, ArrowRight, Activity,
   Factory, ClipboardList, PenLine, Settings2, Layers, Cpu, DollarSign, BarChart2,
-  LayoutDashboard, Briefcase, FileBarChart2, ClipboardCheck, BookOpen, PackageSearch, Hash, Wrench, HardHat,
+  LayoutDashboard, Briefcase, FileBarChart2, ClipboardCheck, BookOpen, PackageSearch, Hash, Wrench, HardHat, ShieldCheck,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { useQuery } from '@tanstack/react-query'
@@ -153,7 +153,7 @@ const navEntries: NavEntry[] = [
   },
   { path: '/activity-logs', icon: <Activity size={18} />, label: 'Activity Logs', roles: ['ADMIN', 'SUPER_ADMIN', 'MANAGER'] },
   { path: '/settings', icon: <Settings size={18} />, label: 'Settings', roles: ['ADMIN', 'SUPER_ADMIN'] },
-  { path: '/site', icon: <Building2 size={18} />, label: 'Site', highlight: true, disabled: true },
+  { path: '/site', icon: <Building2 size={18} />, label: 'Site', highlight: true },
 ]
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
