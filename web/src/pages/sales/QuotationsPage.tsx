@@ -1817,7 +1817,7 @@ function CreateQuotationPanel({ outletId, onClose, onCreated }: {
                 </div>
 
                 <div className={`bg-white rounded-xl shadow-md p-5 ${errors.customer ? 'ring-2 ring-red-300' : ''}`}>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Quote To</p>
+                  <p className="text-xs font-bold text-gray-900 uppercase tracking-widest mb-3">Quotation For</p>
                   {selectedCustomer ? (
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0 text-amber-700 font-bold text-sm">
@@ -2292,7 +2292,7 @@ function EditQuotationPanel({ id, outletId, onClose, onUpdated }: {
                     </div>
                   </div>
                   <div className={`bg-white rounded-xl shadow-md p-5 ${errors.customer ? 'ring-2 ring-red-300' : ''}`}>
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Quote To</p>
+                    <p className="text-xs font-bold text-gray-900 uppercase tracking-widest mb-3">Quotation For</p>
                     {selectedCustomer ? (
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0 text-amber-700 font-bold text-sm">
