@@ -392,3 +392,34 @@ When pipes are loaded onto a truck for dispatch, the operator needs to simultane
 - Reduces double-entry and prevents mismatch between loaded quantities and invoiced quantities.
 
 ---
+
+## REQ-015 · Second Winding & Coating Machine (Winding 2 / Coating 2)
+**Pages:** `/production/entry`
+**Status:** Implemented
+
+A second winding machine and a second coating machine were added to the PCCP production line. The production stage sequence expanded from 10 to 12 stages, with `WINDING_2` and `COATING_2` inserted immediately after the existing `WINDING` and `COATING` stages.
+
+### Stage Sequence Change
+- **Before (10 stages):** … → WINDING → COATING → CURING_2 → FINAL_TESTING
+- **After (12 stages):** … → WINDING → COATING → **WINDING_2** → **COATING_2** → CURING_2 → FINAL_TESTING
+
+### What Was Added
+- `StageWinding2` (`WINDING_2`) and `StageCoating2` (`COATING_2`) added to `ProdStageType` enum and `StageSequence` array.
+- Both new stages added to `MaterialStages` map — they consume materials (same as their counterparts).
+- `MachineTypeWinding2` and `MachineTypeCoating2` added to the `MachineType` enum and `MACHINE_TYPES` frontend constant.
+
+### Production Entry Page (`/production/entry`)
+- Stage selector cards added for Winding 2 (indigo) and Coating 2 (violet) — same icons and colors as Winding and Coating respectively.
+- **Coating 2 behaves identically to Coating:**
+  - Shows the **Sand Mix toggle** (Plaster Sand / Crushed Sand) when selected.
+  - Triggers the **Silo 3 balance check** — warns if mortar balance is insufficient.
+  - Filters materials to the selected sand type before submission.
+- `STAGE_COLS` updated so production summary columns show "Winding 2" and "Coating 2".
+- Stage image map updated to reuse `winding.jpg` for Winding 2 and `coating.avif` for Coating 2.
+
+### Frontend Types (`web/src/types/index.ts`)
+- `PROD_STAGES` constant extended with `{ key: 'WINDING_2', label: 'Winding 2' }` and `{ key: 'COATING_2', label: 'Coating 2' }`.
+- `MATERIAL_STAGES` array extended to include `'WINDING_2'` and `'COATING_2'`.
+- `MACHINE_TYPES` constant extended with `WINDING_2` and `COATING_2` entries.
+
+---
