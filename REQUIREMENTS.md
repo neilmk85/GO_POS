@@ -656,6 +656,19 @@ Per-contractor financial summary aggregated from all Work Bills.
 
 ---
 
+## REQ-027 · Purchase Orders — Free-Text / Custom Line Items
+**Page:** Purchases → Purchase Orders (Create / Edit PO)
+**Status:** Implemented
+
+- PO line items are **not locked to the product catalog** — the item name is a free-text input, allowing any product, machinery, service, or custom item to be added without it existing in the system.
+- Each line item has two text fields: **Product / Item name** (required) and **Description / specifications** (optional second line for notes or spec details).
+- An optional **catalog picker** icon sits next to the name field — selecting a catalog product auto-fills the unit cost and tax rate, but picking from the catalog is not mandatory.
+- Pricing is **qty × unit cost** (not metres-based), so it works for pipes, raw materials, machinery, tools, services, fittings, or any other purchase.
+- Certain internal-only products are excluded from the catalog picker even if they exist in the DB (e.g. `silo cement`, `loose cement`, `extra cement` — not externally purchasable).
+- This means a single PO can mix catalog-linked items and fully custom free-text items in the same order.
+
+---
+
 ## REQ-013 · Out of Office
 **Status:** Pending
 
