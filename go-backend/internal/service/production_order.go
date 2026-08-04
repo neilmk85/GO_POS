@@ -109,7 +109,9 @@ type StageOverviewRow struct {
 	Curing1            int    `gorm:"column:curing_1"           json:"curing1"`
 	Curing2            int    `gorm:"column:curing_2"           json:"curing2"`
 	Winding            int    `gorm:"column:winding"            json:"winding"`
+	Winding2           int    `gorm:"column:winding_2"          json:"winding2"`
 	Coating            int    `gorm:"column:coating"            json:"coating"`
+	Coating2           int    `gorm:"column:coating_2"          json:"coating2"`
 	FinalTesting       int    `gorm:"column:final_testing"      json:"finalTesting"`
 }
 
@@ -136,7 +138,9 @@ func (s *ProductionOrderService) GetStageOverview() ([]StageOverviewRow, error) 
 			COALESCE(SUM(CASE WHEN pe.stage_type = 'CURING_1'            THEN pe.pipes_completed ELSE 0 END), 0) AS curing_1,
 			COALESCE(SUM(CASE WHEN pe.stage_type = 'CURING_2'            THEN pe.pipes_completed ELSE 0 END), 0) AS curing_2,
 			COALESCE(SUM(CASE WHEN pe.stage_type = 'WINDING'             THEN pe.pipes_completed ELSE 0 END), 0) AS winding,
+			COALESCE(SUM(CASE WHEN pe.stage_type = 'WINDING_2'           THEN pe.pipes_completed ELSE 0 END), 0) AS winding_2,
 			COALESCE(SUM(CASE WHEN pe.stage_type = 'COATING'             THEN pe.pipes_completed ELSE 0 END), 0) AS coating,
+			COALESCE(SUM(CASE WHEN pe.stage_type = 'COATING_2'           THEN pe.pipes_completed ELSE 0 END), 0) AS coating_2,
 			COALESCE(SUM(CASE WHEN pe.stage_type = 'FINAL_TESTING'       THEN pe.pipes_completed ELSE 0 END), 0) AS final_testing
 		FROM pipe_configs pc
 		INNER JOIN (

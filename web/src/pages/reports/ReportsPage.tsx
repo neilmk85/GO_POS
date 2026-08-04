@@ -31,7 +31,9 @@ const STAGE_LABELS: Record<string, string> = {
   demoulding:         'Demoulding',
   curing1:            'Curing 1',
   winding:            'Winding',
+  winding2:           'Winding 2',
   coating:            'Coating',
+  coating2:           'Coating 2',
   curing2:            'Curing 2',
   finalTesting:       'Final Testing',
 }
