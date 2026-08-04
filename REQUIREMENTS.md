@@ -393,6 +393,69 @@ Loading entries created by the factory operator are now visible to the Accountan
 
 ---
 
+## REQ-017 · Mobile — Loading Entries & Invoice Creation
+**Screen:** Mobile → Business → Loading (`/business/loading`) · `LoadingInvoiceScreen`
+**Status:** Implemented
+
+Operators on the factory floor can log loading entries from the mobile app. Accountants and Admins can then view those entries and convert them to invoices directly from the same screen — without needing the web app.
+
+### Loading Screen (operator)
+- Lists all loading records for a selected date range with search by pipe name, vehicle no., customer, or vendor.
+- FAB opens a create sheet to log a new loading entry: pipe type, qty, vehicle no., customer, destination address (auto-suggested from past records), date, driver, notes.
+- Existing records can be edited via a bottom sheet.
+
+### Invoice Conversion (accountant / admin)
+- `LoadingInvoiceScreen` shows all loading records with an "Invoiced / Pending" status badge.
+- Permission gate: `canConvert` is true when user role is `SUPER_ADMIN`, `ADMIN`, `ACCOUNTANT`, or the `permissions` array contains `CONVERT_LOADING_TO_INVOICE`.
+- Users without the permission see the record but no Convert button.
+- **Convert to Invoice** opens `_LoadingRecordEditSheet` which lets the user confirm invoice details (customer, items, qty, GST, due date, payment terms) and calls `POST /api/invoices` via `ApiService().createInvoice(...)`.
+- Once converted, the card shows the invoice number and no further conversion is possible.
+
+---
+
+## REQ-018 · Mobile — Day Book Report
+**Screen:** Mobile → Reports → Day Book
+**Status:** Implemented
+
+- Shows a chronological list of all financial vouchers for a selected date — invoices, receipts, purchase bills, payments, journal entries, credit notes.
+- Each entry shows: voucher type badge, party name, reference number, amount (Debit / Credit).
+- Tapping a voucher opens a detail bottom sheet. For invoices and purchase bills, full line-item details are fetched from the backend.
+- Date navigation with Previous / Next day arrows and a date picker.
+- Total Debits and Total Credits summary at the bottom.
+
+---
+
+## REQ-019 · Mobile — Ledger Report
+**Screen:** Mobile → Reports → Ledger
+**Status:** Implemented
+
+- Account selector: fetches all GL accounts and lets the user pick one (search by name).
+- Shows a running-balance ledger for the selected account over a chosen date range.
+- Columns: Date, Description / Party, Debit, Credit, Balance (Dr / Cr).
+- **PDF export**: generates a formatted PDF using the `pdf` package and shares it via `share_plus` or opens the print dialog via `printing`.
+- Color scheme: violet (`0xFF7C3AED`).
+
+---
+
+## REQ-020 · Mobile — Debtors & Creditors Reports
+**Screen:** Mobile → Reports → Debtors / Creditors
+**Status:** Implemented
+
+### Debtors
+- Lists all customers with an outstanding balance, grouped and sortable.
+- Each card is expandable to show invoice-level breakdown: invoice no., date, total, paid, outstanding.
+- Date range filter; search by customer name.
+- Color scheme: indigo (`0xFF4F46E5`).
+
+### Creditors
+- Lists all vendors with an outstanding payable balance.
+- Same expandable card pattern: bill no., date, total, paid, outstanding.
+- Date range filter; search by vendor / creditor name.
+- Both screens are permission-gated: hidden if the user's `reports` permission list does not include `'debtors'` / `'creditors'` respectively (null permissions = show all).
+- Accessible via Reports screen and also surfaced as quick-access tiles on the Reports hub.
+
+---
+
 ## REQ-013 · Out of Office
 **Status:** Pending
 
