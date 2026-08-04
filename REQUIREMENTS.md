@@ -456,6 +456,27 @@ Operators on the factory floor can log loading entries from the mobile app. Acco
 
 ---
 
+## REQ-021 · Winding 2 & Coating 2 — Permissions & Report Pages
+**Pages:** `/settings` → Card Permissions · `/production/reports/winding2` · `/production/reports/coating2`
+**Status:** Implemented
+
+### Card Permissions (`/settings` → Card Permissions)
+- The PCCP stage permission list in `UserCardPermissionsPage.tsx` includes `WINDING_2` and `COATING_2` checkboxes alongside Winding, Coating, Spinning, etc.
+- Admins select a staff member and toggle which PCCP stages they can access.
+- Granting `WINDING_2` / `COATING_2` makes those stage tiles appear for that user on the mobile PCCP entry grid (the mobile app already filters by the `pccp` permissions array, so no extra mobile change was needed).
+
+### Winding 2 Report (`/production/reports/winding2`)
+- Shows all `WINDING_2` production entries with a date range filter (presets: Today, Yesterday, Last 7/15/30 Days, This/Last Week, This Month, Last Month, This Year).
+- Per-entry columns: Date · Pipe Name · Qty Completed · Qty Rejected · Contractor Name.
+- CSV export via Download button.
+- Sidebar nav entry: Production → Reports → **Winding 2 Report** (BarChart2 icon).
+
+### Coating 2 Report (`/production/reports/coating2`)
+- Identical structure to the Winding 2 Report but filtered to `COATING_2` entries.
+- Sidebar nav entry: Production → Reports → **Coating 2 Report** (BarChart2 icon).
+
+---
+
 ## REQ-013 · Out of Office
 **Status:** Pending
 
