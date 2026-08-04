@@ -366,6 +366,33 @@ Direct purchases are purchases made without a formal PO — cash buys, petty-cas
 
 ---
 
+## REQ-016 · Loading Entries → Invoice Conversion (Accountant Flow)
+**Page:** `/business/loading-invoice`
+**Status:** Implemented
+
+Loading entries created by the factory operator are now visible to the Accountant and Admin so they can generate invoices directly from them — without switching between screens or re-entering data.
+
+### Permission: `CONVERT_LOADING_TO_INVOICE`
+- **SUPER_ADMIN / ADMIN / MANAGER / ACCOUNTANT** — receive this permission automatically on login; no manual config required.
+- **Custom roles** — admin must explicitly enable `CONVERT_LOADING_TO_INVOICE` in Staff → Roles → edit role.
+- Users without the permission see a "No permission" placeholder instead of the Convert button.
+- Visible in the role editor under "Business Operations" for admin toggle.
+
+### Loading Invoice Page (`/business/loading-invoice`)
+- Lists all loading records fetched via `GET /api/loading-records` with a date range filter (presets: Today, Yesterday, Last 7 Days, Last 30 Days, This Month, Last Month, This Year).
+- Search by pipe name, vehicle no., customer name, or vendor.
+- Summary strip shows total records and how many have already been invoiced.
+- Each loading record card shows: pipe name, vehicle no., customer, qty loaded, date — and an invoice status badge (Invoiced / Pending).
+- **Convert to Invoice** button: opens a drawer pre-filled with the loading entry details (customer, items, qty, date). Accountant confirms invoice amount, GST rate (via tax group picker), due date, and payment terms, then submits.
+- Once converted, the loading record is linked to the new invoice (`invoiceId` set) and the card shows the invoice number as a clickable link.
+
+### Backend Routes
+- `POST /api/invoices` — guarded by `RequireRoleOrPermission("CONVERT_LOADING_TO_INVOICE", "SUPER_ADMIN", "ADMIN", "ACCOUNTANT", "MANAGER")`.
+- `PATCH /api/invoices/{id}/status` — guarded by `RequireRoleOrPermission("CONVERT_LOADING_TO_INVOICE", "SUPER_ADMIN", "ADMIN", "ACCOUNTANT")`.
+- All other invoice routes (PUT, payment, send, delete) restricted to ADMIN / ACCOUNTANT as before.
+
+---
+
 ## REQ-013 · Out of Office
 **Status:** Pending
 
