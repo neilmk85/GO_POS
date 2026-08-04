@@ -669,6 +669,29 @@ Per-contractor financial summary aggregated from all Work Bills.
 
 ---
 
+## REQ-028 · WINDING_2 & COATING_2 — Stage Funnel Visibility Fix
+**Pages:** Dashboard (`/dashboard`) · Reports Page (`/reports`)
+**Status:** Implemented
+
+Previously, pipes processed on the second Winding (WINDING_2) and second Coating (COATING_2) machines were invisible in the WIP stage funnel on both the Dashboard and the Reports page. They were being recorded in production entries correctly but never surfaced in the stage overview counts.
+
+### What was fixed
+
+**Backend (`production_order.go` — `GetStageOverview`)**
+- Added `WINDING_2` and `COATING_2` CASE columns to the SQL query that powers the stage overview API.
+- Added `Winding2` and `Coating2` fields to the `StageOverviewRow` struct (JSON: `winding2`, `coating2`).
+- These now return alongside all other stage counts in the API response.
+
+**Frontend — Reports Page (`/reports`)**
+- Added `winding2: 'Winding 2'` and `coating2: 'Coating 2'` to `STAGE_LABELS`.
+- `STAGE_KEYS` (derived from `STAGE_LABELS`) automatically picks them up, so the stage funnel bar chart now includes Winding 2 and Coating 2 bars.
+
+**Frontend — Dashboard (`/dashboard`)**
+- Added `winding2` (violet) and `coating2` (cyan-700) entries to the `ALL_STAGES` array.
+- Both stages now appear in the dashboard's per-pipe stage breakdown table with distinct colour coding.
+
+---
+
 ## REQ-013 · Out of Office
 **Status:** Pending
 
