@@ -2910,12 +2910,10 @@ export default function QuotationsPage() {
                       className="p-1.5 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-primary-50 transition-colors" title="View">
                       <Eye size={15} />
                     </button>
-                    {q.status === 'DRAFT' && (
-                      <button onClick={() => setEditId(q.id)}
-                        className="p-1.5 rounded-lg text-gray-400 hover:text-violet-600 hover:bg-violet-50 transition-colors" title="Edit">
-                        <Pencil size={15} />
-                      </button>
-                    )}
+                    <button onClick={() => setEditId(q.id)}
+                      className="p-1.5 rounded-lg text-gray-400 hover:text-violet-600 hover:bg-violet-50 transition-colors" title="Edit">
+                      <Pencil size={15} />
+                    </button>
                     <button onClick={() => printQuotationPdfOfficial(q)}
                       className="p-1.5 rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors" title="Print">
                       <Printer size={15} />
