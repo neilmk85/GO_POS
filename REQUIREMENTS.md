@@ -527,6 +527,135 @@ Operators on the factory floor can log loading entries from the mobile app. Acco
 
 ---
 
+## REQ-026 · Site Management Module (Water Supply Pipeline Projects)
+**Pages:** `/site` · `/site/projects` · `/site/contractors` · `/site/work-orders` · `/site/work-bills` · `/site/contractor-ledger`
+**Status:** Implemented (5 active modules; 6 planned/coming-soon)
+
+### Module Dashboard (`/site`)
+- Responsive card grid with links to each sub-module.
+- Cards marked **Coming Soon** are visible but not interactive (disabled links with a "Coming Soon" badge).
+
+| Sub-Module | Status |
+|---|---|
+| Projects | ✅ Active |
+| Contractors | ✅ Active |
+| Work Orders | ✅ Active |
+| Work Bills | ✅ Active |
+| Contractor Ledger | ✅ Active |
+| Material Stock | 🔲 Coming Soon |
+| Material Issues | 🔲 Coming Soon |
+| Progress Claims | 🔲 Coming Soon |
+| Daily Progress | 🔲 Coming Soon |
+| Financial Report | 🔲 Coming Soon |
+| Progress Report | 🔲 Coming Soon |
+
+---
+
+### Projects (`/site/projects`)
+Tracks all water supply pipeline projects — contract details, timelines, and work packages grouped by construction phase.
+
+**Project List (`/site/projects`)**
+- Status filter tabs: All, Active, On Hold, Completed (with live counts).
+- Search by name, client, location or contract number.
+- Project cards show: client name, location, contract number, contract value, start–end dates, status badge.
+- Actions per card: Open Project, Edit, Delete (with confirmation).
+
+**Project Fields:** Project Name, Client Name, Location, Contract Number, Contract Value (₹), Start Date, End Date, Status (Active / On Hold / Completed).
+
+**Project Detail (`/site/projects/:id`)**
+- Info strip: Contract Value, Start/End Dates, Status, Total Work Packages (Inhouse / Subcontracted / Completed).
+- Work packages grouped by construction phase with per-phase progress bars.
+- Filter by Execution Type (All / Inhouse / Subcontracted) and Phase (Excavation, Concrete, PSC/PCCP, HDPE, MS Specials, WUA, Testing, Other).
+- **Work Package Fields:** Description, Location/Chainage, Planned Quantity (unit: m/m²/m³/LS/Nos/RMT/MT/KG), Execution Type, Phase, Status (Planned/In Progress/Completed/On Hold), Notes.
+- Add/Edit work package via slide-in panel; Delete requires confirmation.
+
+---
+
+### Contractors (`/site/contractors`)
+Master register of all sub-contractors referenced by Work Orders and Work Bills.
+
+- Live search by name, contact person, or phone.
+- Responsive card grid (1/2/3 columns) with initials avatar, company name, contact person, phone, email, location, GSTIN, PAN, notes snippet.
+- Expand toggle on each card for full details.
+- Context menu per card: Edit, Delete.
+- Add Contractor: `+` button opens a 70vw slide-in panel.
+
+**Contractor Fields:** Company Name, Contact Person, Phone, Email, Trade/Specialisation (Civil/Pipe Laying/Concrete/Fabrication/Electrical/Survey/Other), GSTIN, PAN, Street Address, City, State, Pincode, Notes.
+
+---
+
+### Work Orders (`/site/work-orders`)
+Manages sub-contract agreements issued to contractors for specific scopes of site work.
+
+**List (`/site/work-orders`)**
+- Status tabs: All, Draft, Active, Completed, Billed (with live counts).
+- Search by WO number, title, contractor name or location.
+- Rows show: WO number, status badge, title, contractor, location, start date, service summary, contract value.
+
+**Work Order Fields:** WO Number (auto-assigned, e.g. `WO/RWS/2024/001`), Contractor (searchable dropdown from Contractors register), Work Title, Location/Section, Start Date, Expected End Date, Scope of Work (line items: Description, Unit, Qty, Rate ₹, Amount auto-calc), Notes.
+
+**Status Lifecycle:** Draft → Active → Completed → Billed
+
+**Actions:**
+- New Work Order: opens 70vw slide-in form.
+- Edit: available for Draft and Active orders; **disabled once Billed**.
+- Mark Active: Draft → Active.
+- Mark Completed: Active → Completed.
+- Generate Work Bill: available on Completed orders — creates a Work Bill pre-populated with WO services.
+- Delete: **available for Draft orders only**; requires confirmation.
+
+---
+
+### Work Bills (`/site/work-bills`)
+Records contractor invoices with GST (CGST/SGST for intra-state, IGST for inter-state), TDS deductions, and full payment tracking. Can be created from a completed Work Order or entered manually.
+
+**List (`/site/work-bills`)**
+- Status tabs: All, Draft, Approved, Paid (with counts).
+- Aggregate summary bar: Total Payable, Total Paid, Outstanding (highlighted red).
+- Search by bill number, contractor, WO title or WO number.
+- Rows: bill number, WO reference, status badge, contractor, bill date, payment progress bar, net payable.
+
+**Bill Fields:** Bill Number (auto-assigned), Contractor, Work Order (optional), Contractor Invoice No., Bill Date, Due Date, Billing Period From/To, Supply Type (Intra-State → CGST+SGST / Inter-State → IGST), TDS Deduction (None / 1% §194C Individual / 2% §194C Company/Firm), Service Lines, Notes.
+
+**Service Line Fields:** Description, Unit, Contracted Qty (from WO, read-only reference), Actual Qty (editable), Rate ₹, GST%, Amount (auto-calc: Actual Qty × Rate), +GST column.
+
+**Financial Summary:** Subtotal → + GST (CGST+SGST or IGST) → Gross Total → − TDS → **Net Payable**.
+
+**Status Lifecycle:** Draft → Approved → Paid
+
+**Actions:**
+- Create New Bill: navigates to `/site/work-bills/new` (full-page form).
+- Approve Bill: Draft → Approved.
+- Record Payment: available on Approved bills with outstanding balance — modal with Date, Amount (pre-filled with outstanding), Payment Mode (Bank Transfer/Cheque/UPI/Cash), Reference Number (UTR/cheque/transaction ID). Multiple partial payments supported; bill transitions to Paid when balance = 0.
+- Print Invoice: navigates to the printable Work Bill Invoice page.
+- View Detail: click row → 70vw slide-in with full breakdown.
+
+**New Work Bill (`/site/work-bills/new`):** 7-step creation flow — Select Contractor → Select Work Order (optional, auto-populates service rows) → Fill Dates → Set Supply Type & TDS → Edit service lines → Add extra rows → Review & Save. Sticky footer shows running total and Save/Cancel.
+
+---
+
+### Contractor Ledger (`/site/contractor-ledger`)
+Per-contractor financial summary aggregated from all Work Bills.
+
+**Columns per contractor:** Total Bills count, Subtotal, GST Amount, TDS Deducted, Net Payable, Total Paid, Outstanding (highlighted red when > 0).
+- Running totals across all columns.
+- Read-only reporting view; no create/edit actions.
+
+---
+
+### Coming Soon (Disabled — Visible as Placeholders)
+
+| Module | Planned Functionality |
+|---|---|
+| Material Stock | Site inventory levels, material receipts and consumption per project location |
+| Material Issues | Materials issued to contractors — quantity, date, approval tracking |
+| Progress Claims | Contractor progress claims, work verification, payment approval |
+| Daily Progress | Daily in-house work log, labour attendance, equipment usage, site activity notes |
+| Financial Report | Full picture of invoices received, payments made, outstanding balances, cost summary |
+| Progress Report | Phase-wise completion percentages, daily trends, project velocity over time |
+
+---
+
 ## REQ-013 · Out of Office
 **Status:** Pending
 
