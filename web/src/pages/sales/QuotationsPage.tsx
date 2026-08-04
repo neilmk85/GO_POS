@@ -1875,7 +1875,7 @@ function CreateQuotationPanel({ outletId, onClose, onCreated }: {
                 </div>
 
                 {/* Table header */}
-                <div className="grid text-[10px] font-bold text-gray-600 uppercase tracking-widest bg-gray-50 border-b border-gray-100"
+                <div className="grid text-[10px] font-bold text-gray-600 uppercase tracking-widest bg-gray-100 border-b border-gray-200"
                   style={{ gridTemplateColumns: '2.5fr 120px 120px 80px 72px 116px 36px' }}>
                   <div className="px-5 py-3">Description</div>
                   <div className="px-3 py-3 text-right">Meters / Pipes</div>
@@ -2337,7 +2337,7 @@ function EditQuotationPanel({ id, outletId, onClose, onUpdated }: {
                   <div className="px-5 py-4 border-b border-gray-100">
                     <ProductSearch onSelect={addProduct} />
                   </div>
-                  <div className="grid text-[10px] font-bold text-gray-600 uppercase tracking-widest bg-gray-50 border-b border-gray-100"
+                  <div className="grid text-[10px] font-bold text-gray-600 uppercase tracking-widest bg-gray-100 border-b border-gray-200"
                     style={{ gridTemplateColumns: '2.5fr 100px 120px 80px 72px 116px 36px' }}>
                     <div className="px-5 py-3">Description</div>
                     <div className="px-3 py-3 text-right">Meters (m)</div>
