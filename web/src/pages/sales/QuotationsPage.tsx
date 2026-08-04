@@ -2674,12 +2674,10 @@ function ViewQuotationModal({ id, onClose, onStatusChange, onEdit }: { id: numbe
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-emerald-200 text-emerald-700 rounded-lg hover:bg-emerald-50 transition-colors">
                 <Download size={12} /> Download
               </button>
-              {q.status === 'DRAFT' && (
-                <button onClick={onEdit}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-violet-300 text-violet-700 rounded-lg hover:bg-violet-50 transition-colors">
-                  <Pencil size={12} /> Edit
-                </button>
-              )}
+              <button onClick={onEdit}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-violet-300 text-violet-700 rounded-lg hover:bg-violet-50 transition-colors">
+                <Pencil size={12} /> Edit
+              </button>
             </div>
             <div className="flex gap-2">
               {q.status === 'DRAFT' && (
