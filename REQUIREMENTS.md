@@ -477,6 +477,56 @@ Operators on the factory floor can log loading entries from the mobile app. Acco
 
 ---
 
+## REQ-022 · Mobile — GST Reports
+**Screen:** Mobile → Reports → GST Report
+**Status:** Implemented
+
+- Three-tab layout: **GSTR-1**, **GSTR-3B**, **HSN Summary**.
+- Date range picker (month/year) at the top of the screen.
+- **GSTR-1 tab**: shows B2B Taxable, B2C Taxable, Total Taxable, CGST, SGST, IGST, and Grand Total; PDF export button that generates a formatted GSTR-1 summary PDF.
+- **GSTR-3B tab**: shows outward supplies summary with CGST/SGST/IGST breakdown.
+- **HSN Summary tab**: lists HSN-wise taxable value and tax amounts.
+- Accessible from the Reports hub on mobile.
+
+---
+
+## REQ-023 · Mobile — Loaded Pipes (PDI / Dispatch Records)
+**Screen:** Mobile → Business → Loaded Pipes (`/business/loaded-pipes`)
+**Status:** Implemented
+
+- Displays loading/dispatch records within a selected date range (default: last 30 days).
+- Date range filter via an overlay dropdown (custom quick presets + from/to pickers).
+- Search bar to filter records by pipe name, party name, or vehicle number.
+- Each record card shows: loading date, pipe details, quantity, party name, vehicle number.
+- Fetches up to 500 records via `getLoadingRecords(from, to, size: 500)`.
+- Color scheme: violet-purple (`0xFF7C3AED`).
+
+---
+
+## REQ-024 · Web — PO Public Verify Page
+**Page:** `/verify/po/:poNumber` (no login required)
+**Status:** Implemented
+
+- Public (unauthenticated) page that anyone with the PO number can access to check its status.
+- Displays: PO number, current status badge (DRAFT / CONFIRMED / RECEIVED / CANCELLED), supplier name/address/GSTIN, and the line items with quantities.
+- Fetches data from `/api/purchase-orders/public/:poNumber`.
+- Handles not-found (displays "no purchase order found" message) and loading states.
+- Uses the P&P branded dark-blue header (`#1e497d`); no login/navigation chrome.
+
+---
+
+## REQ-025 · Web — Quotation Public Verify Page
+**Page:** `/verify/quotation/:quotationNumber` (no login required)
+**Status:** Implemented
+
+- Public (unauthenticated) page for customers to verify a quotation by its number.
+- Displays: quotation number, status badge (DRAFT / SENT / ACCEPTED / REJECTED / EXPIRED), customer name/address/GSTIN, and line items with quantities.
+- Fetches data from `/api/quotations/public/:quotationNumber`.
+- Handles not-found and loading states with appropriate UI messages.
+- Same P&P branded header as the PO verify page; no login/navigation chrome.
+
+---
+
 ## REQ-013 · Out of Office
 **Status:** Pending
 
