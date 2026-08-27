@@ -678,8 +678,8 @@ export default function DirectPurchasePage() {
           />
 
           {/* Sliding panel */}
-          <div className={`fixed inset-y-0 right-0 left-[220px] z-50 transition-transform duration-300 ease-out ${panelVisible ? 'translate-x-0' : 'translate-x-full'}`}>
-            <div className="w-full h-full bg-[#f8f9fb] flex flex-col overflow-hidden">
+          <div className={`fixed inset-y-0 right-0 left-0 z-50 transition-transform duration-300 ease-out ${panelVisible ? 'translate-x-0' : 'translate-x-full'}`}>
+            <div className="w-full h-full bg-white flex flex-col overflow-hidden">
 
               {/* Panel header */}
               <div className="bg-white border-b border-gray-200 px-8 py-5 flex items-center justify-between shrink-0">
@@ -706,8 +706,11 @@ export default function DirectPurchasePage() {
                 <div className="max-w-5xl mx-auto px-8 py-8 space-y-8">
 
                   {/* ── Purchase Details ── */}
-                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-6">Purchase Details</p>
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div className="bg-gradient-to-r from-violet-600 to-indigo-500 px-6 py-3.5">
+                      <p className="text-xs font-bold text-white uppercase tracking-widest">Purchase Details</p>
+                    </div>
+                    <div className="p-6">
 
                     {/* Outlet */}
                     {(outlets as any[]).length > 1 && (
@@ -825,12 +828,13 @@ export default function DirectPurchasePage() {
                         />
                       </div>
                     </div>
+                    </div>
                   </div>
 
                   {/* ── Line Items ── */}
                   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                    <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
-                      <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Products</p>
+                    <div className="bg-gradient-to-r from-violet-600 to-indigo-500 px-6 py-3.5">
+                      <p className="text-xs font-bold text-white uppercase tracking-widest">Products</p>
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full table-fixed">
@@ -882,31 +886,35 @@ export default function DirectPurchasePage() {
 
                   {/* ── Notes + Bill Summary ── */}
                   <div className="grid grid-cols-5 gap-6">
-                    <div className="col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-                      <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Notes (optional)</label>
+                    <div className="col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                      <div className="bg-gradient-to-r from-violet-600 to-indigo-500 px-6 py-3.5">
+                        <p className="text-xs font-bold text-white uppercase tracking-widest">Notes (optional)</p>
+                      </div>
+                      <div className="p-6">
                       <textarea
                         rows={5}
                         placeholder="Any additional remarks…"
                         value={notes} onChange={e => setNotes(e.target.value)}
                         className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-300"
                       />
+                      </div>
                     </div>
 
-                    <div className="col-span-3 bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col">
-                      <div className="flex items-center justify-between mb-5">
-                        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Bill Summary</p>
-                        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+                    <div className="col-span-3 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+                      <div className="bg-gradient-to-r from-violet-600 to-indigo-500 px-6 py-3.5 flex items-center justify-between shrink-0">
+                        <p className="text-xs font-bold text-white uppercase tracking-widest">Bill Summary</p>
+                        <div className="flex items-center gap-1 bg-white/20 rounded-lg p-0.5">
                           <button
                             onClick={() => setGstInclusive(false)}
-                            className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${!gstInclusive ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                            className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${!gstInclusive ? 'bg-white text-indigo-700 shadow-sm' : 'text-white/80 hover:text-white'}`}
                           >Excl. GST</button>
                           <button
                             onClick={() => setGstInclusive(true)}
-                            className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${gstInclusive ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                            className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${gstInclusive ? 'bg-white text-indigo-700 shadow-sm' : 'text-white/80 hover:text-white'}`}
                           >Incl. GST</button>
                         </div>
                       </div>
-
+                      <div className="p-6 flex flex-col flex-1">
                       <div className="space-y-3 flex-1">
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-gray-600">Subtotal (excl. GST)</span>
@@ -943,6 +951,7 @@ export default function DirectPurchasePage() {
                             ₹{totals.roundedTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </span>
                         </div>
+                      </div>
                       </div>
                     </div>
                   </div>
