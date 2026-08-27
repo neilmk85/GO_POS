@@ -329,6 +329,12 @@ func (pos *PurchaseOrderService) CreateDirect(data map[string]interface{}) (*mod
 				vendorBillNum = &inv
 			}
 
+			var paymentMethodPtr *models.ExpensePaymentMode
+			if pm, ok := data["paymentMethod"].(string); ok && pm != "" {
+				pmVal := models.ExpensePaymentMode(pm)
+				paymentMethodPtr = &pmVal
+			}
+
 			bill := models.PurchaseBill{
 				BillNumber:       billNumber,
 				SupplierID:       supplierId,
@@ -341,6 +347,7 @@ func (pos *PurchaseOrderService) CreateDirect(data map[string]interface{}) (*mod
 				TaxAmount:        taxAmount,
 				TotalAmount:      totalAmount,
 				PaidAmount:       effectivePaid,
+				PaymentMethod:    paymentMethodPtr,
 			}
 
 			// Bill items mirror the PO items

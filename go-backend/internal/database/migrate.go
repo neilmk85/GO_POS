@@ -618,6 +618,12 @@ func Migrate(db *gorm.DB) error {
 		return err
 	}
 
+	// Phase 27: payment_method on purchase_bills
+	if err := db.AutoMigrate(&models.PurchaseBill{}); err != nil {
+		slog.Error("[Database] Failed to migrate PurchaseBill (payment_method)", "error", err)
+		return err
+	}
+
 	slog.Info("[Database] Migrations completed successfully")
 	return nil
 }

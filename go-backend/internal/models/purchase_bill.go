@@ -15,7 +15,8 @@ type PurchaseBill struct {
 	VendorBillNumber *string         `gorm:"column:vendor_bill_number" json:"vendorBillNumber"`
 	BillDate         time.Time       `gorm:"column:bill_date;type:date" json:"billDate"`
 	DueDate          *time.Time      `gorm:"column:due_date;type:date" json:"dueDate"`
-	Status           BillStatus      `gorm:"column:status;default:UNPAID" json:"status"`
+	Status           BillStatus           `gorm:"column:status;default:UNPAID" json:"status"`
+	PaymentMethod    *ExpensePaymentMode  `gorm:"column:payment_method" json:"paymentMethod"`
 	Subtotal         decimal.Decimal `gorm:"column:subtotal;type:decimal(10,2);default:0" json:"subtotal"`
 	TaxAmount        decimal.Decimal `gorm:"column:tax_amount;type:decimal(10,2);default:0" json:"taxAmount"`
 	CGSTAmount       decimal.Decimal `gorm:"column:cgst_amount;type:decimal(10,2);default:0" json:"cgstAmount"`

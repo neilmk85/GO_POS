@@ -24,11 +24,15 @@ function fmtCur(n: any) {
   if (isNaN(v)) return '₹0'
   return '₹' + Math.round(v).toLocaleString('en-IN')
 }
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  CASH: 'Cash', UPI: 'UPI', CHEQUE: 'Cheque', BANK_TRANSFER: 'Bank Transfer', CARD: 'Card', OTHER: 'Other',
+}
 function paymentBadge(po: any) {
   const bill = po.sourceBills?.[0]
   if (!bill) return { label: 'Cash', color: 'text-emerald-600' }
-  if (bill.status === 'PAID')    return { label: 'Paid', color: 'text-emerald-600' }
-  if (bill.status === 'PARTIAL') return { label: 'Partial', color: 'text-amber-600' }
+  const method = bill.paymentMethod ? ` · ${PAYMENT_METHOD_LABELS[bill.paymentMethod] ?? bill.paymentMethod}` : ''
+  if (bill.status === 'PAID')    return { label: `Paid${method}`, color: 'text-emerald-600' }
+  if (bill.status === 'PARTIAL') return { label: `Partial${method}`, color: 'text-amber-600' }
   return { label: 'Unpaid', color: 'text-red-600' }
 }
 
@@ -448,6 +452,7 @@ export default function DirectPurchasePage() {
   const [notes, setNotes] = useState('')
   const [gstInclusive, setGstInclusive] = useState(true)
   const [paymentMode, setPaymentMode] = useState<'cash' | 'credit' | 'partial'>('cash')
+  const [paymentMethod, setPaymentMethod] = useState<string>('CASH')
   const [paidAmount, setPaidAmount] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -525,6 +530,7 @@ export default function DirectPurchasePage() {
     setNotes('')
     setGstInclusive(true)
     setPaymentMode('cash')
+    setPaymentMethod('CASH')
     setPaidAmount('')
   }
 
@@ -540,6 +546,7 @@ export default function DirectPurchasePage() {
       setNotes(po.notes ?? '')
       setGstInclusive(true)
       setPaymentMode('cash')
+      setPaymentMethod('CASH')
       setPaidAmount('')
       const prefilledLines: LineItem[] = (po.items ?? []).map((item: any) => ({
         _id: _lineId++,
@@ -603,6 +610,7 @@ export default function DirectPurchasePage() {
           purchaseDate,
           notes:         notes || null,
           paymentMode,
+          paymentMethod: paymentMode !== 'credit' ? paymentMethod : undefined,
           items: itemsPayload,
         }
         if (paymentMode === 'partial' && paidAmount) {
@@ -771,6 +779,30 @@ export default function DirectPurchasePage() {
                               Balance due: ₹{Math.max(0, totals.grandTotal - (parseFloat(paidAmount) || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                             </span>
                           )}
+                        </div>
+                      )}
+                      {paymentMode !== 'credit' && (
+                        <div className="mt-4">
+                          <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 mb-2">
+                            Payment Method
+                          </label>
+                          <div className="flex gap-2 flex-wrap">
+                            {([
+                              { key: 'CASH',         label: 'Cash' },
+                              { key: 'UPI',          label: 'UPI' },
+                              { key: 'CHEQUE',       label: 'Cheque' },
+                              { key: 'BANK_TRANSFER', label: 'Bank Transfer' },
+                            ] as const).map(({ key, label }) => (
+                              <button key={key} type="button" onClick={() => setPaymentMethod(key)}
+                                className={`px-4 py-2 rounded-xl border text-sm font-semibold transition-all ${
+                                  paymentMethod === key
+                                    ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                                    : 'border-gray-200 text-gray-500 hover:border-gray-300 bg-white'
+                                }`}>
+                                {label}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>}
