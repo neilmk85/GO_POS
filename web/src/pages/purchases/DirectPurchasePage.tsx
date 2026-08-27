@@ -706,7 +706,7 @@ export default function DirectPurchasePage() {
                 <div className="max-w-5xl mx-auto px-8 py-8 space-y-8">
 
                   {/* ── Purchase Details ── */}
-                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                  <div className="bg-white rounded-2xl border border-violet-100 shadow-[0_4px_24px_rgba(109,40,217,0.10)] overflow-hidden">
                     <div className="bg-gradient-to-r from-violet-600 to-indigo-500 px-6 py-3.5">
                       <p className="text-xs font-bold text-white uppercase tracking-widest">Purchase Details</p>
                     </div>
@@ -832,7 +832,7 @@ export default function DirectPurchasePage() {
                   </div>
 
                   {/* ── Line Items ── */}
-                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                  <div className="bg-white rounded-2xl border border-violet-100 shadow-[0_4px_24px_rgba(109,40,217,0.10)] overflow-hidden">
                     <div className="bg-gradient-to-r from-violet-600 to-indigo-500 px-6 py-3.5">
                       <p className="text-xs font-bold text-white uppercase tracking-widest">Products</p>
                     </div>
@@ -886,7 +886,7 @@ export default function DirectPurchasePage() {
 
                   {/* ── Notes + Bill Summary ── */}
                   <div className="grid grid-cols-5 gap-6">
-                    <div className="col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div className="col-span-2 bg-white rounded-2xl border border-violet-100 shadow-[0_4px_24px_rgba(109,40,217,0.10)] overflow-hidden">
                       <div className="bg-gradient-to-r from-violet-600 to-indigo-500 px-6 py-3.5">
                         <p className="text-xs font-bold text-white uppercase tracking-widest">Notes (optional)</p>
                       </div>
@@ -900,7 +900,7 @@ export default function DirectPurchasePage() {
                       </div>
                     </div>
 
-                    <div className="col-span-3 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+                    <div className="col-span-3 bg-white rounded-2xl border border-violet-100 shadow-[0_4px_24px_rgba(109,40,217,0.10)] overflow-hidden flex flex-col">
                       <div className="bg-gradient-to-r from-violet-600 to-indigo-500 px-6 py-3.5 flex items-center justify-between shrink-0">
                         <p className="text-xs font-bold text-white uppercase tracking-widest">Bill Summary</p>
                         <div className="flex items-center gap-1 bg-white/20 rounded-lg p-0.5">
@@ -1115,7 +1115,7 @@ export default function DirectPurchasePage() {
       <div className="p-6">
 
         {/* ── Purchase History ── */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-2xl border border-violet-100 shadow-[0_4px_24px_rgba(109,40,217,0.10)] overflow-hidden">
           <button
             onClick={() => setShowHist(h => !h)}
             className="w-full px-5 py-4 flex items-center justify-between border-b border-gray-100 hover:bg-gray-50 transition-colors"
