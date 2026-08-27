@@ -523,7 +523,7 @@ export default function DirectPurchasePage() {
     setInvoiceNo('')
     setPurchaseDate(new Date().toISOString().slice(0, 10))
     setNotes('')
-    setGstInclusive(false)
+    setGstInclusive(true)
     setPaymentMode('cash')
     setPaidAmount('')
   }
@@ -538,7 +538,7 @@ export default function DirectPurchasePage() {
         : new Date(po.createdAt).toISOString().slice(0, 10)
       setPurchaseDate(dateStr)
       setNotes(po.notes ?? '')
-      setGstInclusive(false)
+      setGstInclusive(true)
       setPaymentMode('cash')
       setPaidAmount('')
       const prefilledLines: LineItem[] = (po.items ?? []).map((item: any) => ({
