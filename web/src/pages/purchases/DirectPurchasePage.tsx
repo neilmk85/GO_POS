@@ -446,7 +446,7 @@ export default function DirectPurchasePage() {
   const [invoiceNo, setInvoiceNo] = useState('')
   const [purchaseDate, setPurchaseDate] = useState<string>(new Date().toISOString().slice(0, 10))
   const [notes, setNotes] = useState('')
-  const [gstInclusive, setGstInclusive] = useState(false)
+  const [gstInclusive, setGstInclusive] = useState(true)
   const [paymentMode, setPaymentMode] = useState<'cash' | 'credit' | 'partial'>('cash')
   const [paidAmount, setPaidAmount] = useState('')
   const [saving, setSaving] = useState(false)
