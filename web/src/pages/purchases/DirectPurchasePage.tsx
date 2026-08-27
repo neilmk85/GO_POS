@@ -848,16 +848,16 @@ export default function DirectPurchasePage() {
                           <col style={{ width: '44px' }} />
                         </colgroup>
                         <thead>
-                          <tr className="bg-gradient-to-r from-violet-50 to-blue-50 border-y border-violet-100">
-                            <th className="px-4 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Product</th>
-                            <th className="px-3 py-3 text-right text-[11px] font-bold text-violet-500 uppercase tracking-widest">Qty</th>
-                            <th className="px-3 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">Unit</th>
-                            <th className="px-3 py-3 text-right text-[11px] font-bold text-violet-500 uppercase tracking-widest">
+                          <tr className="bg-gray-100 border-y border-gray-200">
+                            <th className="px-4 py-3 text-left text-[11px] font-bold text-gray-900 uppercase tracking-widest">Product</th>
+                            <th className="px-3 py-3 text-right text-[11px] font-bold text-gray-900 uppercase tracking-widest">Qty</th>
+                            <th className="px-3 py-3 text-left text-[11px] font-bold text-gray-900 uppercase tracking-widest">Unit</th>
+                            <th className="px-3 py-3 text-right text-[11px] font-bold text-gray-900 uppercase tracking-widest">
                               <div>Unit Cost</div>
-                              <div className="text-[10px] font-normal text-violet-400 normal-case">{gstInclusive ? 'incl. GST' : 'excl. GST'}</div>
+                              <div className="text-[10px] font-normal text-gray-500 normal-case">{gstInclusive ? 'incl. GST' : 'excl. GST'}</div>
                             </th>
-                            <th className="px-3 py-3 text-left text-[11px] font-bold text-violet-500 uppercase tracking-widest">GST</th>
-                            <th className="px-4 py-3 text-right text-[11px] font-bold text-violet-500 uppercase tracking-widest">Amount</th>
+                            <th className="px-3 py-3 text-left text-[11px] font-bold text-gray-900 uppercase tracking-widest">GST</th>
+                            <th className="px-4 py-3 text-right text-[11px] font-bold text-gray-900 uppercase tracking-widest">Amount</th>
                             <th className="px-2 py-3" />
                           </tr>
                         </thead>
