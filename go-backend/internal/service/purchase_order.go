@@ -128,7 +128,8 @@ func (pos *PurchaseOrderService) Create(data map[string]interface{}) (*models.Pu
 
 	for _, item := range items {
 		itemMap := item.(map[string]interface{})
-		qty := decimal.NewFromFloat(itemMap["qty"].(float64))
+		qtyRaw, _ := itemMap["quantity"].(float64)
+		qty := decimal.NewFromFloat(qtyRaw)
 		cost := decimal.NewFromFloat(itemMap["unitCost"].(float64))
 		taxRate := decimal.New(0, 0)
 
@@ -230,7 +231,8 @@ func (pos *PurchaseOrderService) CreateDirect(data map[string]interface{}) (*mod
 
 	for _, item := range items {
 		itemMap := item.(map[string]interface{})
-		qty := decimal.NewFromFloat(itemMap["qty"].(float64))
+		qtyRaw, _ := itemMap["quantity"].(float64)
+		qty := decimal.NewFromFloat(qtyRaw)
 		cost := decimal.NewFromFloat(itemMap["unitCost"].(float64))
 		taxRate := decimal.New(0, 0)
 
@@ -428,7 +430,8 @@ func (pos *PurchaseOrderService) Update(id int, data map[string]interface{}) (*m
 		// Create new items
 		for _, item := range items {
 			itemMap := item.(map[string]interface{})
-			qty := decimal.NewFromFloat(itemMap["qty"].(float64))
+			qtyRaw, _ := itemMap["quantity"].(float64)
+		qty := decimal.NewFromFloat(qtyRaw)
 			cost := decimal.NewFromFloat(itemMap["unitCost"].(float64))
 			taxRate := decimal.New(0, 0)
 
