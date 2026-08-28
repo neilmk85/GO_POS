@@ -34,6 +34,7 @@ import CategoriesPage from '@/pages/inventory/CategoriesPage'
 import UomConversionPage from '@/pages/inventory/UomConversionPage'
 import BulkPurchasePage from '@/pages/inventory/BulkPurchasePage'
 import DirectPurchasePage from '@/pages/purchases/DirectPurchasePage'
+import DirectPurchaseFormPage from '@/pages/purchases/DirectPurchaseFormPage'
 import TransfersPage from '@/pages/inventory/TransfersPage'
 import OrdersPage from '@/pages/orders/OrdersPage'
 import CreateOrderPage from '@/pages/orders/CreateOrderPage'
@@ -213,6 +214,8 @@ export default function App() {
           <Route path="/reports/transport" element={<ProtectedRoute><TransportReportPage /></ProtectedRoute>} />
           <Route path="/settings/*" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
           <Route path="/purchases/direct" element={<ProtectedRoute><DirectPurchasePage /></ProtectedRoute>} />
+          <Route path="/purchases/direct/new" element={<ProtectedRoute><DirectPurchaseFormPage /></ProtectedRoute>} />
+          <Route path="/purchases/direct/edit/:poNumber" element={<ProtectedRoute><DirectPurchaseFormPage /></ProtectedRoute>} />
           <Route path="/purchases/*" element={<ProtectedRoute><PurchasesPage /></ProtectedRoute>} />
           <Route path="/incentives" element={<ProtectedRoute><IncentivesPage /></ProtectedRoute>} />
           <Route path="/staff" element={<ProtectedRoute><StaffPage /></ProtectedRoute>} />
