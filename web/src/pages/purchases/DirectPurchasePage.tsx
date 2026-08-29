@@ -69,7 +69,6 @@ export default function DirectPurchasePage() {
 
   // History
   const [histPage, setHistPage] = useState(0)
-  const [showHist, setShowHist] = useState(true)
   const { data: histData } = useQuery({
     queryKey: ['purchase-orders', effectiveOutletId, histPage, from, to, search],
     queryFn: () => purchaseOrderApi.getByOutlet(effectiveOutletId!, {
@@ -85,6 +84,7 @@ export default function DirectPurchasePage() {
 
   // PO Detail Modal
   const [selectedPO, setSelectedPO] = useState<any>(null)
+
 
   return (
     <div className="min-h-full bg-gray-50">
@@ -254,10 +254,7 @@ export default function DirectPurchasePage() {
 
         {/* ── Purchase History ── */}
         <div className="bg-white rounded-2xl border border-violet-100 shadow-[0_4px_24px_rgba(109,40,217,0.10)] overflow-hidden">
-          <button
-            onClick={() => setShowHist(h => !h)}
-            className="w-full px-5 py-4 flex items-center justify-between border-b border-gray-100 hover:bg-gray-50 transition-colors"
-          >
+          <div className="w-full px-5 py-4 flex items-center border-b border-gray-100">
             <div className="flex items-center gap-2">
               <History size={16} className="text-indigo-500" />
               <span className="font-bold text-gray-900">Purchase History</span>
@@ -267,12 +264,10 @@ export default function DirectPurchasePage() {
                 </span>
               )}
             </div>
-            <span className="text-xs text-gray-400">{showHist ? 'Hide ↑' : 'Show ↓'}</span>
-          </button>
+          </div>
 
-          {showHist && (
-            <>
-              <div className="overflow-x-auto">
+          <>
+            <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
                     <tr className="bg-gradient-to-r from-violet-50 to-blue-50 border-y border-violet-100">
@@ -342,8 +337,7 @@ export default function DirectPurchasePage() {
                   </button>
                 </div>
               )}
-            </>
-          )}
+          </>
         </div>
 
       </div>
