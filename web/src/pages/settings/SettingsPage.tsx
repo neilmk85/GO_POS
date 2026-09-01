@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Store, Users, Receipt, Percent, Plus, Pencil, Trash2, X, Loader2, Shield, Lock, Check, AlertCircle, ShieldCheck, Edit2, Building2, Phone, Mail, MapPin, FileText, Hash, MessageSquare, MessageCircle, Eye, EyeOff, Zap, Send, LayoutTemplate, Palette, Image, AlignLeft, Type, Baseline, KeyRound, Settings as SettingsIcon, ArrowLeft, IndianRupee, Save, Wrench, CheckSquare, Square, UserPlus } from 'lucide-react'
+import { Store, Users, Receipt, Percent, Plus, Pencil, Trash2, X, Loader2, Shield, Lock, Check, AlertCircle, ShieldCheck, Edit2, Building2, Phone, Mail, MapPin, FileText, Hash, MessageSquare, MessageCircle, Eye, EyeOff, Zap, Send, LayoutTemplate, Palette, Image, AlignLeft, Type, Baseline, KeyRound, Settings as SettingsIcon, ArrowLeft, IndianRupee, Save, Wrench, CheckSquare, Square, UserPlus, FlaskConical } from 'lucide-react'
 import PermissionsSettings from './PermissionsSettings'
+import FormulasSettings from './FormulasSettings'
 import { tdsApi } from '@/services/api'
 import toast from 'react-hot-toast'
 import { useQuery, useMutation, useQueryClient, useQueries } from '@tanstack/react-query'
@@ -9,15 +10,16 @@ import { taxGroupApi, rolesApi, outletApi, integrationApi, staffApi, userCardPer
 import { useAuthStore } from '@/store/authStore'
 
 const tabs = [
-  { key: 'outlet',           label: 'Factory',          icon: <Store size={13} />,         desc: 'Manage your factory details and business information' },
-  { key: 'roles',            label: 'Users',            icon: <Shield size={13} />,        desc: 'Manage users and define staff roles' },
-  { key: 'permissions',      label: 'Permissions',      icon: <KeyRound size={13} />,      desc: 'Manage system permissions and process access by role' },
-  { key: 'tax',              label: 'Tax Groups',       icon: <Percent size={13} />,       desc: 'Configure GST tax groups and rates' },
-  { key: 'receipt',          label: 'Receipt',          icon: <Receipt size={13} />,       desc: 'Customise your POS receipt template' },
-  { key: 'invoice',          label: 'Templates',        icon: <LayoutTemplate size={13} />,desc: 'Manage notification and document templates' },
-  { key: 'integrations',     label: 'Integrations',     icon: <Zap size={13} />,           desc: 'Connect email, SMS, and WhatsApp channels' },
-  { key: 'service-rates',    label: 'Service Rates',    icon: <IndianRupee size={13} />,   desc: 'Define third-party service rates for fabrication, spinning, transport and labour' },
-  { key: 'tds',              label: 'TDS Sections',     icon: <Wrench size={13} />,        desc: 'Manage TDS sections and applicable rates (194C, 194J, etc.)' },
+  { key: 'outlet',           label: 'Factory',          icon: <Store size={13} />,          desc: 'Manage your factory details and business information' },
+  { key: 'roles',            label: 'Users',            icon: <Shield size={13} />,         desc: 'Manage users and define staff roles' },
+  { key: 'permissions',      label: 'Permissions',      icon: <KeyRound size={13} />,       desc: 'Manage system permissions and process access by role' },
+  { key: 'tax',              label: 'Tax Groups',       icon: <Percent size={13} />,        desc: 'Configure GST tax groups and rates' },
+  { key: 'receipt',          label: 'Receipt',          icon: <Receipt size={13} />,        desc: 'Customise your POS receipt template' },
+  { key: 'invoice',          label: 'Templates',        icon: <LayoutTemplate size={13} />, desc: 'Manage notification and document templates' },
+  { key: 'integrations',     label: 'Integrations',     icon: <Zap size={13} />,            desc: 'Connect email, SMS, and WhatsApp channels' },
+  { key: 'service-rates',    label: 'Service Rates',    icon: <IndianRupee size={13} />,    desc: 'Define third-party service rates for fabrication, spinning, transport and labour' },
+  { key: 'tds',              label: 'TDS Sections',     icon: <Wrench size={13} />,         desc: 'Manage TDS sections and applicable rates (194C, 194J, etc.)' },
+  { key: 'formulas',         label: 'Formulas',         icon: <FlaskConical size={13} />,   desc: 'View and edit pipe material formulas for 5.25m and 6.46m lengths' },
 ]
 
 export default function SettingsPage() {
@@ -83,6 +85,7 @@ export default function SettingsPage() {
         {tab === 'integrations'     && <IntegrationsSettings />}
         {tab === 'service-rates'    && <ServiceRatesSettings />}
         {tab === 'tds'              && <TDSSectionsSettings />}
+        {tab === 'formulas'         && <FormulasSettings />}
       </div>
     </div>
   )
