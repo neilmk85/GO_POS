@@ -48,7 +48,7 @@ type UpsertMaterialsRequest struct {
 
 // ── Query methods ─────────────────────────────────────────────────────────────
 
-func (s *PipeConfigService) GetAll(diameterMM *int, pressureClass *string, active *bool, page, size int) ([]models.PipeConfig, int64, error) {
+func (s *PipeConfigService) GetAll(diameterMM *int, pressureClass *string, active *bool, lengthM *float64, page, size int) ([]models.PipeConfig, int64, error) {
 	q := s.db.Model(&models.PipeConfig{})
 	if diameterMM != nil {
 		q = q.Where("diameter_mm = ?", *diameterMM)
@@ -58,6 +58,9 @@ func (s *PipeConfigService) GetAll(diameterMM *int, pressureClass *string, activ
 	}
 	if active != nil {
 		q = q.Where("is_active = ?", *active)
+	}
+	if lengthM != nil {
+		q = q.Where("ABS(length_m - ?) < 0.1", *lengthM)
 	}
 
 	var total int64

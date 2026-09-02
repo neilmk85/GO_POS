@@ -38,8 +38,15 @@ func (h *PipeConfigHandler) GetAll(w http.ResponseWriter, r *http.Request) {
 		a := v == "true"
 		activePtr = &a
 	}
+	var lengthPtr *float64
+	if v := r.URL.Query().Get("lengthM"); v != "" {
+		f, err := strconv.ParseFloat(v, 64)
+		if err == nil {
+			lengthPtr = &f
+		}
+	}
 
-	configs, total, err := h.service.GetAll(diamPtr, pcPtr, activePtr, page, size)
+	configs, total, err := h.service.GetAll(diamPtr, pcPtr, activePtr, lengthPtr, page, size)
 	if err != nil {
 		handleError(w, err)
 		return

@@ -797,7 +797,7 @@ export const salesOrderPaymentApi = {
 // ── PCCP Production APIs ────────────────────────────────────────────────────
 
 export const pipeConfigApi = {
-  getAll: (params?: { diameterMm?: number; pressureClass?: string; active?: boolean; page?: number; size?: number }) =>
+  getAll: (params?: { diameterMm?: number; pressureClass?: string; active?: boolean; lengthM?: number; page?: number; size?: number }) =>
     api.get<ApiResponse<any>>('/production/pipe-configs', { params }),
   getById: (id: number) =>
     api.get<ApiResponse<any>>(`/production/pipe-configs/${id}`),
