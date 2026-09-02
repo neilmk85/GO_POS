@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Store, Users, Receipt, Percent, Plus, Pencil, Trash2, X, Loader2, Shield, Lock, Check, AlertCircle, ShieldCheck, Edit2, Building2, Phone, Mail, MapPin, FileText, Hash, MessageSquare, MessageCircle, Eye, EyeOff, Zap, Send, LayoutTemplate, Palette, Image, AlignLeft, Type, Baseline, KeyRound, Settings as SettingsIcon, ArrowLeft, IndianRupee, Save, Wrench, CheckSquare, Square, UserPlus, FlaskConical } from 'lucide-react'
 import PermissionsSettings from './PermissionsSettings'
 import FormulasSettings from './FormulasSettings'
