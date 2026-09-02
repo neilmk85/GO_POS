@@ -140,7 +140,7 @@ export default function App() {
           <Route path="/verify/po/:poNumber" element={<POVerifyPage />} />
           <Route path="/verify/quotation/:quotationNumber" element={<QuotationVerifyPage />} />
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/" element={<Navigate to="/dashboard" />} />
+          <Route path="/" element={<Navigate to="/customers" />} />
           <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
           <Route path="/business" element={<ProtectedRoute><BusinessPage /></ProtectedRoute>} />
           <Route path="/business/cement-bags" element={<ProtectedRoute><CementBagsPage /></ProtectedRoute>} />
