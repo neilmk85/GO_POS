@@ -31,7 +31,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   void initState() {
     super.initState();
     _emailCtrl.text    = 'admin@pppipeproducts.com';
-    _passwordCtrl.text = 'Admin@123';
+    _passwordCtrl.text = 'admin';
     _fadeCtrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 900));
     _fadeAnim =
@@ -184,8 +184,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                             icon: Icons.email_outlined,
                             hasError: errorMsg != null && errorField == LoginErrorField.email,
                             validator: (v) =>
-                                v == null || !v.contains('@')
-                                    ? 'Enter a valid email'
+                                v == null || v.trim().isEmpty
+                                    ? 'Enter your username'
                                     : null,
                           ),
                           if (errorMsg != null && errorField == LoginErrorField.email)

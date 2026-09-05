@@ -56,7 +56,12 @@ func SeedPipeConfigs(db *gorm.DB) error {
 				LengthM:       cfg.lengthM,
 				Active:        true,
 			}
-			if err := db.Create(&newCfg).Error; err != nil { return err }
+			if err := db.Create(&newCfg).Error; err != nil {
+				// ignore duplicate — load existing record instead
+				if err2 := db.Where("name = ?", cfg.name).First(&newCfg).Error; err2 != nil {
+					return err
+				}
+			}
 			exactMatch = &newCfg
 		}
 		configsToUpdate = append(configsToUpdate, *exactMatch)

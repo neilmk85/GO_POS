@@ -124,15 +124,15 @@ func Seed(db *gorm.DB) error {
 	db.Model(&models.User{}).Count(&userCount)
 
 	if userCount == 0 {
-		hashedPassword, err := util.HashPassword("Admin@123")
+		hashedPassword, err := util.HashPassword("1234")
 		if err != nil {
 			slog.Error("[Database] Failed to hash password", "error", err)
 			return err
 		}
 
 		adminUser := models.User{
-			Name:     "Administrator",
-			Email:    "admin@pos.com",
+			Name:     "Admin",
+			Email:    "admin@gmail.com",
 			Password: hashedPassword,
 			Active:   true,
 		}

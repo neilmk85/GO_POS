@@ -43,11 +43,8 @@ const _pccpStages = [
 ];
 
 const _cards = [
-  _BizCard('pccp',               'PCCP',               'Pre-stressed concrete pipes',  'Production', Icons.layers_outlined,               Color(0xFF7C3AED)),
-  _BizCard('psc',                'PSC',                'Pre-stressed concrete spun',    'Production', Icons.inventory_2_outlined,          Color(0xFF6D28D9)),
   _BizCard('testing-lab',        'Testing Lab',        'QC & test results log',         'Quality',    Icons.science_outlined,              Color(0xFF4F46E5)),
-  _BizCard('pdi',                'PDI',                'Pre-dispatch inspection',       'Quality',    Icons.assignment_turned_in_outlined, Color(0xFF9333EA)),
-  _BizCard('maintenance',        'Maintenance',        'Equipment & plant upkeep',      'Operations', Icons.build_outlined,                Color(0xFF7C3AED)),
+_BizCard('maintenance',        'Maintenance',        'Equipment & plant upkeep',      'Operations', Icons.build_outlined,                Color(0xFF7C3AED)),
   _BizCard('vehicles',           'Vehicles',           'Diesel & mileage tracking',     'Logistics',  Icons.local_shipping_outlined,       Color(0xFF4338CA)),
   _BizCard('silo',               'Silo',               'Silo fill & level records',     'Operations', Icons.storage_outlined,              Color(0xFF4F46E5)),
   _BizCard('silo-extraction',    'Silo Extraction',    'Material drawn from silos',     'Operations', Icons.download_outlined,             Color(0xFF2563EB)),
@@ -66,7 +63,7 @@ const _cards = [
   _BizCard('transport-report',   'Transport Report',   'Vehicle trip summary',          'Logistics',  Icons.bar_chart_outlined,            Color(0xFF2563EB)),
 ];
 
-const _routed = {'pccp', 'cement-bags', 'vehicles', 'silo', 'silo-extraction', 'pdi', 'loading', 'extra-vehicles', 'conversion', 'loaded-pipes', 'loading-invoice', 'labour', 'store-material', 'maintenance', 'cutting', 'diesel-maintenance', 'transport-report', 'discard', 'extra-fab', 'testing-lab'};
+const _routed = {'cement-bags', 'vehicles', 'silo', 'silo-extraction', 'loading', 'extra-vehicles', 'conversion', 'loaded-pipes', 'loading-invoice', 'labour', 'store-material', 'maintenance', 'cutting', 'diesel-maintenance', 'transport-report', 'discard', 'extra-fab', 'testing-lab'};
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 

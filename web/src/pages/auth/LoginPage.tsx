@@ -9,7 +9,7 @@ import { authApi } from '@/services/api'
 import { useAuthStore } from '@/store/authStore'
 
 const loginSchema = z.object({
-  email: z.string().email('Enter a valid email'),
+  email: z.string().min(1, 'Username required'),
   password: z.string().min(1, 'Password required'),
 })
 type LoginForm = z.infer<typeof loginSchema>
@@ -25,8 +25,8 @@ export default function LoginPage() {
   const { register, handleSubmit, formState: { errors }, watch } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: 'admin@pppipeproducts.com',
-      password: 'admin',
+      email: 'admin@gmail.com',
+      password: '1234',
     },
   })
 
@@ -211,7 +211,7 @@ export default function LoginPage() {
               <input
                 {...register('email')}
                 type="email"
-                placeholder="admin@pppipeproducts.com"
+                placeholder="admin@gmail.com"
                 autoComplete="email"
                 className="
                   w-full pl-10 pr-4 py-3.5 rounded-xl text-white text-[15px]
@@ -327,7 +327,7 @@ export default function LoginPage() {
 
         {/* Hint */}
         <p className="text-center text-[11px] text-white/40 mt-6">
-          Default: admin@pppipeproducts.com / admin
+          Default: admin@gmail.com / 1234
         </p>
       </div>
     </div>
