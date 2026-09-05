@@ -20,13 +20,14 @@ func NewProductionOrderService(db *gorm.DB) *ProductionOrderService {
 // ── DTOs ─────────────────────────────────────────────────────────────────────
 
 type CreateProductionOrderRequest struct {
-	SalesOrderID    *int       `json:"salesOrderId"`
-	PipeConfigID    int        `json:"pipeConfigId"`
-	OutletID        int        `json:"outletId"`
-	PlannedQty      int        `json:"plannedQty"`
-	PlannedStart    *time.Time `json:"plannedStartDate"`
-	PlannedEnd      *time.Time `json:"plannedEndDate"`
-	Notes           *string    `json:"notes"`
+	SalesOrderID *int       `json:"salesOrderId"`
+	PipeConfigID *int       `json:"pipeConfigId"`  // optional — assigned at Spinning stage
+	DiameterMm   int        `json:"diameterMm"`    // required — pipe diameter in mm
+	OutletID     int        `json:"outletId"`
+	PlannedQty   int        `json:"plannedQty"`
+	PlannedStart *time.Time `json:"plannedStartDate"`
+	PlannedEnd   *time.Time `json:"plannedEndDate"`
+	Notes        *string    `json:"notes"`
 }
 
 type UpdateProductionOrderStatusRequest struct {
@@ -61,7 +62,7 @@ type OrderSummary struct {
 	Status         string    `json:"status"`
 	OutletID       int       `json:"outletId"`
 	FinishedPipes  int       `json:"finishedPipes"`
-	PipeConfigID   int       `json:"pipeConfigId"`
+	PipeConfigID   *int      `json:"pipeConfigId"`
 	PipeConfigName string    `json:"pipeConfigName"`
 	DiameterMm     int       `json:"diameterMm"`
 	PressureClass  string    `json:"pressureClass"`
@@ -80,7 +81,10 @@ func (s *ProductionOrderService) GetSummaries(stage string) ([]OrderSummary, err
 	err := s.db.
 		Table("production_orders po").
 		Select(`po.id, po.po_number, po.planned_qty, po.status, po.outlet_id, po.pipe_config_id, po.created_at,
-			pc.name AS pipe_config_name, pc.diameter_mm, pc.pressure_class, COALESCE(pc.length_m, 5.25) AS length_m,
+			COALESCE(pc.name, CONCAT(po.diameter_mm, 'mm (Pre-Spinning)')) AS pipe_config_name,
+			COALESCE(pc.diameter_mm, po.diameter_mm) AS diameter_mm,
+			COALESCE(pc.pressure_class, '') AS pressure_class,
+			COALESCE(pc.length_m, 5.25) AS length_m,
 			COALESCE(SUM(CASE WHEN pe.stage_type = ? THEN pe.pipes_completed ELSE 0 END), 0) AS finished_pipes`, stage).
 		Joins("LEFT JOIN pipe_configs pc ON pc.id = po.pipe_config_id").
 		Joins("LEFT JOIN production_entries pe ON pe.production_order_id = po.id").
@@ -388,8 +392,8 @@ func (s *ProductionOrderService) GetByID(id int) (*models.ProductionOrder, error
 // ── Mutation methods ──────────────────────────────────────────────────────────
 
 func (s *ProductionOrderService) Create(req CreateProductionOrderRequest, userID int, createdBy string) (*models.ProductionOrder, error) {
-	if req.PipeConfigID == 0 {
-		return nil, &util.BusinessException{StatusCode: 400, Message: "pipeConfigId is required"}
+	if req.DiameterMm <= 0 {
+		return nil, &util.BusinessException{StatusCode: 400, Message: "diameterMm is required and must be > 0"}
 	}
 	if req.OutletID == 0 {
 		return nil, &util.BusinessException{StatusCode: 400, Message: "outletId is required"}
@@ -398,10 +402,15 @@ func (s *ProductionOrderService) Create(req CreateProductionOrderRequest, userID
 		return nil, &util.BusinessException{StatusCode: 400, Message: "plannedQty must be > 0"}
 	}
 
-	// Verify pipe config exists
-	var pc models.PipeConfig
-	if err := s.db.First(&pc, req.PipeConfigID).Error; err != nil {
-		return nil, &util.BusinessException{StatusCode: 400, Message: "pipeConfigId not found"}
+	// If pipe config provided, verify it exists and its diameter matches
+	if req.PipeConfigID != nil {
+		var pc models.PipeConfig
+		if err := s.db.First(&pc, *req.PipeConfigID).Error; err != nil {
+			return nil, &util.BusinessException{StatusCode: 400, Message: "pipeConfigId not found"}
+		}
+		if pc.DiameterMM != req.DiameterMm {
+			return nil, &util.BusinessException{StatusCode: 400, Message: fmt.Sprintf("pipe config diameter (%dmm) does not match diameterMm (%d)", pc.DiameterMM, req.DiameterMm)}
+		}
 	}
 
 	poNumber, err := util.GenerateProductionOrderNumber(s.db)
@@ -413,6 +422,7 @@ func (s *ProductionOrderService) Create(req CreateProductionOrderRequest, userID
 		PONumber:        poNumber,
 		SalesOrderID:    req.SalesOrderID,
 		PipeConfigID:    req.PipeConfigID,
+		DiameterMm:      req.DiameterMm,
 		OutletID:        req.OutletID,
 		PlannedQty:      req.PlannedQty,
 		Status:          models.ProdOrderDraft,

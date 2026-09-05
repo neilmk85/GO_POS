@@ -439,9 +439,19 @@ func (sos *SalesOrderService) ConvertItemToPO(soItemID int, outletID int) (*mode
 	// Derive delivery date from SO required date
 	plannedQty := int(item.Quantity.InexactFloat64())
 
+	// Determine diameter from pipe config if available
+	var diameterMm int
+	if item.PipeConfigID != nil {
+		var pc models.PipeConfig
+		if err := sos.db.First(&pc, *item.PipeConfigID).Error; err == nil {
+			diameterMm = pc.DiameterMM
+		}
+	}
+
 	po := &models.ProductionOrder{
 		PONumber:      poNum,
-		PipeConfigID:  *item.PipeConfigID,
+		PipeConfigID:  item.PipeConfigID,
+		DiameterMm:    diameterMm,
 		OutletID:      outletID,
 		SalesOrderID:  &item.SalesOrderID,
 		PlannedQty:    plannedQty,

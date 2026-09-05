@@ -7,7 +7,8 @@ type ProductionOrder struct {
 	ID             int                   `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
 	PONumber       string                `gorm:"uniqueIndex;size:191;column:po_number" json:"poNumber"` // auto-generated, e.g. "PRD-2025-0001"
 	SalesOrderID   *int                  `gorm:"column:sales_order_id" json:"salesOrderId"`    // nullable — production can start without a SO
-	PipeConfigID   int                   `gorm:"column:pipe_config_id" json:"pipeConfigId"`
+	PipeConfigID   *int                  `gorm:"column:pipe_config_id" json:"pipeConfigId"`
+	DiameterMm     int                   `gorm:"column:diameter_mm;default:0" json:"diameterMm"`
 	OutletID       int                   `gorm:"column:outlet_id" json:"outletId"`
 	PlannedQty     int                   `gorm:"column:planned_qty" json:"plannedQty"`
 	Status         ProductionOrderStatus `gorm:"column:status;default:DRAFT" json:"status"`
@@ -27,7 +28,7 @@ type ProductionOrder struct {
 	UpdatedBy *string   `gorm:"column:updated_by" json:"updatedBy"`
 
 	SalesOrder *SalesOrder        `gorm:"foreignKey:SalesOrderID" json:"salesOrder,omitempty"`
-	PipeConfig *PipeConfig        `gorm:"foreignKey:PipeConfigID" json:"pipeConfig,omitempty"`
+	PipeConfig *PipeConfig        `gorm:"foreignKey:PipeConfigID;references:ID" json:"pipeConfig,omitempty"`
 	Outlet     *Outlet            `gorm:"foreignKey:OutletID" json:"outlet,omitempty"`
 	Entries    []ProductionEntry  `gorm:"foreignKey:ProductionOrderID" json:"entries,omitempty"`
 	CostSheet  *CostSheet         `gorm:"foreignKey:ProductionOrderID" json:"costSheet,omitempty"`

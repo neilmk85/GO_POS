@@ -7,7 +7,7 @@ import "time"
 type ProductionEntry struct {
 	ID                int           `gorm:"primaryKey;autoIncrement;column:id" json:"id"`
 	ProductionOrderID int           `gorm:"index;column:production_order_id" json:"productionOrderId"`
-	PipeConfigID      int           `gorm:"column:pipe_config_id" json:"pipeConfigId"`
+	PipeConfigID      *int          `gorm:"column:pipe_config_id" json:"pipeConfigId"`
 	StageType         ProdStageType `gorm:"column:stage_type" json:"stageType"`
 
 	// Core user inputs — the same 4 fields for every process
@@ -32,7 +32,7 @@ type ProductionEntry struct {
 	UpdatedBy *string   `gorm:"column:updated_by" json:"updatedBy"`
 
 	ProductionOrder *ProductionOrder      `gorm:"foreignKey:ProductionOrderID" json:"productionOrder,omitempty"`
-	PipeConfig      *PipeConfig           `gorm:"foreignKey:PipeConfigID" json:"pipeConfig,omitempty"`
+	PipeConfig      *PipeConfig           `gorm:"foreignKey:PipeConfigID;references:ID" json:"pipeConfig,omitempty"`
 	Machine         *ProductionMachine    `gorm:"foreignKey:MachineID" json:"machine,omitempty"`
 	Consumptions    []MaterialConsumption `gorm:"foreignKey:ProductionEntryID" json:"consumptions,omitempty"`
 }

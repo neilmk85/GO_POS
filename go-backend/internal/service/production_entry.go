@@ -32,6 +32,7 @@ type MaterialConsumptionInput struct {
 type CreateProductionEntryRequest struct {
 	ProductionOrderID int                        `json:"productionOrderId"`
 	StageType         string                     `json:"stageType"`
+	PipeConfigID      *int                       `json:"pipeConfigId"` // required at SPINNING if order has no pipe config yet
 	PipesProcessed    int                        `json:"pipesProcessed"`
 	PipesCompleted    int                        `json:"pipesCompleted"`
 	PipesRejected     *int                       `json:"pipesRejected"`
@@ -166,6 +167,33 @@ func (s *ProductionEntryService) Create(req CreateProductionEntryRequest, userID
 		return nil, &util.BusinessException{StatusCode: 400, Message: "cannot add entries to a completed or cancelled order"}
 	}
 
+	// 2a. Spinning stage: assign pipe config to the order if not yet set
+	stageIdx := models.StageIndex(stage)
+	spinningIdx := models.StageIndex(models.StageSpinning)
+	if stage == models.StageSpinning && order.PipeConfigID == nil {
+		if req.PipeConfigID == nil {
+			return nil, &util.BusinessException{StatusCode: 400, Message: "pipeConfigId is required at SPINNING stage to assign pressure class"}
+		}
+		var pc models.PipeConfig
+		if err := s.db.First(&pc, *req.PipeConfigID).Error; err != nil {
+			return nil, &util.BusinessException{StatusCode: 400, Message: "pipeConfigId not found"}
+		}
+		if pc.DiameterMM != order.DiameterMm {
+			return nil, &util.BusinessException{StatusCode: 400, Message: fmt.Sprintf("pipe config diameter (%dmm) does not match order diameter (%dmm)", pc.DiameterMM, order.DiameterMm)}
+		}
+		// Lock in the pipe config on the order
+		if err := s.db.Model(&order).Updates(map[string]interface{}{"pipe_config_id": *req.PipeConfigID}).Error; err != nil {
+			return nil, err
+		}
+		order.PipeConfigID = req.PipeConfigID
+		order.PipeConfig = &pc
+	}
+
+	// 2b. Post-spinning stages require a pipe config to be set on the order
+	if stageIdx > spinningIdx && order.PipeConfigID == nil {
+		return nil, &util.BusinessException{StatusCode: 400, Message: "pipe config (pressure class) must be assigned at SPINNING before proceeding to this stage"}
+	}
+
 	// 3. Prior-stage constraint
 	priorInfo, err := s.GetPriorStageCompleted(req.ProductionOrderID, stage)
 	if err != nil {
@@ -224,7 +252,7 @@ func (s *ProductionEntryService) Create(req CreateProductionEntryRequest, userID
 
 	entry := &models.ProductionEntry{
 		ProductionOrderID: req.ProductionOrderID,
-		PipeConfigID:      order.PipeConfigID,
+		PipeConfigID:      order.PipeConfigID, // nil for pre-spinning entries
 		StageType:         stage,
 		PipesProcessed:    req.PipesProcessed,
 		PipesCompleted:    req.PipesCompleted,
